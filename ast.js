@@ -423,6 +423,7 @@ class ControlNode extends AST{
         this.line = line;
         this.isBreak = isBreak;
         this.isContinue = !this.isBreak;
+        // store loop control instructions beginning slot for later patching
         this.patchSlot = null;
         this.localsCount = 0;
         this.loopName = '';

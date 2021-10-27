@@ -86,6 +86,7 @@ BPTable[tokens.TOKEN_XOR_EQUAL] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_STAR_STAR] = bp(POWER_FACTOR, null, binary);  // d
 BPTable[tokens.TOKEN_STAR_STAR_EQUAL] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_ARROW] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_FAT_ARROW] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_PLUS_PLUS] = bp(POWER_POSTFIX, unary, postfix);
 BPTable[tokens.TOKEN_MINUS_MINUS] = bp(POWER_POSTFIX, unary, postfix);
 BPTable[tokens.TOKEN_DOT_DOT] = bp(POWER_CALL, null, rangeLiteral);  // d
@@ -137,9 +138,9 @@ function Parser(src) {
     this.currentScope = { name: "global", enclosingScope: null };
     this.scopeCount = 1;
     this.inLoop = 0;
-    this.inOfExpr = 0;
     this.inFunction = 0;
     this.backtrack = false;
+    this.currentBlock = null;
 }
 
 Parser.prototype.push = function(val) {
@@ -280,7 +281,7 @@ function grouping() {
         return;
     }
     this.consume(tokens.TOKEN_RIGHT_BRACKET);
-    if (this.check(tokens.TOKEN_ARROW)) {
+    if (this.check(tokens.TOKEN_FAT_ARROW)) {
         lambdaExpr.call(this, this.pop(), true);
     }
 }
@@ -486,12 +487,7 @@ function ofExpr() {
                 // mixed usage: of a, b, * -> ...
                 this.pError(errors.EP0009, { token: this.previousToken });
             }
-            // add a flag, to ensure we don't parse the arm as a lambda func,
-            // i.e. of a -> 5 could be parsed as `of (a -> 5)` [ of (lambda) ]
-            // which would be wrong.
-            this.inOfExpr++;
             this.expression();
-            this.inOfExpr--;
             node.conditions.push(this.pop());
             hasPrevExpr = true;
         }
@@ -534,7 +530,7 @@ function caseExpr() {
     const caseNode = new ast.CaseNode(this.previousToken.line);
     if (!this.check(tokens.TOKEN_LEFT_CURLY)){
         this.expression();
-        caseNode.conditionExpr = this.pop();
+        caseNode.conditionExpr = this.pop(); // todo: pull out this
     }
     this.consume(tokens.TOKEN_LEFT_CURLY);
     while (!this.check(tokens.TOKEN_RIGHT_CURLY)
@@ -713,7 +709,7 @@ function variable() {
         this.expression();
         const value = this.pop();
         this.push(new ast.AssignNode(node, value, op, node.line));
-    } else if (this.check(tokens.TOKEN_ARROW) && !this.inOfExpr) {
+    } else if (this.check(tokens.TOKEN_FAT_ARROW)) {
         lambdaExpr.call(this, node, true);
     } else {
         this.push(node);
@@ -731,7 +727,7 @@ function lambdaExpr(firstParam, skipRightBracket) {
         firstParam ? this.push(firstParam) : void 0;
         return;
     }
-    // (x, y) -> expr; | (x, y) -> {}
+    // (x, y) => expr; | (x, y) => {}
     const params = firstParam ? [firstParam] : [];
     this.inFunction++;
     if (!skipRightBracket) {
@@ -745,7 +741,7 @@ function lambdaExpr(firstParam, skipRightBracket) {
         }
         this.consume(tokens.TOKEN_RIGHT_BRACKET);
     }
-    this.consume(tokens.TOKEN_ARROW);
+    this.consume(tokens.TOKEN_FAT_ARROW);
     const fn = new ast.FunctionNode(null, true);
     const beginLine = this.currentToken.line;
     this.statement(true);
@@ -849,7 +845,7 @@ Parser.prototype.continueStatement = function() {
         this.currentToken.line, false
     ));
     this.advance();
-    this.consume(tokens.TOKEN_SEMI_COLON);
+    // this.consume(tokens.TOKEN_SEMI_COLON);
 };
 
 Parser.prototype.breakStatement = function() {
@@ -1023,6 +1019,7 @@ Parser.prototype.statement = function(forgetSemi) { // , lookAhead, str
             break;
         case tokens.TOKEN_BREAK:
             this.breakStatement();
+            consumeSemicolon = true;
             break;
         case tokens.TOKEN_CONTINUE:
             this.continueStatement();

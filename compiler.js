@@ -62,9 +62,9 @@ class Compiler extends ast.NodeVisitor {
             false
         );
         this.currentScope = 0;
-        this.locals = [new Local('', this.currentScope)];
+        this.locals = [new Local('', this.currentScope)]; // reserve slot 0
         this.currentLoop = {loopScope: -1};
-        this.loopControls = []; // reserve slot 0
+        this.loopControls = [];
         this.enclosingCompiler = null;
     }
 
@@ -511,30 +511,21 @@ class Compiler extends ast.NodeVisitor {
         this.currentLoop = prevLoop;
     }
 
-    compileLoopControl(control, continuePoint, breakPoint){
+    assertJumpOffset(offset, controlNode){
+        if (offset >= utils.UINT16_COUNT){
+            this.compilationError(
+                "code body too large to jump over",
+                controlNode
+            );
+        }
+    }
+
+    compileLoopControl(control, continuePoint, breakEnd){
         const slot = control.patchSlot;
-        const localsCount = control.localsCount;
         if (control.isBreak){
-            if (localsCount){
-                // generate special instructions for the break statement.
-                // since we need to pop every local created in the entire
-                // loop scope when we jump/break out of the loop.
-                const popJmp = gen.emitJump(this.fn.code, opcode.OP_JUMP);
-                // set the point to break/jump into
-                breakPoint = this.fn.code.length;
-                // this will be skipped if control doesn't come from
-                // a 'break' statement
-                gen.emit2BytesOperand(this.fn.code, opcode.OP_POP_N, localsCount);
-                gen.patchJump(this.fn.code, popJmp);
-            }
             // slot + 1 + 1 + beginning of next instruction
-            const breakOffset = breakPoint - (slot + 3);
-            if (breakOffset >= utils.UINT16_COUNT){
-                this.compilationError(
-                    "code body too large to jump over",
-                    control
-                );
-            }
+            const breakOffset = breakEnd - (slot + 3);
+            this.assertJumpOffset(breakOffset, control);
             // 3 bytes long -> slot + 1 + 1
             this.fn.code.bytes[slot] = opcode.OP_JUMP;
             this.fn.code.bytes[slot + 1] = (breakOffset >> 8) & 0xff;
@@ -550,12 +541,7 @@ class Compiler extends ast.NodeVisitor {
                 continueOffset = continuePoint - (slot + 3);
                 bytecode = opcode.OP_JUMP;
             }
-            if (continueOffset >= utils.UINT16_COUNT){
-                this.compilationError(
-                    "code body too large to loop over",
-                    control
-                );
-            }
+            this.assertJumpOffset(continueOffset, control);
             this.fn.code.bytes[slot] = bytecode;
             this.fn.code.bytes[slot + 1] = (continueOffset >> 8) & 0xff;
             this.fn.code.bytes[slot + 2] = continueOffset  & 0xff;
@@ -579,12 +565,15 @@ class Compiler extends ast.NodeVisitor {
         node.localsCount = localsLength;
         // we need to pop the locals created in the loop up to the point the
         // control was added
-        if (node.isContinue && localsLength){
+        if (localsLength){
             gen.emit2BytesOperand(
                 this.fn.code, opcode.OP_POP_N, localsLength, node.line
             );
         }
+        // store the current slot (the beginning of where the break/continue
+        // instructions would be rewritten) for later rewrite
         node.patchSlot = this.fn.code.length;
+        // store 3 fake bytes to cover for the loop/jump instructions
         gen.emitJump(this.fn.code, 0xff, node.line);
         // store the control for later rewrite
         this.loopControls.push(node);
@@ -738,17 +727,17 @@ class Compiler extends ast.NodeVisitor {
          * fn foo(){
          *    show 28;
          * }
-         * let foo = fn(){...}
+         * let foo = () => {...}
          */
         let compiler = new Compiler(this.parser);
         compiler.enclosingCompiler = this;
-        compiler.fn.name = "<lambda>";
-        compiler.fn.isLambda = true;
         let index, isLocal;
+        compiler.fn.isLambda = node.isLambda;
         if (!node.isLambda){
             [index, isLocal] = this.defineVariable(node.name);
             compiler.fn.name = node.name;
-            compiler.fn.isLambda = false;
+        }else{
+            compiler.fn.name = "<lambda>";
         }
         // compile params
         compiler.currentScope++;  // params are always local
@@ -767,6 +756,7 @@ class Compiler extends ast.NodeVisitor {
         gen.emitConstant(this.fn.code,
             new vmod.Value(vmod.VAL_FUNCTION, compiler.fn),
             node.line);
+        // emit definition only for non-lambda functions
         if (index !== undefined){
             gen.emit2BytesOperand(
                 this.fn.code,

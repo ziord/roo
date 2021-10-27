@@ -630,7 +630,8 @@ Lexer.prototype.getToken = function() {
                 tokens.TOKEN_XOR_EQUAL : tokens.TOKEN_BITWISE_XOR);
         case "=":
             return this.newToken(this.check("=") ?
-                tokens.TOKEN_EQUAL_EQUAL : tokens.TOKEN_EQUAL);
+                tokens.TOKEN_EQUAL_EQUAL : this.check(">") ?
+                    tokens.TOKEN_FAT_ARROW : tokens.TOKEN_EQUAL);
         case "%":
             return this.newToken(this.check("=") ?
                 tokens.TOKEN_MOD_EQUAL : tokens.TOKEN_MOD);

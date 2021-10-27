@@ -52,6 +52,7 @@ module.exports = {
     TOKEN_STAR_STAR: 'TOKEN_STAR_STAR',         // **
     TOKEN_STAR_STAR_EQUAL: 'TOKEN_STAR_STAR_EQUAL',   // **=
     TOKEN_ARROW: 'TOKEN_ARROW',             // ->
+    TOKEN_FAT_ARROW: 'TOKEN_FAT_ARROW',     // =>
     TOKEN_PLUS_PLUS: 'TOKEN_PLUS_PLUS',        // ++
     TOKEN_MINUS_MINUS: 'TOKEN_MINUS_MINUS',      // --
     TOKEN_DOT_DOT: 'TOKEN_DOT_DOT',          // ..

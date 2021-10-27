@@ -51,7 +51,7 @@ Disassembler.prototype.shortInstruction = function (inst, index){
 Disassembler.prototype.jumpInstruction = function (inst, index, sign){
     // op_jmp  10 -> 5
     const jmpOffset = this.readShort(index);
-    // sign -> +1 or -1 (useful for loop instruction)
+    // sign -> +1 or -1 (determines forward or backwards jump)
     let jmpIndex = index + 3 + jmpOffset * sign;
     print(inst.padEnd(pad, " "), "\t",
         index.toString().padStart(4, " "), "->",
