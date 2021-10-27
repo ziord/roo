@@ -586,7 +586,7 @@ class Compiler extends ast.NodeVisitor {
         this.popLocals(node.blockEnd);
     }
 
-    transformOfNode(arm, name){
+    transformConditionedOfNode(arm, name){
         // arm: OfNode
         const ifNode = new ast.IfElseNode();
         const varNode  = new ast.VarNode(name, arm.line);
@@ -606,7 +606,7 @@ class Compiler extends ast.NodeVisitor {
         return ifNode;
     }
 
-    transformCaseNode(caseNode){
+    transformConditionedCaseNode(caseNode){
         /*
          * case x {
          *   of x, y, z -> stuff,
@@ -621,7 +621,7 @@ class Compiler extends ast.NodeVisitor {
          * |_> if (x % 5 > 3) {5}
          */
         if (!caseNode.conditionExpr){
-            return this.transformNoExprCaseNode(caseNode);
+            return this.transformRegularCaseNode(caseNode);
         }
         const declNode = new ast.VarDeclNode(
             "$", caseNode.conditionExpr, caseNode.line
@@ -631,7 +631,7 @@ class Compiler extends ast.NodeVisitor {
         // ensures this.
         const starArm = caseNode.arms.pop();
         const lastIfNode = caseNode.arms.reduce((node, rightArm) => {
-            node.elseBlock = this.transformOfNode(rightArm, declNode.name);
+            node.elseBlock = this.transformConditionedOfNode(rightArm, declNode.name);
             return node.elseBlock;
         }, ifElseNode);
         // set the 'else' of the last IfElseNode to the block of the star arm:
@@ -644,7 +644,7 @@ class Compiler extends ast.NodeVisitor {
         return {declNode, ifElseNode: actualIfElseNode};
     }
 
-    transformNoExprOfNode(ofNode) {
+    transformRegularOfNode(ofNode) {
         const ifNode = new ast.IfElseNode();
         // here we use the nodes in the ofNode's arms directly.
         ifNode.conditionExpr = ofNode.conditions.reduce((left, right) => {
@@ -658,7 +658,7 @@ class Compiler extends ast.NodeVisitor {
         return ifNode;
     }
 
-    transformNoExprCaseNode(caseNode) {
+    transformRegularCaseNode(caseNode) {
         /*
          * case {
          *   of x % 5 > 3 -> 5
@@ -668,7 +668,7 @@ class Compiler extends ast.NodeVisitor {
         const ifElseNode = new ast.IfElseNode();
         const starArm = caseNode.arms.pop();
         const lastIfNode = caseNode.arms.reduce((node, rightArm) => {
-            node.elseBlock = this.transformNoExprOfNode(rightArm);
+            node.elseBlock = this.transformRegularOfNode(rightArm);
             return node.elseBlock;
         }, ifElseNode);
         lastIfNode.elseBlock = starArm.block;
@@ -678,7 +678,7 @@ class Compiler extends ast.NodeVisitor {
 
     visitCaseNode(node){
         this.currentScope++;
-        const {declNode, ifElseNode} = this.transformCaseNode(node);
+        const {declNode, ifElseNode} = this.transformConditionedCaseNode(node);
         declNode ? this.visit(declNode) : void 0;
         this.visit(ifElseNode);
         this.currentScope--;
@@ -689,11 +689,11 @@ class Compiler extends ast.NodeVisitor {
         //   the top two values, in prep for the next instruction
         // else:
         //   just leave the last value hanging, it won't be popped in the
-        //   since the synthetic variable in transformCaseNode() wasn't
+        //   since the synthetic variable in transformConditionedCaseNode() wasn't
         //   created in the first place, and popLocals() will pop nothing.
         if (declNode){
             gen.emitByte(this.fn.code, opcode.OP_SWAP_TWO);
-            // we pop off the synthetic variable '$' (declNode) created in transformCaseNode()
+            // we pop off the synthetic variable '$' (declNode) created in transformConditionedCaseNode()
             this.popLocals(null);
         }
     }
