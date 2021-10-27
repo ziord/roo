@@ -140,7 +140,6 @@ function Parser(src) {
     this.inLoop = 0;
     this.inFunction = 0;
     this.backtrack = false;
-    this.currentBlock = null;
 }
 
 Parser.prototype.push = function(val) {
@@ -530,7 +529,7 @@ function caseExpr() {
     const caseNode = new ast.CaseNode(this.previousToken.line);
     if (!this.check(tokens.TOKEN_LEFT_CURLY)){
         this.expression();
-        caseNode.conditionExpr = this.pop(); // todo: pull out this
+        caseNode.conditionExpr = this.pop();
     }
     this.consume(tokens.TOKEN_LEFT_CURLY);
     while (!this.check(tokens.TOKEN_RIGHT_CURLY)
@@ -902,9 +901,7 @@ Parser.prototype.doWhileStatement = function() {
     this.block();
     let body = this.pop();
     this.consume(tokens.TOKEN_WHILE);
-    this.consume(tokens.TOKEN_LEFT_BRACKET);
     this.expression();
-    this.consume(tokens.TOKEN_RIGHT_BRACKET, errors.EP0017);
     this.consume(tokens.TOKEN_SEMI_COLON, errors.EP0014);
     let conditionExpr = this.pop();
     this.push(new ast.DoWhileLoopNode(conditionExpr, body));
@@ -914,9 +911,7 @@ Parser.prototype.doWhileStatement = function() {
 Parser.prototype.whileStatement = function() {
     this.inLoop++;
     this.advance();
-    this.consume(tokens.TOKEN_LEFT_BRACKET);
     this.expression();
-    this.consume(tokens.TOKEN_RIGHT_BRACKET, errors.EP0017);
     let conditionExpr = this.pop();
     this.statement();
     let body = this.pop();
@@ -925,11 +920,8 @@ Parser.prototype.whileStatement = function() {
 };
 
 Parser.prototype.ifStatement = function() {
-    // const line = this.currentToken.line;
     this.advance();
-    this.consume(tokens.TOKEN_LEFT_BRACKET);
     this.expression();
-    this.consume(tokens.TOKEN_RIGHT_BRACKET, errors.EP0017);
     const conditionExpr = this.pop();
     this.statement();
     const ifBlock = this.pop();
@@ -1064,7 +1056,7 @@ Parser.prototype.block = function() {
         && !this.check(tokens.TOKEN_ERROR))
     {
         this.declaration();
-        if (this.backtrack) { //  && !this.check(tokens.TOKEN_RIGHT_CURLY)
+        if (this.backtrack) {  // handle dict {} expressions
             this.leaveScope();
             this.backtrack = false;
             return;
