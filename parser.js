@@ -722,10 +722,6 @@ function variable() {
 
 
 function lambdaExpr(firstParam, skipRightBracket) {
-    if (this.inOfExpr){
-        firstParam ? this.push(firstParam) : void 0;
-        return;
-    }
     // (x, y) => expr; | (x, y) => {}
     const params = firstParam ? [firstParam] : [];
     this.inFunction++;
@@ -1056,8 +1052,12 @@ Parser.prototype.block = function() {
         && !this.check(tokens.TOKEN_ERROR))
     {
         this.declaration();
-        if (this.backtrack) {  // handle dict {} expressions
+        // are we really in a block? we're not if for example,
+        // the declaration found was a dict {'k': v} expression
+        if (this.backtrack) {
             this.leaveScope();
+            // clear the backtrack flag to indicate we're no
+            // longer in a backtracking state
             this.backtrack = false;
             return;
         }
