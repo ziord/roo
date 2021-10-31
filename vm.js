@@ -69,6 +69,10 @@ const {
     OP_SWAP_TWO,
     OP_BUILD_DICT,
     OP_CALL,
+    OP_GET_UPVALUE,
+    OP_SET_UPVALUE,
+    OP_LIFT_UPVALUE,
+    OP_CLOSURE,
 } = require("./opcode");
 const { Disassembler } = require("./debug");
 const { assert, out, print, unreachable, exitVM } = require("./utils");
@@ -93,9 +97,18 @@ function VM(func, debug = true) {
 }
 
 function CallFrame(func, retPoint, stack){
+    // function object
     this.func = func;
-    this.ip = 0;  // instruction pointer
+    // instruction pointer
+    this.ip = 0;
+    // location/point where the function returns to, i.e.
+    // where the function's return value is stored.
     this.returnIndex = retPoint;
+    // the starting point of the stack from the function's window/perspective.
+    // same as returnIndex, but with a more appropriate name for properly
+    // indexing into the stack.
+    this.stackStart = retPoint;
+    // the stack; yes, that 'stack'.
     this.stack = stack;
 }
 
@@ -161,7 +174,12 @@ VM.prototype.currentFrame = function() {
  * ----------------------------
  */
 
-VM.prototype.computeNumType = function(leftType, rightType) {
+// todo: rework this method
+VM.prototype.computeNumType = function(leftType, rightType, opcode) {
+    switch (opcode) {
+        case OP_DIVIDE: return VAL_FLOAT;
+        default: break;
+    }
     switch (leftType) {
         case VAL_FLOAT:
             return VAL_FLOAT;
@@ -401,7 +419,7 @@ VM.prototype.binaryOp = function(opcode) {
     const leftVal = this.popStack();
     if (leftVal.isNumber() && rightVal.isNumber()) {
         let result = new Value(
-            this.computeNumType(leftVal.type, rightVal.type)
+            this.computeNumType(leftVal.type, rightVal.type, opcode)
         );
         result.value = this[opcode](leftVal, rightVal);
         this.pushStack(result);
@@ -513,6 +531,9 @@ VM.prototype.setSubscript = function (object, subscript){
     }
 };
 
+VM.prototype.captureUpvalue = function (index){
+    return this.stack[this.fp.stackStart + index];
+};
 
 VM.prototype.getFunctionObj = function(start){
     // try to obtain a function within a byte range on the stack
@@ -740,13 +761,13 @@ VM.prototype.run = function() {
                 break;
             case OP_SET_LOCAL: {
                 const index = this.readShort();
-                // returnIndex is the frame's stack starting point
-                this.stack[this.fp.returnIndex + index] = this.peekStack();
+                // stackStart is the frame's stack starting point
+                this.stack[this.fp.stackStart + index] = this.peekStack();
                 break;
             }
             case OP_GET_LOCAL: {
                 const index = this.readShort();
-                this.pushStack(this.stack[this.fp.returnIndex + index]);
+                this.pushStack(this.stack[this.fp.stackStart + index]);
                 break;
             }
             case OP_FORMAT: { // todo: for user defined objects
@@ -780,6 +801,7 @@ VM.prototype.run = function() {
                 break;
             }
             case OP_LOOP: {
+                this.looping = true;
                 const offset = this.readShort();
                 this.fp.ip -= offset;
                 break;
@@ -798,6 +820,31 @@ VM.prototype.run = function() {
                     return INTERPRET_RESULT_ERROR;
                 }
                 break;
+            case OP_CLOSURE:
+                const val = this.readConst();
+                this.pushStack(val);
+                const fnObj = val.asFunction();
+                let index, isLocal;
+                for (let i = 0; i < fnObj.upvalueCount; i++){
+                    index = this.readByte();
+                    isLocal = this.readByte();
+                    if (isLocal){
+                        fnObj.upvalues[i] = this.captureUpvalue(index);
+                    }else{
+                        fnObj.upvalues[i] = this.fp.func.upvalues[i];
+                    }
+                }
+                break;
+            case OP_GET_UPVALUE: {
+                const idx = this.readByte();
+                this.pushStack(this.fp.func.upvalues[idx]);
+                break;
+            }
+            case OP_SET_UPVALUE: {
+                const idx = this.readByte();
+                this.fp.func.upvalues[idx] = this.peekStack();
+                break;
+            }
             case OP_RETURN: {
                 const frame = this.popFrame();
                 const val = this.popStack();

@@ -8,7 +8,7 @@ const ast = require("./ast");
 const errors = require("./errors");
 const tokens = require("./tokens");
 const { Token, Lexer } = require("./lexer");
-const { assert, out, print, unreachable, error, UINT16_COUNT } = require("./utils");
+const utils = require("./utils");
 
 // token-type -> binding-power | prefix | infix
 
@@ -120,7 +120,7 @@ BPTable[tokens.TOKEN_BREAK] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_CONTINUE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_LOOP] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_MATCH] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_CASE] = bp(POWER_NONE, caseExpr, null);
+BPTable[tokens.TOKEN_CASE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_STATIC] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_STRUCT] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_ERROR] = bp(POWER_NONE, null, null);
@@ -298,7 +298,7 @@ function number() {
             val = Number.parseFloat(this.currentToken.value);
             break;
         default:
-            unreachable("Parser::number()");
+            utils.unreachable("Parser::number()");
     }
     this.push(new ast.NumberNode(val, isInteger, this.currentToken.line));
     this.advance();
@@ -318,7 +318,7 @@ function literal() {
             val = new ast.NullNode(line);
             break;
         default:
-            unreachable("Parser::literal()");
+            utils.unreachable("Parser::literal()");
     }
     this.push(val);
     this.advance();
@@ -371,7 +371,7 @@ function unary() {
             code = errors.EP0026;
             break;
         default:
-            unreachable("Parser::unary()");
+            utils.unreachable("Parser::unary()");
     }
     const line = this.currentToken.line;
     const token = this.currentToken;
@@ -507,59 +507,7 @@ function ofExpr() {
     } else {
         node.block = bodyNode;
     }
-    // inspect the last ast node in the block
-    const lastExpr = node.block.decls[node.block.decls.length - 1];
-    // if it is an expression statement, convert it to the expression itself,
-    // if not, just push a NullNode expression.
-    // we convert an expression statement to the expression itself, because
-    // expression statements get popped off the vm's stack (after evaluation),
-    // we do not want this because 'case' expressions produce results.
-    if (lastExpr.type !== ast.ASTType.AST_NODE_EXPR) {
-        node.block.decls.push(new ast.NullNode(this.previousToken.line));
-    } else {
-        node.block.decls[node.block.decls.length - 1] = lastExpr.expr;
-    }
     return node;
-}
-
-function caseExpr() {
-    // "case"  expression? "{" (of ("*" | expression)
-    // ("," ("*" | expression))* "->" statement)+ "}"
-    this.consume(tokens.TOKEN_CASE);
-    const caseNode = new ast.CaseNode(this.previousToken.line);
-    if (!this.check(tokens.TOKEN_LEFT_CURLY)){
-        this.expression();
-        caseNode.conditionExpr = this.pop();
-    }
-    this.consume(tokens.TOKEN_LEFT_CURLY);
-    while (!this.check(tokens.TOKEN_RIGHT_CURLY)
-        && !this.check(tokens.TOKEN_EOF)
-        && !this.check(tokens.TOKEN_ERROR))
-    {
-        const node = ofExpr.call(this);
-        caseNode.arms.push(node);
-        if (!this.check(tokens.TOKEN_RIGHT_CURLY)){
-            this.consume(tokens.TOKEN_COMMA);
-        }
-    }
-    const line = this.previousToken.line;
-    this.consume(tokens.TOKEN_RIGHT_CURLY);
-    const curlyLine = this.previousToken.line;
-    if (!caseNode.arms.length) {
-        // empty case expression
-        this.pError(errors.EP0011);
-    }
-    const lastArm = caseNode.arms[caseNode.arms.length - 1];
-    // if the last arm isn't a star arm, create a synthetic star arm
-    if (!lastArm.hasDefault) {
-        const starArm = new ast.OfNode(line);
-        starArm.hasDefault = true;
-        starArm.block = new ast.BlockNode(
-            [new ast.NullNode(line)], null, curlyLine
-        );
-        caseNode.arms.push(starArm);
-    }
-    this.push(caseNode);
 }
 
 function listLiteral() {
@@ -574,7 +522,7 @@ function listLiteral() {
         }
     }
     // we do not want the list size to exceed the 2 bytes encoding limit
-    if (list.nodes.length >= UINT16_COUNT) {
+    if (list.nodes.length > utils.UINT16_MAX) {
         // too many items
         this.pError(errors.EP0006);
     }
@@ -606,7 +554,7 @@ function dictLiteral(fromBlock) {
         this.match(tokens.TOKEN_COMMA);
     }
     this.consume(tokens.TOKEN_RIGHT_CURLY);
-    if (node.entries.length >= UINT16_COUNT) {
+    if (node.entries.length > utils.UINT16_MAX) {
         // too many items
         this.pError(errors.EP0018);
     }
@@ -672,6 +620,35 @@ Parser.prototype.ExprStatement = function() {
     this.push(node);
 };
 
+Parser.prototype.caseStatement = function () {
+    // "case"  expression? "{" (of ("*" | expression)
+    // ("," ("*" | expression))* "->" statement)+ "}"
+    this.consume(tokens.TOKEN_CASE);
+    const caseNode = new ast.CaseNode(this.previousToken.line);
+    if (!this.check(tokens.TOKEN_LEFT_CURLY)){
+        this.expression();
+        caseNode.conditionExpr = this.pop();
+    }
+    this.consume(tokens.TOKEN_LEFT_CURLY);
+    while (!this.check(tokens.TOKEN_RIGHT_CURLY)
+        && !this.check(tokens.TOKEN_EOF)
+        && !this.check(tokens.TOKEN_ERROR))
+    {
+        const node = ofExpr.call(this);
+        caseNode.arms.push(node);
+        if (!this.check(tokens.TOKEN_RIGHT_CURLY)){
+            this.consume(tokens.TOKEN_COMMA);
+        }
+    }
+    this.consume(tokens.TOKEN_RIGHT_CURLY);
+    const curlyToken = this.previousToken;
+    if (!caseNode.arms.length) {
+        // empty case expression
+        this.pError(errors.EP0011, { token: curlyToken });
+    }
+    this.push(caseNode);
+};
+
 Parser.prototype.parseName = function() {
     this.consume(tokens.TOKEN_IDENTIFIER);
     return this.previousToken.value;
@@ -725,6 +702,7 @@ function lambdaExpr(firstParam, skipRightBracket) {
     // (x, y) => expr; | (x, y) => {}
     const params = firstParam ? [firstParam] : [];
     this.inFunction++;
+    const line = this.currentToken.line;
     if (!skipRightBracket) {
         while (!this.check(tokens.TOKEN_RIGHT_BRACKET)
             && !this.check(tokens.TOKEN_EOF)
@@ -736,8 +714,11 @@ function lambdaExpr(firstParam, skipRightBracket) {
         }
         this.consume(tokens.TOKEN_RIGHT_BRACKET);
     }
+    if (params.length > utils.MAX_FUNCTION_PARAMS) {
+        this.pError(errors.EP0007);
+    }
     this.consume(tokens.TOKEN_FAT_ARROW);
-    const fn = new ast.FunctionNode(null, true);
+    const fn = new ast.FunctionNode(null, true, line);
     const beginLine = this.currentToken.line;
     this.statement(true);
     fn.block = this.pop();
@@ -821,7 +802,7 @@ Parser.prototype.funDecl = function() {
         fn.params.push(this.pop());
         this.match(tokens.TOKEN_COMMA);
     }
-    if (fn.params.length > 0xff) {
+    if (fn.params.length > utils.MAX_FUNCTION_PARAMS) {
         this.pError(errors.EP0007);
     }
     this.consume(tokens.TOKEN_RIGHT_BRACKET);
@@ -1004,6 +985,9 @@ Parser.prototype.statement = function(forgetSemi) { // , lookAhead, str
             break;
         case tokens.TOKEN_LOOP:
             this.unbLoopStatement();
+            break;
+        case tokens.TOKEN_CASE:
+            this.caseStatement();
             break;
         case tokens.TOKEN_BREAK:
             this.breakStatement();

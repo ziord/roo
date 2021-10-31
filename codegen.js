@@ -5,7 +5,7 @@
 "use strict";
 
 const opcode = require("./opcode");
-const {UINT16_COUNT, error} = require("./utils");
+const {UINT16_MAX, error} = require("./utils");
 
 function getLineNumber(codeObj){
     if (codeObj.lines.length){
@@ -28,9 +28,9 @@ function emit2BytesOperand(codeObj, byte, operand, lineNum=null) {
     emitBytes(codeObj, ((operand >> 8) & 0xff), (operand & 0xff), lineNum);
 }
 
-function emitConstant(codeObj, value, lineNum=null){
+function emitConstant(codeObj, value, lineNum=null, opc=null){
     const index = codeObj.cp.writeConstant(value);
-    emit2BytesOperand(codeObj, opcode.OP_LOAD_CONST, index, lineNum)
+    emit2BytesOperand(codeObj, opc || opcode.OP_LOAD_CONST, index, lineNum);
 }
 
 function emitJump(codeObj, byte, lineNum=null){
@@ -46,7 +46,7 @@ function emitJump(codeObj, byte, lineNum=null){
 function patchJump(codeObj, jumpOffsetSlot){
     // a b [c] [d] e f g.  |-> (codeObj.length - 1) - (jumpOffsetSlot + 1)
     const actualJumpOffset = codeObj.length - (jumpOffsetSlot + 2);
-    if (actualJumpOffset >= UINT16_COUNT){
+    if (actualJumpOffset > UINT16_MAX){
         // todo: good error reporting
         error("code body too large to jump over");
     }
@@ -57,7 +57,7 @@ function patchJump(codeObj, jumpOffsetSlot){
 function emitLoop(codeObj, loopPoint, lineNum=null){
     // +3 for the opcode and its 2 bytes operand
     const actualJumpOffset = codeObj.length - loopPoint + 3;
-    if (actualJumpOffset >= UINT16_COUNT){
+    if (actualJumpOffset > UINT16_MAX){
         // todo: good error reporting
         error("code body too large to loop over");
     }

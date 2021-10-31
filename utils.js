@@ -4,11 +4,13 @@
 
 "use strict";
 
-const out = process.stdout.write.bind(process.stdout);
-
-const print = console.log;
-
+const UINT16_MAX = 0xffff;
 const UINT16_COUNT = 0x10000;
+const MAX_FUNCTION_PARAMS = 0xff;
+const MAX_UPVALUE_COUNT = 0xff;
+
+const out = process.stdout.write.bind(process.stdout);
+const print = console.log;
 
 function assert(test, msg) {
     if (!test) throw new Error(`FailedAssert: ${msg}`);
@@ -27,4 +29,7 @@ function exitVM(code){
     process.exit(code !== undefined ? code : -1);
 }
 
-module.exports = {assert, out, print, unreachable, error, UINT16_COUNT, exitVM};
+module.exports = {
+    UINT16_MAX, UINT16_COUNT, MAX_FUNCTION_PARAMS, MAX_UPVALUE_COUNT,
+    assert, out, print, unreachable, error, exitVM
+};

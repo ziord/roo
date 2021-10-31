@@ -56,6 +56,7 @@ module.exports = {
     TOKEN_PLUS_PLUS: 'TOKEN_PLUS_PLUS',        // ++
     TOKEN_MINUS_MINUS: 'TOKEN_MINUS_MINUS',      // --
     TOKEN_DOT_DOT: 'TOKEN_DOT_DOT',          // ..
+    TOKEN_DOT_DOT_DOT: 'TOKEN_DOT_DOT_DOT',          // ...
 
     // literal tokens
     TOKEN_HEXINT_NUMBER: 'TOKEN_HEXINT_NUMBER',    // 0x...

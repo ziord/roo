@@ -12,7 +12,7 @@ const vmod = require("./value");
 const opcode = require("./opcode");
 const opt = require("./optimizer");
 
-const BINOPS = {
+const OPS = {
     [ast.OpType.OPTR_PLUS]: opcode.OP_ADD,
     [ast.OpType.OPTR_MINUS]: opcode.OP_SUBTRACT,
     [ast.OpType.OPTR_MUL]: opcode.OP_MULTIPLY,
@@ -49,6 +49,14 @@ class Local{
         this.isInitialized = false;
         this.scope = scope;
         this.name = name;
+        this.isCaptured = false;
+    }
+}
+
+class Upvalue{
+    constructor(index, isLocal){
+        this.index = index;
+        this.isLocal = isLocal;
     }
 }
 
@@ -65,7 +73,9 @@ class Compiler extends ast.NodeVisitor {
         this.locals = [new Local('', this.currentScope)]; // reserve slot 0
         this.currentLoop = {loopScope: -1};
         this.loopControls = [];
-        this.enclosingCompiler = null;
+        this.enclosingCompiler = null; /*:Compiler*/
+        this.caseVarCount = 0;  // case statement variable counts
+        this.upvalues = [];
     }
 
     compilationError(msg, node){
@@ -199,7 +209,7 @@ class Compiler extends ast.NodeVisitor {
     visitBinaryNode(node) {
         this.visit(node.leftNode);
         this.visit(node.rightNode);
-        const byte = BINOPS[node.op];
+        const byte = OPS[node.op];
         gen.emitByte(this.fn.code, byte);
     }
 
@@ -238,7 +248,7 @@ class Compiler extends ast.NodeVisitor {
 
     compileAssignment(node){
         // a += 2 -> a = a + 2;
-        const byte = BINOPS[node.op];
+        const byte = OPS[node.op];
         if (byte === undefined){ // op EQ '='
             this.visit(node.rightNode);
             return;
@@ -248,7 +258,7 @@ class Compiler extends ast.NodeVisitor {
         gen.emitByte(this.fn.code, byte);
     }
 
-    findLocal(name /*: string*/){
+    findLocal(node /*: VarNode*/){
         /*
          *  {
          *    let x = 'fox'; ---------------> local 0 (scope 1)
@@ -261,15 +271,47 @@ class Compiler extends ast.NodeVisitor {
          */
         // check if there exists a local variable with the same name.
         // search is done from the end of the array to capture the latest
-        // defined local variable first
+        // defined local variable first - for proper name shadowing
         for (let index = this.locals.length - 1; index >= 0; index--){
             let local = this.locals[index];
             // return index if found
             if (local.scope <= this.currentScope &&
-                local.name === name)
+                local.name === node.name)
                 return index;
         }
         return -1;
+    }
+
+    findUpvalue(node /*: VarNode*/){
+        // here, `enclosingCompiler` is symbolic to an enclosing function.
+        // If there's no `enclosingCompiler`, then the variable (`name`) is
+        // definitely not an upvalue.
+        if (!this.enclosingCompiler) return -1;
+
+        // check if the variable was captured from an immediate
+        // enclosing function
+        let index = this.enclosingCompiler.findLocal(node);
+        if (index !== -1){
+            // the variable/upvalue was captured in the immediate
+            // enclosing function - so it's a direct local variable
+            // indicate capture:
+            this.enclosingCompiler.locals[index].isCaptured = true;
+            // add upvalue using index, direct local:
+            return this.addUpvalue(node, index, true);
+        }
+
+        // we couldn't find the upvalue in the immediate enclosing function,
+        // search wider - (the enclosing function's enclosing function,
+        // and so on, until there's no more enclosing function to search)
+        index = this.enclosingCompiler.findUpvalue(node);
+        if (index !== -1){
+            // the variable/upvalue was captured in a further
+            // enclosing function - so it's not a direct local variable
+            return this.addUpvalue(node, index, false);
+        }
+
+        // no luck finding it
+        return index;
     }
 
     addLocal(name /*: string*/){
@@ -284,12 +326,47 @@ class Compiler extends ast.NodeVisitor {
         return index;
     }
 
+    addUpvalue(node /*: VarNode*/, index, isLocal){
+        // avoid adding an duplicate upvalues
+        const len = this.upvalues.length;
+        for (let i = 0; i < len; i++){
+            if (this.upvalues[i].index === index
+                && this.upvalues[i].isLocal === isLocal) {
+                // reuse the upvalue if it already exists
+                return i;
+            }
+        }
+        if (len > utils.MAX_UPVALUE_COUNT){
+            this.compilationError("Too many closures", node);
+        }
+        // store the upvalue
+        this.upvalues.push(new Upvalue(index, isLocal));
+        this.fn.upvalueCount++;
+        return len;  // the exact index which points to the new upvalue
+    }
+
     popLocals(popLine){
         let pops = 0;
         for (let index = this.locals.length - 1; index >= 0; index--){
             let local = this.locals[index];
             if (this.currentScope < local.scope){
-                gen.emitByte(this.fn.code, opcode.OP_POP, popLine);
+                // if (local.isCaptured){
+                //     // emit special instruction for locals captured
+                //     // in a closure
+                //     gen.emitByte(
+                //         this.fn.code,
+                //         opcode.OP_LIFT_UPVALUE, popLine
+                //     );
+                // }else{
+                //     gen.emitByte(
+                //         this.fn.code,
+                //         opcode.OP_POP, popLine
+                //     );
+                // }
+                gen.emitByte(
+                    this.fn.code,
+                    opcode.OP_POP, popLine
+                );
                 pops++;
             }
         }
@@ -297,16 +374,26 @@ class Compiler extends ast.NodeVisitor {
     }
 
     visitAssignNode(node){
-        let index;
-        let code;
-        if ((index = this.findLocal(node.leftNode.name)) !== -1){
+        let index, code, fn;
+        // check if it's a local
+        if ((index = this.findLocal(node.leftNode)) !== -1){
             code = opcode.OP_SET_LOCAL;
-        }else{
+            fn = gen.emit2BytesOperand;
+        }
+        // check if it's an upvalue
+        else if ((index = this.findUpvalue(node.leftNode)) !== -1){
+            // only 1 byte (256) upvalues allowable for now
+            code = opcode.OP_SET_UPVALUE;
+            fn = gen.emitBytes;
+        }
+        // might be a global
+        else{
             code = opcode.OP_SET_GLOBAL;
             index = this.storeName(node.leftNode.name);
+            fn = gen.emit2BytesOperand;
         }
         this.compileAssignment(node);
-        gen.emit2BytesOperand(this.fn.code, code, index, node.line);
+        fn(this.fn.code, code, index, node.line);
     }
 
     visitIndexExprAssignNode(node){
@@ -341,8 +428,8 @@ class Compiler extends ast.NodeVisitor {
 
     visitVarNode(node){
         let index;
-        // check if its a local
-        if ((index = this.findLocal(node.name)) !== -1){
+        // check if it's a local
+        if ((index = this.findLocal(node)) !== -1){
             const local = this.locals[index];
             if (!local.isInitialized){
                 this.compilationError(
@@ -352,13 +439,22 @@ class Compiler extends ast.NodeVisitor {
             gen.emit2BytesOperand(
                 this.fn.code, opcode.OP_GET_LOCAL,
                 index, node.line);
-        }else{
+        }
+        // check if it's an upvalue
+        else if ((index = this.findUpvalue(node)) !== -1){
+            // only 1 byte (256) upvalues allowable for now
+            gen.emitBytes(
+                this.fn.code, opcode.OP_GET_UPVALUE,
+                index, node.line
+            );
+        }
+        // might be a global
+        else{
             index = this.storeName(node.name, node.line);
             gen.emit2BytesOperand(
                 this.fn.code, opcode.OP_GET_GLOBAL,
                 index, node.line);
         }
-        // todo: upvalue
     }
 
     visitIStringNode(node){
@@ -512,7 +608,7 @@ class Compiler extends ast.NodeVisitor {
     }
 
     assertJumpOffset(offset, controlNode){
-        if (offset >= utils.UINT16_COUNT){
+        if (offset > utils.UINT16_MAX){
             this.compilationError(
                 "code body too large to jump over",
                 controlNode
@@ -549,10 +645,10 @@ class Compiler extends ast.NodeVisitor {
     }
 
     processLoopControl(continuePoint){
-        let breakPoint = this.fn.code.length;
+        let breakEnd = this.fn.code.length;
         this.loopControls.forEach(control => {
             this.compileLoopControl(
-                control, continuePoint, breakPoint
+                control, continuePoint, breakEnd
             );
         });
         this.loopControls = [];
@@ -624,7 +720,8 @@ class Compiler extends ast.NodeVisitor {
             return this.transformRegularCaseNode(caseNode);
         }
         const declNode = new ast.VarDeclNode(
-            "$", caseNode.conditionExpr, caseNode.line
+            `$var${this.caseVarCount++}`,
+            caseNode.conditionExpr, caseNode.line
         );
         const ifElseNode = new ast.IfElseNode();
         // we know that there would always be a star arm, because the parser
@@ -677,25 +774,9 @@ class Compiler extends ast.NodeVisitor {
     }
 
     visitCaseNode(node){
-        this.currentScope++;
         const {declNode, ifElseNode} = this.transformConditionedCaseNode(node);
         declNode ? this.visit(declNode) : void 0;
         this.visit(ifElseNode);
-        this.currentScope--;
-        // at the end of the evaluation,
-        // if case node has conditionExpr:
-        //   the top two values on the stack will be the case expr value
-        //   and the result of the case expression. this instruction swaps
-        //   the top two values, in prep for the next instruction
-        // else:
-        //   just leave the last value hanging, it won't be popped in the
-        //   since the synthetic variable in transformConditionedCaseNode() wasn't
-        //   created in the first place, and popLocals() will pop nothing.
-        if (declNode){
-            gen.emitByte(this.fn.code, opcode.OP_SWAP_TWO);
-            // we pop off the synthetic variable '$' (declNode) created in transformConditionedCaseNode()
-            this.popLocals(null);
-        }
     }
 
     visitDictNode(node){
@@ -719,7 +800,7 @@ class Compiler extends ast.NodeVisitor {
 
     visitReturnNode(node){
         this.visit(node.expr);
-        gen.emitByte(this.fn.code, opcode.OP_RETURN);
+        gen.emitByte(this.fn.code, opcode.OP_RETURN, node.line);
     }
 
     visitFunctionNode(node){
@@ -755,8 +836,15 @@ class Compiler extends ast.NodeVisitor {
         // no need to pop locals since return balances the stack effect
         gen.emitConstant(this.fn.code,
             new vmod.Value(vmod.VAL_FUNCTION, compiler.fn),
-            node.line);
-        // emit definition only for non-lambda functions
+            node.line, opcode.OP_CLOSURE);
+        // emit instructions for processing closures captured in `compiler`
+        // during its compilation process:
+        for (let i = 0; i < compiler.upvalues.length; i++){
+            // emit: index | isLocal
+            const upvalue = compiler.upvalues[i];
+            gen.emitBytes(this.fn.code, upvalue.index, upvalue.isLocal);
+        }
+        // emit definition instruction only for non-lambda functions
         if (index !== undefined){
             gen.emit2BytesOperand(
                 this.fn.code,

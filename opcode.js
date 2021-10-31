@@ -46,8 +46,12 @@ module.exports = {
     OP_JUMP_IF_FALSE: 42,
     OP_LOOP: 43,
     OP_POP_N: 44,
-    OP_SWAP_TWO: 45,
+    OP_CLOSURE: 45,
     OP_JUMP_IF_FALSE_OR_POP: 46,
     OP_BUILD_DICT: 47,
     OP_CALL: 48,
+    OP_GET_UPVALUE: 49,
+    OP_SET_UPVALUE: 50,
+    // OP_CLOSURE: 51,
+    // OP_LIFT_UPVALUE: 52,
 };

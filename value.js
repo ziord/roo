@@ -5,7 +5,7 @@
 
 "use strict";
 
-const { assert, print, unreachable, UINT16_COUNT, error } = require("./utils");
+const { assert, print, unreachable, UINT16_MAX, error } = require("./utils");
 
 // roo value types
 const VAL_INT = 0,
@@ -27,11 +27,15 @@ function Value(valType, value = null) {
     this.value = value;
 }
 
+// todo: dict and list should be their own 'objects'
+
 function FunctionObject(name, arity, code, isLambda){
     this.name = name;
     this.arity = arity;
     this.code = code;
     this.isLambda = isLambda;
+    this.upvalueCount = 0;
+    this.upvalues = [];
 }
 
 function createFunctionObj(name, arity, code, isLambda){
@@ -222,7 +226,7 @@ ConstantPool.prototype.length = function() {
 
 ConstantPool.prototype.writeConstant = function(val) {
     assert(val, "ConstantPool::writeConstant()::Expected value");
-    if (this.pool.length >= UINT16_COUNT){
+    if (this.pool.length > UINT16_MAX){
         error("Too many constants")
     }
     this.pool.push(val);
