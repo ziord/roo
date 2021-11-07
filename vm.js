@@ -553,53 +553,95 @@ VM.prototype.getFunctionObj = function(start){
 
 VM.prototype.argumentError = function (fnObj, got){
     // todo: enhance
-    const arity = fnObj.arity;
+    const arity = fnObj.arity - fnObj.isVariadic - fnObj.defaultParamsCount;
     const argsWord = arity > 1 ? "arguments" : "argument";
-    const gotWord = got >= 1 ? got : "none";
-    return `${fnObj.name}() expected ${arity} ${argsWord} but got ${gotWord}`;
+    const gotWord = got >= 1 ? got : "none.";
+    let diagnosis = `${fnObj.name}() takes ${arity} positional ${argsWord}`;
+    let stress = fnObj.defaultParamsCount || fnObj.isVariadic ? " at least " : " ";
+    if (fnObj.defaultParamsCount){
+        const argsWord = fnObj.defaultParamsCount > 1 ? "arguments" : "argument";
+        diagnosis += `, has ${fnObj.defaultParamsCount} default ${argsWord}`;
+    }
+    if (fnObj.isVariadic){
+        diagnosis += `, and an (optional) variadic/spread argument`;
+    }
+    diagnosis += (
+        `.\n${fnObj.name}() expected${stress}${arity} ${argsWord} but got ${gotWord}`
+    );
+    return diagnosis;
+};
+
+VM.prototype.variadicCall = function (fnObj, arity){
+    const listObj = createListObj();
+    if (arity > fnObj.arity) {
+        // Pack all extra args, starting
+        // from the arg matching the arity, into a list.
+        for (let i = 0, count = (arity - fnObj.arity);
+             i <= count;
+             ++i) {
+            listObj.value.unshift(this.popStack());
+        }
+        this.pushStack(listObj);
+    }
+    else if ((fnObj.arity - arity) === 1){
+        // the function is missing only the variadic/spread argument
+        // we cater for this by passing an empty list
+        this.pushStack(listObj);
+    }
+    else {
+        // trouble. The function is missing so much more.
+        // Can't handle this, just err.
+        this.runtimeError(this.argumentError(fnObj, arity));
+    }
+};
+
+VM.prototype.defaultCall = function (fnObj, arity){
+    if (arity < fnObj.arity){
+        // less arity, but defaults are available
+        const stackSize = this.stackSize();
+        // push args on stack, with respect to the original
+        // function's definition
+        for (let i = arity + 1, arg; i <= fnObj.arity; ++i){
+            // is there a default arg at this argument position?
+            // if not, exit the loop.
+            arg = fnObj.defaults[i];
+            if (!arg) break;
+            this.pushStack(arg);
+        }
+        // the new arity should be arity + number of args pushed
+        // on the stack. If it still isn't, try to determine if it's
+        // a variadic call as well.
+        const newArity = this.stackSize() - stackSize + arity;
+        if (newArity !== fnObj.arity) {
+            this.variadicCall(fnObj, newArity);
+        }
+    }else {  // arity > fnObj.arity
+        this.variadicCall(fnObj, arity);
+    }
 };
 
 VM.prototype.callValue = function (arity){
     let fnVal = this.peekStack(arity);
-    if (!fnVal){
+    if (!fnVal) {
         fnVal = this.getFunctionObj(arity);
         assert(fnVal.isFunction(), "VM::callValue()");
-        this.runtimeError( this.argumentError(fnVal.asFunction(), arity));
+        this.runtimeError(this.argumentError(fnVal.asFunction(), arity));
         return false;
-    }else if (!fnVal.isFunction()){
-        this.runtimeError( `'${fnVal.typeToString()}' type is not callable`);
+    } else if (!fnVal.isFunction()) {
+        this.runtimeError(`'${fnVal.typeToString()}' type is not callable`);
         return false;
     }
     const fnObj = fnVal.asFunction();
     if (fnObj.arity !== arity) {
-        if (arity > fnObj.arity && fnObj.isVariadic) {
-            // function is variadic. Pack all extra args, starting
-            // from the arg matching the arity, into a list.
-            let listObj = createListObj();
-            for (let i = 0, count = (arity - fnObj.arity); i <= count; ++i) {
-                listObj.value.unshift(this.popStack());
-            }
-            this.pushStack(listObj);
-        } else if (arity < fnObj.arity && fnObj.defaultParamsCount) {
-            // less arity, but defaults are available
-            const stackSize = this.stackSize();
-            // push args on stack, with respect to the original
-            // function's definition
-            for (let i = arity + 1, arg; i <= fnObj.arity; ++i){
-                // is there a default arg at this argument position?
-                arg = fnObj.defaults[i];
-                // if so, push on stack.
-                if (arg) { this.pushStack(arg); }
-            }
-            // the new arity should be arity + number of args pushed on the stack
-            const newArity = this.stackSize() - stackSize + arity;
-            if (newArity !== fnObj.arity) {
-                this.runtimeError(this.argumentError(fnObj, newArity));
-                return false;
-            }
+        // first, handle default params if available, to enable easy
+        // shell out to variadicCall()
+        if (fnObj.defaultParamsCount){
+            this.defaultCall(fnObj, arity);
+        } else if (fnObj.isVariadic){
+            // handle a variadic call
+            this.variadicCall(fnObj, arity);
         } else {
             this.runtimeError(this.argumentError(fnObj, arity));
-            return false;
         }
     } else if (fnObj.isVariadic) {
         // function is variadic, but arity matches.
@@ -609,7 +651,7 @@ VM.prototype.callValue = function (arity){
         this.pushStack(listObj);
     }
     this.pushFrame(fnObj);
-    return true;
+    return !this.atError;
 };
 
 VM.prototype.run = function() {
