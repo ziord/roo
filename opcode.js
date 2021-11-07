@@ -1,5 +1,7 @@
 // opcodes
 
+"use strict";
+
 module.exports = {
     OP_ADD: 0,
     OP_SUBTRACT: 1,

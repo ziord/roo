@@ -220,7 +220,6 @@ Lexer.prototype.getSrcWithPaddingAtLine = function (token){
      *  xyxyxyxyxyxyxyxyxyx  <- lineEnd
      *              ^^  <- token
      */
-    const tokenLength = token.length;
     let skipNewLine = token.line > 1 ? 1 : 0; // move past '\n' if not at line 1
     let lineStart = this.lines[token.line - 1] + skipNewLine;
     let lineEnd;
@@ -233,7 +232,8 @@ Lexer.prototype.getSrcWithPaddingAtLine = function (token){
     }
     const src = this.src.slice(lineStart, lineEnd);
     // -1 'cause column starts from 1 not 0.
-    const errorPadding = (token.column - tokenLength - 1);
+    // Note that column resets to 1 on every new line
+    const errorPadding = (token.column - token.length - 1);
     return [src, errorPadding];
 };
 
@@ -580,6 +580,8 @@ Lexer.prototype.getToken = function() {
             return this.newToken(tokens.TOKEN_LEFT_CURLY);
         case '}':
             return this.newToken(tokens.TOKEN_RIGHT_CURLY);
+        case '@':
+            return this.newToken(tokens.TOKEN_AT);
         case  ';':
             return this.newToken(tokens.TOKEN_SEMI_COLON);
         case '(':
@@ -605,7 +607,8 @@ Lexer.prototype.getToken = function() {
                 return this.lexNumber();
             } else if (p === '.'){
                 this.move();
-                return this.newToken(tokens.TOKEN_DOT_DOT);
+                return this.newToken(this.check(".") ?
+                    tokens.TOKEN_DOT_DOT_DOT: tokens.TOKEN_DOT_DOT);
             }
             return this.newToken(tokens.TOKEN_DOT);
         case '?':

@@ -820,32 +820,56 @@ class Compiler extends ast.NodeVisitor {
         }else{
             compiler.fn.name = "<lambda>";
         }
-        // compile params
+        //! compile params:
+        //! first we compile the default parameters' values into
+        // the current function - this (enclosing)
+        if (node.defaultParamsCount){
+            node.params.forEach((param, index) => {  // ArgumentNode
+                // param: { leftNode, rightNode, isSpreadArg, line }
+                if (param.rightNode){
+                    // emit:
+                    // {value parameter-position},.. {value parameter-position}
+                    this.visit(param.rightNode);
+                    gen.emitConstant(
+                        this.fn.code,
+                        new vmod.Value(vmod.VAL_INT, (index + 1)), // counting from 1 not 0
+                        param.line
+                    );
+                }
+            });
+        }
+        //! next we compile the actual parameters
         compiler.currentScope++;  // params are always local
-        node.params.forEach(param => {  // VarNode
-           const slot = compiler.initLocal(param.name);
+        node.params.forEach((param) => {
+            // ArgumentNode: { leftNode, rightNode, isSpreadArg, line }
+           const slot = compiler.initLocal(param.leftNode.name);
            gen.emit2BytesOperand(
                compiler.fn.code,
                opcode.OP_DEFINE_LOCAL,
                slot, param.line
            );
         });
+        //! set some essential properties on `fn`
         compiler.fn.arity = node.params.length;
-        // compile fn's body
+        compiler.fn.isVariadic = node.isVariadic;
+        compiler.fn.defaultParamsCount = node.defaultParamsCount;
+        //! compile fn's body
         node.block.decls.forEach(item => compiler.visit(item));
-        // no need to pop locals since return balances the stack effect
+        //! no need to pop locals since return balances the stack effect
         gen.emitConstant(this.fn.code,
             new vmod.Value(vmod.VAL_FUNCTION, compiler.fn),
             node.line, opcode.OP_CLOSURE);
-        // emit instructions for processing closures captured in `compiler`
+        //! emit instructions for processing closures captured in `compiler`
         // during its compilation process:
         for (let i = 0; i < compiler.upvalues.length; i++){
             // emit: index | isLocal
             const upvalue = compiler.upvalues[i];
             gen.emitBytes(this.fn.code, upvalue.index, upvalue.isLocal);
         }
-        // emit definition instruction only for non-lambda functions
-        if (index !== undefined){
+        //! emit definition instruction only for non-lambda functions
+        // `useDecoratorCtx` indicates that the function is being wrapped
+        // by a decorator, and no definition instructions should be emitted.
+        if (index !== undefined && !node.useDecoratorCtx){
             gen.emit2BytesOperand(
                 this.fn.code,
                 (isLocal ? opcode.OP_DEFINE_LOCAL : opcode.OP_DEFINE_GLOBAL),

@@ -2,6 +2,10 @@
  errors
  */
 
+"use strict";
+
+const SEP = "[[-]]";
+const TAB = "\t";
 const EL0000 = 'EL0000',  // no error
     EL0001 = 'EL0001',  // (lexer) comments (multiline) not properly closed
     EL0002 = 'EL0002',  // (lexer) unknown token
@@ -38,7 +42,20 @@ const EL0000 = 'EL0000',  // no error
     EP0027 = 'EP0027',
     EP0028 = 'EP0028',
     EP0029 = 'EP0029',
-    EP0030 = 'EP0030'
+    EP0030 = 'EP0030',
+    EP0031 = 'EP0031',
+    EP0032 = 'EP0032',
+    EP0033 = 'EP0033',
+    EP0034 = 'EP0034',
+    EP0035 = 'EP0033',
+    EP0036 = 'EP0036',
+    EP0037 = 'EP0037',
+    EP0038 = 'EP0038',
+    EP0039 = 'EP0039',
+    EP0040 = 'EP0040',
+    EP0041 = 'EP0041',
+    EP0042 = 'EP0042',
+    EP0043 = 'EP0043'
 ;
 
 
@@ -103,8 +120,9 @@ RError[EP0006] = createError(EP0006,
 
 RError[EP0007] = createError(EP0007,
     "Parameters exceeds 255 limit.",
-    "The parameters found exceeds the maximum limit. " +
-    "You probably don't want to have a function with over 255 arguments.");
+    `The parameters found exceeds the maximum limit.${SEP}` +
+    `You probably don't want to have a function with over 255 arguments,${SEP}` +
+    "and even if you do, I can't allow it.");
 
 RError[EP0008] = createError(EP0008,
     "Token found mismatches expected token.");
@@ -134,7 +152,7 @@ RError[EP0014] = createError(EP0014,
     "Expected ';'",
     "Consider adding a ';' to terminate the statement/expression.");
 
-RError[EP0015] = createError(EP0015,
+RError[EP0015] = createError(EP0015,  // todo: remove
     "Expected '->' after parameter list in lambda function declaration.",
     "It is a common mistake to forget the arrow operator '->', " +
     "consider adding it to fix this error.");
@@ -194,6 +212,44 @@ RError[EP0028] = createError(EP0028,
     "Invalid assignment target.",
     "Consider using parenthesis to group assignment if valid.");
 
+RError[EP0029] = createError(EP0029,
+    "Multiple spread parameters.",
+    "Consider specifying only a single parameter with the spread operator.");
+
+RError[EP0030] = createError(EP0030,
+    "Spread parameter not last.",
+    "Consider placing the spread parameter as the last " +
+    "parameter in the function.");
+
+RError[EP0031] = createError(EP0031,
+    "Duplicate parameter found.",
+    `Consider renaming the parameter. Multiple parameters having the same${SEP}` +
+    "variable name doesn't really make sense.");
+
+RError[EP0032] = createError(EP0032,
+    "Positional parameter after default parameter.",
+    `Consider placing the positional parameter before the default parameter,` +
+    `${SEP}or making the positional parameter a default parameter.${SEP}` +
+    `For example:${SEP}` +
+    `${TAB}fn foo(x, z="bar", y) {...} can be rewritten as:${SEP}` +
+    `${TAB}fn foo(x, y, z="bar") {...} or fn foo(x, z="bar", y="some-default") {...}`);
+
+RError[EP0033] = createError(EP0033,
+    "Spread parameter with default value.",
+    `A spread parameter cannot have a default value.${SEP}` +
+    "Consider eliminating the default value passed.");
+
+RError[EP0034] = createError(EP0034,
+    "Trailing comma not supported.",
+    `Consider removing the trailing comma; it's currently not supported.`);
+
+RError[EP0035] = createError(EP0035,
+    "Decorator without function declaration.",
+    `Consider applying a valid decorator to a valid function declaration.${SEP}` +
+    `Here's an example:${SEP}` +
+    `${TAB}@decorator${SEP}` +
+    `${TAB}fn bar(){${SEP}${TAB}  // some code${SEP}${TAB}}`);
+
 
 module.exports = {
     RError,
@@ -234,4 +290,18 @@ module.exports = {
     EP0028,
     EP0029,
     EP0030,
+    EP0031,
+    EP0032,
+    EP0033,
+    EP0034,
+    EP0035,
+    EP0036,
+    EP0037,
+    EP0038,
+    EP0039,
+    EP0040,
+    EP0041,
+    EP0042,
+    EP0043,
+    SEP
 };

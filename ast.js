@@ -123,6 +123,7 @@ function getOperator(tokenType){
         case tokens.TOKEN_STAR_STAR_EQUAL:     return OpType.OPTR_POW_ASSIGN;
         case tokens.TOKEN_OR:                  return OpType.OPTR_OR;
         case tokens.TOKEN_AND:                 return OpType.OPTR_AND;
+        case tokens.OPTR_SPREAD:               return OpType.OPTR_SPREAD;
         default:                               return undefined;
     }
 }
@@ -469,6 +470,8 @@ class FunctionNode extends AST{
         this.block = null;
         this.isLambda = isLambda;
         this.line = line;
+        this.isVariadic = false;
+        this.defaultParamsCount = 0;
     }
 }
 
@@ -491,6 +494,16 @@ class CallNode extends AST{
     }
 }
 
+class ArgumentNode extends AST {
+    constructor(left, right, isSpreadArg, line){
+        super();
+        this.leftNode = left;  // variable
+        this.rightNode = right;  // default value
+        this.isSpreadArg = isSpreadArg;
+        this.line = line;
+    }
+}
+
 class ProgramNode extends AST{
     constructor(){
         super();
@@ -508,6 +521,6 @@ module.exports = {
     AndExprNode, OrExprNode, IfElseNode,
     ForLoopNode, WhileLoopNode, DoWhileLoopNode, UnboundedLoopNode,
     ControlNode, CaseNode, OfNode, DictNode, FunctionNode,
-    CallNode, ReturnNode,
+    CallNode, ReturnNode, ArgumentNode,
     OpType, getOperator, NodeVisitor, getAssignmentOp
 };

@@ -43,6 +43,7 @@ function BPTable() {
 }
 
 BPTable[tokens.TOKEN_SEMI_COLON] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_AT] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_LESS_THAN] = bp(POWER_COMPARISON, null, binary); // d
 BPTable[tokens.TOKEN_GREATER_THAN] = bp(POWER_COMPARISON, null, binary);  // d
 BPTable[tokens.TOKEN_LEFT_BRACKET] = bp(POWER_CALL, grouping, callExpr);
@@ -197,6 +198,7 @@ Parser.prototype.pError = function(errorCode, args) {
     let error = errors.RError[errorCode];
     let token = args ? (args["token"] || this.currentToken) : this.currentToken;
     let helpMsg = args ? (args["helpMsg"] || error.helpMsg) : error.helpMsg;
+    let helpInfo = "";
     let lineNum = `${token.line}`.padStart(4, " ");
     let errMsg = ` |[${errorCode}] ${error.errorMsg}\n`;
     let padding = "|".padStart(6, " ") + " ";
@@ -206,8 +208,18 @@ Parser.prototype.pError = function(errorCode, args) {
         + "^".padStart(token.length, "^")
         + "\n";
     errSrc += squiggles;
-    helpMsg ? errSrc += (padding + helpMsg + "\n") : void 0;
-    console.error(lineNum + errMsg + errSrc);
+    if (helpMsg){
+        helpInfo += (padding + "Help:" + "\n"); // todo: remove?
+        if (helpMsg.includes(errors.SEP)){
+            helpMsg.split(errors.SEP).forEach(msg => {
+                helpInfo += (padding + msg + "\n");
+            });
+        }else{
+            helpInfo += (padding + helpMsg + "\n");
+        }
+    }
+    // helpMsg ? errSrc += (padding + helpMsg + "\n") : void 0;
+    console.error(lineNum + errMsg + errSrc + helpInfo);
     process.exit(-1);
 };
 
@@ -270,7 +282,8 @@ Parser.prototype.expression = function() {
 
 function grouping() {
     this.consume(tokens.TOKEN_LEFT_BRACKET);
-    if (this.check(tokens.TOKEN_RIGHT_BRACKET)) {
+    if (this.check(tokens.TOKEN_RIGHT_BRACKET) ||
+        this.check(tokens.TOKEN_DOT_DOT_DOT)) {
         lambdaExpr.call(this);
         return;
     }
@@ -492,7 +505,7 @@ function ofExpr() {
         }
     } while (this.match(tokens.TOKEN_COMMA));
     this.consume(tokens.TOKEN_ARROW);
-    this.statement(true);
+    this.statement();
     // check that star arm exists, it is the last arm in the case expression
     if (starToken && !this.check(tokens.TOKEN_RIGHT_CURLY)) {
         // this.pError(errors.EP0001, {helpMsg: errors.RError.EP0016.helpMsg});
@@ -636,9 +649,6 @@ Parser.prototype.caseStatement = function () {
     {
         const node = ofExpr.call(this);
         caseNode.arms.push(node);
-        if (!this.check(tokens.TOKEN_RIGHT_CURLY)){
-            this.consume(tokens.TOKEN_COMMA);
-        }
     }
     this.consume(tokens.TOKEN_RIGHT_CURLY);
     const curlyToken = this.previousToken;
@@ -700,25 +710,35 @@ function variable() {
 
 function lambdaExpr(firstParam, skipRightBracket) {
     // (x, y) => expr; | (x, y) => {}
-    const params = firstParam ? [firstParam] : [];
     this.inFunction++;
-    const line = this.currentToken.line;
+    const fn = new ast.FunctionNode(
+        null, true, this.currentToken.line
+    );
+    // parse parameters if `skipRightBracket` flag is false. This holds only
+    // when there are multiple parameters in the lambda function declaration.
     if (!skipRightBracket) {
-        while (!this.check(tokens.TOKEN_RIGHT_BRACKET)
-            && !this.check(tokens.TOKEN_EOF)
-            && !this.check(tokens.TOKEN_ERROR))
-        {
-            this.consume(tokens.TOKEN_COMMA);
-            variable.call(this);
-            params.push(this.pop());
-        }
+        this.parseFunctionParams(
+            fn, firstParam,
+            this.check(tokens.TOKEN_DOT_DOT_DOT)
+        );
         this.consume(tokens.TOKEN_RIGHT_BRACKET);
     }
-    if (params.length > utils.MAX_FUNCTION_PARAMS) {
-        this.pError(errors.EP0007);
+    // drops here if there's only one argument
+    else if (firstParam) {
+        let line = firstParam.line, left, right;
+        // we get an `AssignNode` if a default parameter was declared
+        if (firstParam instanceof ast.AssignNode) {
+            right = firstParam.rightNode;
+            left = firstParam.leftNode;
+            fn.defaultParamsCount++;
+        } else { // else a `VarNode`
+            left = firstParam;
+        }
+        fn.params.push(new ast.ArgumentNode(
+            left, right, false, line
+        ));
     }
     this.consume(tokens.TOKEN_FAT_ARROW);
-    const fn = new ast.FunctionNode(null, true, line);
     const beginLine = this.currentToken.line;
     this.statement(true);
     fn.block = this.pop();
@@ -726,7 +746,6 @@ function lambdaExpr(firstParam, skipRightBracket) {
         const endLine = this.previousToken.line;
         fn.block = new ast.BlockNode([fn.block], beginLine, endLine);
     }
-    fn.params = params;
     this.injectReturn(fn.block);
     this.push(fn);
     this.inFunction--;
@@ -745,7 +764,7 @@ function callExpr() {
         node.args.push(this.pop());
         this.match(tokens.TOKEN_COMMA);
     }
-    if (node.args.length > 0xff) {
+    if (node.args.length > utils.MAX_FUNCTION_PARAMS) {
         this.pError(errors.EP0007);
     }
     this.consume(tokens.TOKEN_RIGHT_BRACKET);
@@ -786,6 +805,109 @@ Parser.prototype.injectReturn = function(blockNode) {
     }
 };
 
+Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
+    // f(a, b='a', c=x(), ...d)
+    const params = fn.params;
+    let hasSpreadParameter = false,
+        defaultParamsCount = 0,
+        isSpread = false,
+        right = null,
+        left = null,
+        line, token
+        ;
+    // todo: improve this code, it's too gnarly atm.
+    while ((!this.check(tokens.TOKEN_RIGHT_BRACKET) || firstParam || atSpread)
+        && !this.check(tokens.TOKEN_EOF)
+        && !this.check(tokens.TOKEN_ERROR))
+    {
+        // `atSpread` helps enter this loop, when we drop into this function
+        // due to a lambda expression having the first parameter to be
+        // a spread parameter, i.e. (...x) => {...}
+        // so we reset it here after gaining entrance, to prevent it from
+        // distorting the loop logic.
+        atSpread = false;
+
+        // `firstParam` indicates that a lambda function was encountered,
+        // with the first parameter already parsed. We just use it directly
+        // if it's available, and also reset it to prevent distorting the
+        // loop logic.
+        if (firstParam){
+            // handle when dropping from a lambda function
+            left = firstParam;
+            token = this.previousToken;
+            line = this.previousToken.line;
+            firstParam = null;
+        }else{
+            // handle the spread parameter
+            if (this.match(tokens.TOKEN_DOT_DOT_DOT)){
+                if (hasSpreadParameter){
+                    // multiple spread params
+                    this.pError(errors.EP0029, {
+                        token: this.previousToken
+                    });
+                }
+                isSpread = hasSpreadParameter = true;
+            }
+            line = this.currentToken.line;
+            token = this.currentToken;
+            variable.call(this);
+            left = this.pop();
+        }
+        if (left instanceof ast.AssignNode){
+            if (isSpread){
+                // spread parameter can have no default
+                this.pError(errors.EP0033, {
+                    token: this.previousToken
+                });
+            }
+            right = left.rightNode;
+            left = left.leftNode;
+            defaultParamsCount++;
+        }else if (defaultParamsCount && !isSpread){
+            // positional parameter after a default parameter;
+            // only a spread parameter is allowed after a parameter
+            // with a default value
+            this.pError(errors.EP0032, { token: this.previousToken});
+        }
+        const commaToken = this.currentToken;
+        this.match(tokens.TOKEN_COMMA);
+        // ensure spread param is the last param
+        if (hasSpreadParameter && this.check(tokens.TOKEN_IDENTIFIER)){
+            // spread parameter not the last parameter
+            this.pError(errors.EP0030);
+        }
+        utils.assert(left instanceof ast.VarNode,
+            "Parser::parseFunctionParams()");
+        // check for duplicate parameter variables
+        params.forEach(param => {
+            if (param.leftNode.name === left.name){
+                this.pError(errors.EP0031, { token });
+            }
+        });
+        // store param
+        params.push(
+            new ast.ArgumentNode(left, right, hasSpreadParameter, line)
+        );
+        // reset variables for processing of the next parameter
+        isSpread = false;
+        right = null;
+        // `match(token-comma)` above allows a trailing comma, for now, this
+        // shouldn't be supported.
+        if ((this.previousToken.type === tokens.TOKEN_COMMA)
+            && this.check(tokens.TOKEN_RIGHT_BRACKET)){
+            // error if trailing comma if found in the parameter list
+            this.pError(errors.EP0034, {token: commaToken});
+        }
+    }
+    fn.isVariadic = hasSpreadParameter;
+    fn.defaultParamsCount = defaultParamsCount;
+    // validate parameter list size of the function
+    if (fn.params.length > utils.MAX_FUNCTION_PARAMS) {
+        // use the previousToken - the last variable/default parameter consumed
+        this.pError(errors.EP0007, { token: this.previousToken });
+    }
+};
+
 Parser.prototype.funDecl = function() {
     // fn name() {}
     const line = this.currentToken.line;
@@ -794,17 +916,7 @@ Parser.prototype.funDecl = function() {
     const fn = new ast.FunctionNode(this.pop(), false, line);
     fn.name = this.parseName();
     this.consume(tokens.TOKEN_LEFT_BRACKET);
-    while (!this.check(tokens.TOKEN_RIGHT_BRACKET)
-        && !this.check(tokens.TOKEN_EOF)
-        && !this.check(tokens.TOKEN_ERROR))
-    {
-        variable.call(this);
-        fn.params.push(this.pop());
-        this.match(tokens.TOKEN_COMMA);
-    }
-    if (fn.params.length > utils.MAX_FUNCTION_PARAMS) {
-        this.pError(errors.EP0007);
-    }
+    this.parseFunctionParams(fn);
     this.consume(tokens.TOKEN_RIGHT_BRACKET);
     this.block();
     fn.block = this.pop();
@@ -821,7 +933,6 @@ Parser.prototype.continueStatement = function() {
         this.currentToken.line, false
     ));
     this.advance();
-    // this.consume(tokens.TOKEN_SEMI_COLON);
 };
 
 Parser.prototype.breakStatement = function() {
@@ -832,7 +943,6 @@ Parser.prototype.breakStatement = function() {
         this.currentToken.line, true
     ));
     this.advance();
-    // this.consume(tokens.TOKEN_SEMI_COLON);
 };
 
 Parser.prototype.unbLoopStatement = function() {
@@ -927,6 +1037,40 @@ Parser.prototype.showStatement = function() {
     this.push(node);
 };
 
+Parser.prototype.decoratorStatement = function() {
+    // skip '@'
+    this.advance();
+    const token = this.currentToken;
+    // @decorator | @decorator(...)
+    variable.call(this);
+    if (this.check(tokens.TOKEN_LEFT_BRACKET)){
+        callExpr.call(this);
+    }
+    const decorator = this.pop();
+    if (!this.check(tokens.TOKEN_FN)){
+        this.pError(errors.EP0035, { token });
+    }
+    this.funDecl();
+    const fn = this.pop();
+    /*
+     * `useDecoratorCtx` indicates that the function is being wrapped
+     * by a decorator, so the compiler shouldn't emit definition instructions.
+     * this is because the function definition will be rewritten (as described
+     * below), and we NEED the function on the stack when this happens.
+     */
+    fn.useDecoratorCtx = true;
+    /*
+     *  @decorator
+     *  fn fun(){...}
+     *  |--> let fun = decorator(fun);
+     */
+    // todo: fix for definitions
+    const rvalue = new ast.CallNode(decorator, token.line);
+    rvalue.args.push(fn);
+    const node = new ast.VarDeclNode(fn.name, rvalue, false, token.line);
+    this.push(node);
+};
+
 Parser.prototype.varDecl = function() {
     // let const? var.. (= expr)? (, var.. (= expr)?)* ;
     let line = this.currentToken.line;
@@ -967,6 +1111,9 @@ Parser.prototype.statement = function(forgetSemi) { // , lookAhead, str
         case tokens.TOKEN_SHOW:
             this.showStatement();
             consumeSemicolon = true;
+            break;
+        case tokens.TOKEN_AT:
+            this.decoratorStatement();
             break;
         case tokens.TOKEN_LEFT_CURLY:
             this.block();

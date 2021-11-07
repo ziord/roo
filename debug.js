@@ -237,9 +237,7 @@ Disassembler.prototype.getInstructionOffset = function (index){
         case opcode.OP_SET_SUBSCRIPT:
         case opcode.OP_POP:
         case opcode.OP_DEC:
-        case opcode.OP_SWAP_TWO:  // todo: remove
         case opcode.OP_INC:
-        case opcode.OP_LIFT_UPVALUE:  // todo: remove
             return (index + 1);
         case opcode.OP_SHOW:
         case opcode.OP_CALL:

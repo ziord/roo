@@ -29,6 +29,21 @@ function Value(valType, value = null) {
 
 // todo: dict and list should be their own 'objects'
 
+function ListObject(){
+    this.container = [];
+}
+
+function DictObject(){
+    this.map = new Map();
+}
+
+
+function Param(position, value){
+    this.position = position;
+    this.value = value;
+}
+
+
 function FunctionObject(name, arity, code, isLambda){
     this.name = name;
     this.arity = arity;
@@ -36,10 +51,17 @@ function FunctionObject(name, arity, code, isLambda){
     this.isLambda = isLambda;
     this.upvalueCount = 0;
     this.upvalues = [];
+    this.isVariadic = false;
+    this.defaults = [];
+    this.defaultParamsCount = 0;
 }
 
 function createFunctionObj(name, arity, code, isLambda){
   return new FunctionObject(name, arity, code, isLambda);
+}
+
+function createListObj(){
+    return new Value(VAL_LIST, []);
 }
 
 Value.fromValue = function (valObj, value){
@@ -241,7 +263,9 @@ module.exports = {
     assert,
     Value,
     FunctionObject,
+    // ListObject,
     createFunctionObj,
+    createListObj,
     ConstantPool,
     VAL_INT,
     VAL_FLOAT,

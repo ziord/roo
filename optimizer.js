@@ -1,3 +1,5 @@
+"use strict";
+
 const ast = require("./ast");
 const ASTType = ast.ASTType;
 

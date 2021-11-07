@@ -2,9 +2,12 @@
  * tokens.js
  */
 
+"use strict";
+
 module.exports = {
     // single character tokens
     TOKEN_SEMI_COLON: "TOKEN_SEMI_COLON",           // ;
+    TOKEN_AT: "TOKEN_AT",                           // @
     TOKEN_LESS_THAN: "TOKEN_LESS_THAN",            // <
     TOKEN_GREATER_THAN: "TOKEN_GREATER_THAN",         // >
     TOKEN_LEFT_BRACKET: "TOKEN_LEFT_BRACKET",         // (
