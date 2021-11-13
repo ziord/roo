@@ -16,7 +16,11 @@ const VAL_INT = 0,
     VAL_STRING = 5,
     VAL_LIST = 6,
     VAL_DICT = 7,
-    VAL_FUNCTION = 8;
+    VAL_FUNCTION = 8,
+    VAL_DEFINITION = 9,
+    VAL_INSTANCE = 10,
+    VAL_BOUND_METHOD = 11,
+    VAL_BFUNCTION = 12;
 
 /*
  * primitive types occupy this.value directly (including strings),
@@ -27,25 +31,8 @@ function Value(valType, value = null) {
     this.value = value;
 }
 
-// todo: dict and list should be their own 'objects'
-
-function ListObject(){
-    this.container = [];
-}
-
-function DictObject(){
-    this.map = new Map();
-}
-
-
-function Param(position, value){
-    this.position = position;
-    this.value = value;
-}
-
-
 function FunctionObject(name, arity, code, isLambda){
-    this.name = name;
+    this.fname = name;  /*string*/
     this.arity = arity;
     this.code = code;
     this.isLambda = isLambda;
@@ -54,14 +41,29 @@ function FunctionObject(name, arity, code, isLambda){
     this.isVariadic = false;
     this.defaults = [];
     this.defaultParamsCount = 0;
+    this.isSpecialMethod = false;
+    this.isStaticMethod = false;
 }
 
-function createFunctionObj(name, arity, code, isLambda){
-  return new FunctionObject(name, arity, code, isLambda);
+function DefObject(name /*string*/){
+    this.dname = name;
+    this.dmethods = new Map();
 }
 
-function createListObj(){
-    return new Value(VAL_LIST, []);
+function InstanceObject(defObj){
+    this.def = defObj;  // DefObject
+    this.props = new Map();
+}
+
+function BoundMethodObject(inst, method){
+    this.instance = inst;
+    this.method = method; // Value(FunctionObject)
+}
+
+function BFunctionObject(name, arity, builtinFn) {
+    this.fname = name;
+    this.arity = arity;
+    this.builtinFn = builtinFn;
 }
 
 Value.fromValue = function (valObj, value){
@@ -111,6 +113,22 @@ Value.prototype.isFunction = function(){
     return this.type === VAL_FUNCTION;
 };
 
+Value.prototype.isDef = function(){
+    return this.type === VAL_DEFINITION;
+};
+
+Value.prototype.isInstance = function(){
+    return this.type === VAL_INSTANCE;
+};
+
+Value.prototype.isBoundMethod = function(){
+    return this.type === VAL_BOUND_METHOD;
+};
+
+Value.prototype.isBFunction = function(){
+    return this.type === VAL_BFUNCTION;
+};
+
 function as() {
     return this.value;
 }
@@ -124,6 +142,14 @@ Value.prototype.asString = as;
 Value.prototype.asDict = as;
 
 Value.prototype.asFunction = as;
+
+Value.prototype.asDef = as;
+
+Value.prototype.asInstance = as;
+
+Value.prototype.asBoundMethod = as;
+
+Value.prototype.asBFunction = as;
 
 Value.prototype.typeToString = function() {
     switch (this.type) {
@@ -143,6 +169,14 @@ Value.prototype.typeToString = function() {
             return "dict";
         case VAL_FUNCTION:
             return "function";
+        case VAL_DEFINITION:
+            return "definition";
+        case VAL_INSTANCE:
+            return "instance";
+        case VAL_BOUND_METHOD:
+            return "bound_method";
+        case VAL_BFUNCTION:
+            return "builtin_function";
         // todo: object type
         default:
             unreachable("Value::typeToString()");
@@ -172,14 +206,24 @@ Value.prototype.stringify = function(fromShow=false) {
         case VAL_NULL:
             return "null";
         case VAL_STRING:
-            return fromShow ? this.value : `'${this.value}'`; // todo: check string quote type
+            // todo: check string quote type
+            return fromShow ? this.value : `'${this.value}'`;
         case VAL_LIST:
             return "[" + this.value.map((e) => e.stringify()).join(", ") + "]";
         case VAL_DICT:
             return this.dictToString();
         case VAL_FUNCTION:
-            // {fn foo}. top level function is script
-            return this.value.name ? `{fn ${this.value.name}}` : "{script}";
+            // {fn foo}. top level function is 'script'
+            return this.value.fname ? `{fn ${this.value.fname}}` : "{script}";
+        case VAL_DEFINITION:
+            return `{def ${this.asDef().dname}}`;
+        case VAL_INSTANCE:
+            return `{ref ${this.asInstance().def.dname}}`;
+        case VAL_BOUND_METHOD:
+            return `{${this.asBoundMethod().method.stringify()}:bound}`;
+        case VAL_BFUNCTION:
+            // {{fn foo}:native}
+            return `{{fn ${this.asBFunction().fname}}:native}`;
         // todo: object type
         default:
             unreachable("Value::stringify()");
@@ -221,7 +265,6 @@ Value.prototype.equals = function(otherVal) {
             case VAL_FLOAT:
             case VAL_BOOLEAN:
             case VAL_NULL:
-                return this.value === otherVal.value;
             case VAL_STRING:
                 return this.value === otherVal.value;
             case VAL_LIST:
@@ -230,13 +273,57 @@ Value.prototype.equals = function(otherVal) {
                 return this.dictEquals(otherVal);
             case VAL_FUNCTION:
                 return this.asFunction() === otherVal.asFunction();
+            case VAL_DEFINITION:
+                return this.asDef() === otherVal.asDef();
+            case VAL_INSTANCE:
+                return this.asInstance() === otherVal.asInstance();
+            case VAL_BOUND_METHOD:
+                return this.asBoundMethod().method === otherVal.asBoundMethod().method;
+            case VAL_BFUNCTION:
+                return this.asBFunction() === otherVal.asBFunction();
             case VAL_OBJECT:
                 // todo: update
                 return false;
+            default:
+                unreachable("Value::equals()");
         }
     }
 };
 
+/*
+ * utilities
+ */
+function createFunctionObj(name, arity, code, isLambda) {
+    return new FunctionObject(name, arity, code, isLambda);
+}
+
+function createFunctionVal(func) {
+    return new Value(VAL_FUNCTION, func);
+}
+
+function createListVal(lst) {
+    return new Value(VAL_LIST, lst || []);
+}
+
+function createDefVal(name) {
+    return new Value(VAL_DEFINITION, new DefObject(name));
+}
+
+function createInstanceVal(defObj) {
+    return new Value(VAL_INSTANCE, new InstanceObject(defObj));
+}
+
+function createBoundMethodVal(inst, method) {
+    return new Value(VAL_BOUND_METHOD, new BoundMethodObject(inst, method));
+}
+
+function createBFunctionVal(fname, fexec, arity) {
+    return new Value(VAL_BFUNCTION, new BFunctionObject(fname, arity, fexec));
+}
+
+/*
+ * ConstantPool
+ */
 function ConstantPool() {
     // a pool of constants
     this.pool = [];
@@ -265,8 +352,13 @@ module.exports = {
     FunctionObject,
     // ListObject,
     createFunctionObj,
-    createListObj,
+    createFunctionVal,
+    createListVal,
     ConstantPool,
+    createDefVal,
+    createInstanceVal,
+    createBoundMethodVal,
+    createBFunctionVal,
     VAL_INT,
     VAL_FLOAT,
     VAL_BOOLEAN,
@@ -276,4 +368,7 @@ module.exports = {
     VAL_LIST,
     VAL_DICT,
     VAL_FUNCTION,
+    VAL_DEFINITION,
+    VAL_INSTANCE,
+    VAL_BOUND_METHOD
 };

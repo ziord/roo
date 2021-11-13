@@ -81,16 +81,15 @@ module.exports = {
     TOKEN_WHILE: 'TOKEN_WHILE',            // while
     TOKEN_FN: 'TOKEN_FN',               // fn
     TOKEN_NULL: 'TOKEN_NULL',             // null
-    // TOKEN_VAR: 'TOKEN_VAR',              // var  // todo: remove
     TOKEN_LET: 'TOKEN_LET',              // let
     TOKEN_TRUE: 'TOKEN_TRUE',             // true
     TOKEN_FALSE: 'TOKEN_FALSE',            // false
-    TOKEN_SELF: 'TOKEN_SELF',             // self
+    TOKEN_REF: 'TOKEN_REF',             // ref
     TOKEN_CONST: 'TOKEN_CONST',            // const
     TOKEN_SHOW: 'TOKEN_SHOW',             // show
     TOKEN_RETURN: 'TOKEN_RETURN',           // return
     TOKEN_CLASS: 'TOKEN_CLASS',            // class
-    TOKEN_SUPER: 'TOKEN_SUPER',            // super
+    TOKEN_DEREF: 'TOKEN_DEREF',            // deref
     TOKEN_BREAK: 'TOKEN_BREAK',            // break
     TOKEN_CONTINUE: 'TOKEN_CONTINUE',         // continue
     TOKEN_LOOP: 'TOKEN_LOOP',             // loop
@@ -98,6 +97,8 @@ module.exports = {
     TOKEN_CASE: 'TOKEN_CASE',             // case
     TOKEN_STATIC: 'TOKEN_STATIC',           // static
     TOKEN_STRUCT: 'TOKEN_STRUCT',           // struct
+    TOKEN_DEFINE: 'TOKEN_DEFINE',           // define
+    TOKEN_DERIVE: 'TOKEN_DERIVE',           // derive
 
     // others
     TOKEN_ERROR: 'TOKEN_ERROR',

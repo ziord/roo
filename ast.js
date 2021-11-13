@@ -22,7 +22,6 @@ const ASTType = {
     AST_NODE_EXPR:              'AST_NODE_EXPR',
     AST_NODE_PROGRAM:           'AST_NODE_PROGRAM',
     AST_NODE_ASSIGN:            'AST_NODE_ASSIGN',
-    AST_NODE_INDEX_ASSIGN:      'AST_NODE_ASSIGN',
     AST_NODE_POSTFIX:           'AST_NODE_POSTFIX',
     AST_NODE_VAR_DECL_LIST:     'AST_NODE_VAR_DECL_LIST',
     AST_NODE_ISTRING:           'AST_NODE_ISTRING',
@@ -42,6 +41,10 @@ const ASTType = {
     AST_NODE_FUNCTION:          'AST_NODE_FUNCTION',
     AST_NODE_CALL:              'AST_NODE_CALL',
     AST_NODE_RETURN:            'AST_NODE_RETURN',
+    AST_NODE_ARGUMENT:          'AST_NODE_ARGUMENT',
+    AST_NODE_DEFN:              'AST_NODE_DEFN',
+    AST_NODE_DOT_EXPR:          'AST_NODE_DOT_EXPR',
+    AST_NODE_METHOD_CALL:       'AST_NODE_METHOD_CALL',
 };
 
 const OpType = {
@@ -84,6 +87,12 @@ const OpType = {
     OPTR_BW_OR_ASSIGN: 'OPTR_BW_OR_ASSIGN',
 };
 
+const FnTypes = {
+    TYPE_SCRIPT: "TYPE_SCRIPT", // top-level script
+    TYPE_FUNCTION: "TYPE_FUNCTION",
+    TYPE_METHOD: "TYPE_METHOD",
+};
+
 function getOperator(tokenType){
     switch (tokenType)
     {
@@ -123,7 +132,7 @@ function getOperator(tokenType){
         case tokens.TOKEN_STAR_STAR_EQUAL:     return OpType.OPTR_POW_ASSIGN;
         case tokens.TOKEN_OR:                  return OpType.OPTR_OR;
         case tokens.TOKEN_AND:                 return OpType.OPTR_AND;
-        case tokens.OPTR_SPREAD:               return OpType.OPTR_SPREAD;
+        // case tokens.TOKEN_DOT_DOT_DOT:         return OpType.OPTR_SPREAD;
         default:                               return undefined;
     }
 }
@@ -320,17 +329,6 @@ class BlockNode extends AST{
     }
 }
 
-class IndexExprAssignNode extends AST{
-    constructor(left, right, assignOp, line){
-        super();
-        this.type = ASTType.AST_NODE_INDEX_ASSIGN;
-        this.leftNode = left;  // indexExpr
-        this.rightNode = right;
-        this.op = assignOp;
-        this.line = line;
-    }
-}
-
 class PostfixNode extends AST{
     constructor(node, op, line){
         super();
@@ -371,12 +369,13 @@ class OrExprNode extends AST{
 }
 
 class IfElseNode extends AST{
-    constructor(conditionExpr, ifBlock, elseBlock){
+    constructor(conditionExpr, ifBlock, elseBlock, elseLine){
         super();
         this.type = ASTType.AST_NODE_IF_ELSE;
         this.conditionExpr = conditionExpr;
         this.ifBlock = ifBlock;
         this.elseBlock = elseBlock;
+        this.elseLine = elseLine;
     }
 }
 
@@ -465,6 +464,7 @@ class FunctionNode extends AST{
     constructor(name, isLambda, line){
         super();
         this.type = ASTType.AST_NODE_FUNCTION;
+        this.fnType = FnTypes.TYPE_FUNCTION;
         this.name = name;  // string
         this.params = [];  // VarNode
         this.block = null;
@@ -472,6 +472,9 @@ class FunctionNode extends AST{
         this.line = line;
         this.isVariadic = false;
         this.defaultParamsCount = 0;
+        this.isStatic = false;  // a static method ?
+        this.isSpecial = false; // a special method in roo?
+        this.emitDefinition = true; // should definition instructions be emitted?
     }
 }
 
@@ -495,11 +498,51 @@ class CallNode extends AST{
 }
 
 class ArgumentNode extends AST {
-    constructor(left, right, isSpreadArg, line){
+    constructor(left, right, line){
         super();
+        this.type = ASTType.AST_NODE_ARGUMENT;
         this.leftNode = left;  // variable
         this.rightNode = right;  // default value
-        this.isSpreadArg = isSpreadArg;
+        this.line = line;
+    }
+}
+
+class MethodNode extends AST {
+    constructor(node){
+        super();
+        this.fnNode = node;
+    }
+}
+
+class DefNode extends AST {
+    constructor(name, line){
+        super();
+        this.type = ASTType.AST_NODE_DEFN;
+        this.defVar = name;  // VarNode
+        this.derivingNode = null;  // VarNode
+        this.methods = [];
+        this.line = line;
+    }
+}
+
+class DotExprNode extends AST {
+    constructor(left, right, line){
+        super();
+        this.type = ASTType.AST_NODE_DOT_EXPR;
+        this.line = line;
+        this.leftNode = left;
+        this.rightNode = right;
+        this.isDerefExpr = false;
+    }
+}
+
+class MethodCallNode extends AST{
+    constructor(left, isDeref, line){
+        super();
+        this.type = ASTType.AST_NODE_METHOD_CALL;
+        this.leftNode = left;  // DotExprNode
+        this.isDeref = isDeref;
+        this.args = [];
         this.line = line;
     }
 }
@@ -516,11 +559,11 @@ module.exports = {
     AST, ASTType, NumberNode, StringNode, BinaryNode, UnaryNode,
     BooleanNode, NullNode, ShowNode, ListNode, RangeNode,
     IndexExprNode, VarDeclNode, VarNode, ExprStatementNode,
-    ProgramNode, AssignNode, IndexExprAssignNode,
+    ProgramNode, AssignNode, MethodCallNode,
     PostfixNode, VarDeclListNode, BlockNode, IStringNode,
-    AndExprNode, OrExprNode, IfElseNode,
+    AndExprNode, OrExprNode, IfElseNode, MethodNode, DotExprNode,
     ForLoopNode, WhileLoopNode, DoWhileLoopNode, UnboundedLoopNode,
     ControlNode, CaseNode, OfNode, DictNode, FunctionNode,
-    CallNode, ReturnNode, ArgumentNode,
-    OpType, getOperator, NodeVisitor, getAssignmentOp
+    CallNode, ReturnNode, ArgumentNode, DefNode,
+    OpType, getOperator, NodeVisitor, getAssignmentOp, FnTypes
 };

@@ -54,4 +54,14 @@ Code.prototype.writeBytes = function (first, second, line) {
     this.writeByte(second, line);
 };
 
+Code.prototype.resetBy = function (count) {
+    this.length ? this.length -= count : void 0;
+    (this.srcLines.length >= count)
+        ? this.srcLines.length -= count
+        : void 0;
+    (this.lines.length >= count)
+        ? this.lines.length -= count
+        : void 0;
+};
+
 module.exports = {Code};

@@ -58,7 +58,7 @@ BPTable[tokens.TOKEN_PLUS] = bp(POWER_TERM, unary, binary);  // d
 BPTable[tokens.TOKEN_F_SLASH] = bp(POWER_FACTOR, null, binary);  // d
 BPTable[tokens.TOKEN_B_SLASH] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_COMMA] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_DOT] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_DOT] = bp(POWER_CALL, null, dotExpr);
 BPTable[tokens.TOKEN_MOD] = bp(POWER_FACTOR, null, binary);  // d
 BPTable[tokens.TOKEN_EQUAL] = bp(POWER_ASSIGNMENT, null, null);
 BPTable[tokens.TOKEN_QMARK] = bp(POWER_CONDITIONAL_EXPR, null, conditionalExpr);
@@ -111,12 +111,12 @@ BPTable[tokens.TOKEN_NULL] = bp(POWER_NONE, literal, null);
 BPTable[tokens.TOKEN_LET] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_TRUE] = bp(POWER_NONE, literal, null);    // d
 BPTable[tokens.TOKEN_FALSE] = bp(POWER_NONE, literal, null);    // d
-BPTable[tokens.TOKEN_SELF] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_REF] = bp(POWER_NONE, refExpr, null);
 BPTable[tokens.TOKEN_CONST] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_SHOW] = bp(POWER_NONE, null, null);  // d
 BPTable[tokens.TOKEN_RETURN] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_CLASS] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_SUPER] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_DEREF] = bp(POWER_NONE, derefExpr, null);
 BPTable[tokens.TOKEN_BREAK] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_CONTINUE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_LOOP] = bp(POWER_NONE, null, null);
@@ -139,8 +139,18 @@ function Parser(src) {
     this.currentScope = { name: "global", enclosingScope: null };
     this.scopeCount = 1;
     this.inLoop = 0;
+    // are we parsing/in a function?:
     this.inFunction = 0;
+    // are we in the body of a 'define' declaration? (define var{...})
+    this.inDefinition = 0;
+    // is the current node being parsed an init*() method?:
+    this.inInitFn = 0;
+    // backtrack from a current path
     this.backtrack = false;
+    // init function name
+    this.initializerFnName = "init";
+    // track derivation
+    this.currentBaseDef = { name: "", prev: null };
 }
 
 Parser.prototype.push = function(val) {
@@ -159,6 +169,7 @@ Parser.prototype.advance = function() {
     }
 };
 
+// todo: remove
 Parser.prototype.lookAhead = function (tokenLen){
     return this.lexer.lookAhead(tokenLen);
 };
@@ -187,6 +198,14 @@ Parser.prototype.leaveScope = function() {
     this.currentScope = this.currentScope.enclosingScope;
 };
 
+Parser.prototype.enterDerivation = function (baseDef) {
+    this.currentBaseDef = { name: baseDef, prev: this.currentBaseDef };
+};
+
+Parser.prototype.leaveDerivation = function () {
+    this.currentBaseDef = this.currentBaseDef.prev;
+};
+
 Parser.prototype.pError = function(errorCode, args) {
     /*
        2 |[EP0002] 'let' keyword used in an indirect assignment context.
@@ -196,15 +215,18 @@ Parser.prototype.pError = function(errorCode, args) {
      */
     this.atError = true; // todo
     let error = errors.RError[errorCode];
+    let warning = args && args.warn ? "[Warning] " : " ";
     let token = args ? (args["token"] || this.currentToken) : this.currentToken;
     let helpMsg = args ? (args["helpMsg"] || error.helpMsg) : error.helpMsg;
     let helpInfo = "";
     let lineNum = `${token.line}`.padStart(4, " ");
-    let errMsg = ` |[${errorCode}] ${error.errorMsg}\n`;
+    let errMsg = ` |[${errorCode}]${warning}${error.errorMsg}\n`;
     let padding = "|".padStart(6, " ") + " ";
     let [src, squigglePadding] = this.lexer.getSrcWithPaddingAtLine(token);
     let errSrc = padding + src + "\n";
-    let squiggles = padding + "".padStart(squigglePadding, " ")
+    let squiggles =
+        padding
+        + "".padStart(squigglePadding, " ")
         + "^".padStart(token.length, "^")
         + "\n";
     errSrc += squiggles;
@@ -218,9 +240,8 @@ Parser.prototype.pError = function(errorCode, args) {
             helpInfo += (padding + helpMsg + "\n");
         }
     }
-    // helpMsg ? errSrc += (padding + helpMsg + "\n") : void 0;
     console.error(lineNum + errMsg + errSrc + helpInfo);
-    process.exit(-1);
+    warning.trim() ? void 0 : process.exit(-1);
 };
 
 Parser.prototype.consume = function(tokenType, errorCode) {
@@ -394,9 +415,9 @@ function unary() {
 
     if (isPreOp) {
         // check if the pre-operation target is valid
-        // todo: update for dotExpr
         if (!(right instanceof ast.VarNode) &&
-            !(right instanceof ast.IndexExprNode)) {
+            !(right instanceof ast.IndexExprNode) &&
+            !(right instanceof ast.DotExprNode)) {
             this.pError(code, { token });
         }
         // check for const modification attempts on VarNode (e.g. ++a)
@@ -442,13 +463,14 @@ function OrExprNode() {
 }
 
 function postfix() {
-    const errCode = (this.currentToken.type === tokens.TOKEN_PLUS_PLUS) ?
-        errors.EP0025 : errors.EP0026;
+    const errCode = (this.currentToken.type === tokens.TOKEN_PLUS_PLUS)
+        ? errors.EP0025
+        : errors.EP0026;
     const left = this.pop();
 
-    // todo: update for DotExpr
     if (!(left instanceof ast.VarNode) &&
-        !(left instanceof ast.IndexExprNode)) {
+        !(left instanceof ast.IndexExprNode) &&
+        !(left instanceof ast.DotExprNode)) {
         this.pError(errCode);
     }
 
@@ -477,7 +499,7 @@ function conditionalExpr() {
         conditionExpr, ifExpr, elseExpr));
 }
 
-function ofExpr() {
+function ofStmt() {
     // of * -> yyyyy,
     // should always be in the last arm, and should not be
     // mixed with other conditions in the expression:
@@ -600,18 +622,94 @@ function indexExpression() {
     let indexNode = new ast.IndexExprNode(node, this.pop(), line);
     let op;
     if ((op = ast.getAssignmentOp(this.currentToken.type))) {
-        indexExprAssignment.call(this, indexNode, op);
+        assignmentExpr.call(this, indexNode, op);
     } else {
         this.push(indexNode);
     }
 }
 
-function indexExprAssignment(indexNode, op) {
+function refExpr(){
+    // ref.x | ref.foo()
+    // treat a `ref` as a regular variable and forward
+    // the rest of the expression to dotExpr()
+    const line = this.currentToken.line;
+    this.push(new ast.VarNode(this.currentToken.value, line));
+    this.advance();
+    if (this.check(tokens.TOKEN_DOT)) {
+        dotExpr.call(this);
+    }
+}
+
+function derefExpr() {
+    // deref->foo | deref->bar()
+    if (!this.currentBaseDef.name) {
+        this.pError(errors.EP0043);
+    }
+    const line = this.currentToken.line;
+    this.push(new ast.VarNode(this.currentToken.value, line));
+    this.advance();  // skip `deref`
+    // handle the rest of the expression by shelling out to dotExpr()
+    dotExpr.call(this);
+}
+
+function argsList(args){
+    while (!this.check(tokens.TOKEN_RIGHT_BRACKET)
+        && !this.check(tokens.TOKEN_EOF)
+        && !this.check(tokens.TOKEN_ERROR))
+    {
+        this.expression();
+        args.push(this.pop());
+        this.match(tokens.TOKEN_COMMA);
+    }
+    if (args.length > utils.MAX_FUNCTION_PARAMS) {
+        this.pError(errors.EP0007);
+    }
+}
+
+function dotExpr(){
+    const left = this.pop();
+    const line = this.currentToken.line;
+    const isDeref = this.previousToken.type === tokens.TOKEN_DEREF;
+    isDeref
+        ? this.consume(tokens.TOKEN_ARROW)
+        : this.consume(tokens.TOKEN_DOT);
+    const node = new ast.DotExprNode(
+        left, new ast.VarNode(this.parseName(), line), line
+    );
+    node.isDerefExpr = isDeref;
+    let op;
+    if ((op = ast.getAssignmentOp(this.currentToken.type))) {
+        assignmentExpr.call(this, node, op);
+    } else if (this.check(tokens.TOKEN_LEFT_BRACKET)) {
+        methodCall.call(this, node, isDeref);
+    } else {
+        this.push(node);
+    }
+}
+
+function methodCall(node, isDeref){
+    /*
+     * isDeref indicates that `node` (DotExprNode) is
+     * a dot/arrow expression involving a `deref`.
+     * e.g (deref->fx, deref->method()), i.e. dot expressions
+     * involving a base def's methods/properties
+     */
+    const method = new ast.MethodCallNode(
+        node, isDeref,
+        this.currentToken.line
+    );
+    this.consume(tokens.TOKEN_LEFT_BRACKET);
+    argsList.call(this, method.args);
+    this.consume(tokens.TOKEN_RIGHT_BRACKET);
+    this.push(method);
+}
+
+function assignmentExpr(indexNode, op) {
     if (this.currentBp.bp <= POWER_ASSIGNMENT) {
         this.advance();
         this.expression();
         let rightNode = this.pop();
-        this.push(new ast.IndexExprAssignNode(
+        this.push(new ast.AssignNode(
             indexNode, rightNode, op, indexNode.line));
     } else {
         // error:
@@ -620,67 +718,6 @@ function indexExprAssignment(indexNode, op) {
         this.pError(errors.EP0028);
     }
 }
-
-Parser.prototype.ExprStatement = function() {
-    const line = this.currentToken.line;
-    this.expression();
-    if (this.check(tokens.TOKEN_COLON)) {
-        this.backtrack = true;
-        dictLiteral.call(this, true);
-    }
-    // todo: hook here
-    const node = new ast.ExprStatementNode(this.pop(), line);
-    this.push(node);
-};
-
-Parser.prototype.caseStatement = function () {
-    // "case"  expression? "{" (of ("*" | expression)
-    // ("," ("*" | expression))* "->" statement)+ "}"
-    this.consume(tokens.TOKEN_CASE);
-    const caseNode = new ast.CaseNode(this.previousToken.line);
-    if (!this.check(tokens.TOKEN_LEFT_CURLY)){
-        this.expression();
-        caseNode.conditionExpr = this.pop();
-    }
-    this.consume(tokens.TOKEN_LEFT_CURLY);
-    while (!this.check(tokens.TOKEN_RIGHT_CURLY)
-        && !this.check(tokens.TOKEN_EOF)
-        && !this.check(tokens.TOKEN_ERROR))
-    {
-        const node = ofExpr.call(this);
-        caseNode.arms.push(node);
-    }
-    this.consume(tokens.TOKEN_RIGHT_CURLY);
-    const curlyToken = this.previousToken;
-    if (!caseNode.arms.length) {
-        // empty case expression
-        this.pError(errors.EP0011, { token: curlyToken });
-    }
-    this.push(caseNode);
-};
-
-Parser.prototype.parseName = function() {
-    this.consume(tokens.TOKEN_IDENTIFIER);
-    return this.previousToken.value;
-};
-
-Parser.prototype.inspectConstAssignment = function(name, args) {
-    // check if var is a const todo: fine-tune implementation
-    const var_ = this.lookup(name);
-    if (var_ && var_.isConst) {
-        this.pError(errors.EP0004, args);
-    }
-};
-
-Parser.prototype.inspectConstRedefinition = function(name, isConst) {
-    // check if var is a const todo: fine-tune implementation
-    const var_ = this.lookup(name, true);
-    if (var_ && isConst){
-        this.pError(errors.EP0013);
-    }else if (var_ && var_.isConst) {
-        this.pError(errors.EP0027);
-    }
-};
 
 function variable() {
     const node = new ast.VarNode(
@@ -735,7 +772,7 @@ function lambdaExpr(firstParam, skipRightBracket) {
             left = firstParam;
         }
         fn.params.push(new ast.ArgumentNode(
-            left, right, false, line
+            left, right, line
         ));
     }
     this.consume(tokens.TOKEN_FAT_ARROW);
@@ -756,17 +793,7 @@ function callExpr() {
         this.pop(), this.currentToken.line
     );
     this.advance(); // skip '('
-    while (!this.check(tokens.TOKEN_RIGHT_BRACKET)
-        && !this.check(tokens.TOKEN_EOF)
-        && !this.check(tokens.TOKEN_ERROR))
-    {
-        this.expression();
-        node.args.push(this.pop());
-        this.match(tokens.TOKEN_COMMA);
-    }
-    if (node.args.length > utils.MAX_FUNCTION_PARAMS) {
-        this.pError(errors.EP0007);
-    }
+    argsList.apply(this, [node.args]);
     this.consume(tokens.TOKEN_RIGHT_BRACKET);
     this.push(node);
 }
@@ -775,33 +802,83 @@ function callExpr() {
  * prototype assignments
  */
 
-Parser.prototype.returnStatement = function() {
-    if (!this.inFunction) {
-        this.pError(errors.EP0019);
+Parser.prototype.ExprStatement = function() {
+    const line = this.currentToken.line;
+    this.expression();
+    if (this.check(tokens.TOKEN_COLON)) {
+        this.backtrack = true;
+        dictLiteral.call(this, true);
     }
-    this.advance();
-    const line = this.previousToken.line;
-    let node;
-    if (!this.check(tokens.TOKEN_SEMI_COLON)) {
-        this.expression();
-        node = this.pop();
-    } else {
-        node = new ast.NullNode(line);
-    }
+    // todo: hook here
+    const node = new ast.ExprStatementNode(this.pop(), line);
+    this.push(node);
+};
 
-    this.push(new ast.ReturnNode(node, line));
+Parser.prototype.caseStatement = function () {
+    // "case"  expression? "{" (of ("*" | expression)
+    // ("," ("*" | expression))* "->" statement)+ "}"
+    this.consume(tokens.TOKEN_CASE);
+    const caseNode = new ast.CaseNode(this.previousToken.line);
+    if (!this.check(tokens.TOKEN_LEFT_CURLY)){
+        this.expression();
+        caseNode.conditionExpr = this.pop();
+    }
+    this.consume(tokens.TOKEN_LEFT_CURLY);
+    while (!this.check(tokens.TOKEN_RIGHT_CURLY)
+    && !this.check(tokens.TOKEN_EOF)
+    && !this.check(tokens.TOKEN_ERROR))
+    {
+        const node = ofStmt.call(this);
+        caseNode.arms.push(node);
+    }
+    this.consume(tokens.TOKEN_RIGHT_CURLY);
+    const curlyToken = this.previousToken;
+    if (!caseNode.arms.length) {
+        // empty case expression
+        this.pError(errors.EP0011, { token: curlyToken });
+    }
+    this.push(caseNode);
+};
+
+Parser.prototype.parseName = function() {
+    this.consume(tokens.TOKEN_IDENTIFIER);
+    return this.previousToken.value;
+};
+
+Parser.prototype.inspectConstAssignment = function(name, args) {
+    // check if var is a const todo: fine-tune implementation
+    const var_ = this.lookup(name);
+    if (var_ && var_.isConst) {
+        this.pError(errors.EP0004, args);
+    }
+};
+
+Parser.prototype.inspectConstRedefinition = function(name, isConst) {
+    // check if var is a const todo: fine-tune implementation
+    const var_ = this.lookup(name, true);
+    if (var_ && isConst){
+        this.pError(errors.EP0013);
+    }else if (var_ && var_.isConst) {
+        this.pError(errors.EP0027);
+    }
 };
 
 Parser.prototype.injectReturn = function(blockNode) {
-    const lastNode = blockNode.decls[blockNode.decls.length - 1];
     const decls = blockNode.decls;
-    // handle implicit return
-    if (lastNode.type === ast.ASTType.AST_NODE_EXPR) {
-        // replace ExprStatement with Return node
-        decls[decls.length - 1] = new ast.ReturnNode(lastNode.expr, lastNode.line);
-    } else if (lastNode.type !== ast.ASTType.AST_NODE_RETURN) {
+    const lastNode = decls[decls.length - 1];
+    const insertNullNode = () => {
         const node = new ast.NullNode(this.previousToken.line);
         decls.push(new ast.ReturnNode(node, this.previousToken.line));
+    };
+    // handle implicit return
+    if (!lastNode){
+        insertNullNode();
+    } else if (lastNode.type === ast.ASTType.AST_NODE_EXPR) {
+        // replace ExprStatement with Return node
+        decls[decls.length - 1] = new ast.ReturnNode(lastNode.expr, lastNode.line);
+    } else {
+        // (lastNode.type !== ast.ASTType.AST_NODE_RETURN)
+        insertNullNode();
     }
 };
 
@@ -853,8 +930,8 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
             variable.call(this);
             left = this.pop();
         }
-        if (left instanceof ast.AssignNode){
-            if (isSpread){
+        if (left instanceof ast.AssignNode) {
+            if (isSpread) {
                 // spread parameter can have no default
                 this.pError(errors.EP0033, {
                     token: this.previousToken
@@ -863,16 +940,16 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
             right = left.rightNode;
             left = left.leftNode;
             defaultParamsCount++;
-        }else if (defaultParamsCount && !isSpread){
+        } else if (defaultParamsCount && !isSpread) {
             // positional parameter after a default parameter;
             // only a spread parameter is allowed after a parameter
             // with a default value
-            this.pError(errors.EP0032, { token: this.previousToken});
+            this.pError(errors.EP0032, { token: this.previousToken });
         }
         const commaToken = this.currentToken;
         this.match(tokens.TOKEN_COMMA);
         // ensure spread param is the last param
-        if (hasSpreadParameter && this.check(tokens.TOKEN_IDENTIFIER)){
+        if (hasSpreadParameter && this.check(tokens.TOKEN_IDENTIFIER)) {
             // spread parameter not the last parameter
             this.pError(errors.EP0030);
         }
@@ -885,17 +962,15 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
             }
         });
         // store param
-        params.push(
-            new ast.ArgumentNode(left, right, hasSpreadParameter, line)
-        );
+        params.push(new ast.ArgumentNode(left, right, line));
         // reset variables for processing of the next parameter
         isSpread = false;
         right = null;
-        // `match(token-comma)` above allows a trailing comma, for now, this
-        // shouldn't be supported.
+        // `match(token-comma)` above allows a trailing comma, for now,
+        // this shouldn't be supported.
         if ((this.previousToken.type === tokens.TOKEN_COMMA)
             && this.check(tokens.TOKEN_RIGHT_BRACKET)){
-            // error if trailing comma if found in the parameter list
+            // error if trailing comma is found in the parameter list
             this.pError(errors.EP0034, {token: commaToken});
         }
     }
@@ -903,25 +978,107 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
     fn.defaultParamsCount = defaultParamsCount;
     // validate parameter list size of the function
     if (fn.params.length > utils.MAX_FUNCTION_PARAMS) {
-        // use the previousToken - the last variable/default parameter consumed
+        // use the previousToken -
+        // the last variable/default parameter consumed
         this.pError(errors.EP0007, { token: this.previousToken });
     }
+};
+
+Parser.prototype.handleMethodSymbols = function(fn, token){
+    // handle invalid use of 'static'
+    if (this.inDefinition) {
+        if (this.match(tokens.TOKEN_STAR)) {
+            // functions marked with * are special.
+            // e.g. fn next*() {...}
+            fn.isSpecial = true;
+        }
+        // handle 'static' used with a function marked special
+        if (fn.isStatic && fn.isSpecial){
+            this.pError(errors.EP0038, { token });
+        }
+    }
+    // handle `special` functions outside definition
+    else if (this.check(tokens.TOKEN_STAR)) {
+        this.pError(errors.EP0015);
+    }
+};
+
+Parser.prototype.isInitializerFn = function(fn){
+    return this.inDefinition
+        && fn.isSpecial
+        && fn.name === this.initializerFnName;
+};
+
+Parser.prototype.purgeReturn = function(blockNode, token){
+    const decls = blockNode.decls;
+    const lastNode = decls[decls.length - 1];
+    if (lastNode) {
+        if (lastNode.type === ast.ASTType.AST_NODE_EXPR){
+            this.pError(errors.EP0040, { token, warn: true });
+        }else if (lastNode.type === ast.ASTType.AST_NODE_RETURN){
+            this.pError(errors.EP0039, { token });
+        }
+    }
+    // implicitly inject a return value of `ref`.
+    const line = this.previousToken.line;
+    decls.push(new ast.ReturnNode(
+        new ast.VarNode("ref", line),
+        line));
+};
+
+Parser.prototype.returnStatement = function() {
+    if (!this.inFunction) {
+        // can't return in top level script
+        this.pError(errors.EP0019);
+    } else if (this.inInitFn) {
+        // can't return in init*() function
+        this.pError(errors.EP0039);
+    }
+    this.advance();
+    const line = this.previousToken.line;
+    let node;
+    if (!this.check(tokens.TOKEN_SEMI_COLON)) {
+        this.expression();
+        node = this.pop();
+    } else {
+        node = new ast.NullNode(line);
+    }
+
+    this.push(new ast.ReturnNode(node, line));
 };
 
 Parser.prototype.funDecl = function() {
     // fn name() {}
     const line = this.currentToken.line;
-    this.advance();
+    let isStatic = false;
+    let token = this.currentToken;
+    // handle 'static' keyword
+    if (this.check(tokens.TOKEN_STATIC)){
+        (!this.inDefinition)
+            ? this.pError(errors.EP0036)
+            : this.advance();
+        isStatic = true;
+    }
+    this.consume(tokens.TOKEN_FN);
     this.inFunction++;
     const fn = new ast.FunctionNode(this.pop(), false, line);
+    fn.isStatic = isStatic;  // a static member?
     fn.name = this.parseName();
+    // handle invalid use of 'static' and other method symbols
+    this.handleMethodSymbols(fn, token);
     this.consume(tokens.TOKEN_LEFT_BRACKET);
     this.parseFunctionParams(fn);
     this.consume(tokens.TOKEN_RIGHT_BRACKET);
+    this.isInitializerFn(fn) ? this.inInitFn++ : void 0;
     this.block();
     fn.block = this.pop();
-    this.injectReturn(fn.block);
+    if (this.inInitFn) {
+        this.purgeReturn(fn.block, token);
+    } else {
+        this.injectReturn(fn.block);
+    }
     this.push(fn);
+    this.isInitializerFn(fn) ? this.inInitFn-- : void 0;
     this.inFunction--;
 };
 
@@ -1012,13 +1169,14 @@ Parser.prototype.ifStatement = function() {
     const conditionExpr = this.pop();
     this.statement();
     const ifBlock = this.pop();
-    let elseBlock;
+    let elseBlock, elseLine = null;
     if (this.match(tokens.TOKEN_ELSE)) {
+        elseLine = this.previousToken.line;
         this.statement();
         elseBlock = this.pop();
     }
     this.push(new ast.IfElseNode(
-        conditionExpr, ifBlock, elseBlock
+        conditionExpr, ifBlock, elseBlock, elseLine
     ));
 };
 
@@ -1031,44 +1189,91 @@ Parser.prototype.showStatement = function() {
         this.expression();
         node.nodes.push(this.pop());
     }
-    if (node.nodes.length >= 256) {
+    if (node.nodes.length >= utils.MAX_FUNCTION_PARAMS) {
         this.pError(errors.EP0007);
     }
     this.push(node);
 };
 
-Parser.prototype.decoratorStatement = function() {
+Parser.prototype.decoratorDecl = function () {
     // skip '@'
     this.advance();
     const token = this.currentToken;
     // @decorator | @decorator(...)
     variable.call(this);
-    if (this.check(tokens.TOKEN_LEFT_BRACKET)){
+    if (this.check(tokens.TOKEN_LEFT_BRACKET)) {
         callExpr.call(this);
     }
     const decorator = this.pop();
-    if (!this.check(tokens.TOKEN_FN)){
+    if (!this.check(tokens.TOKEN_FN)) {
         this.pError(errors.EP0035, { token });
     }
     this.funDecl();
     const fn = this.pop();
     /*
-     * `useDecoratorCtx` indicates that the function is being wrapped
+     * `emitDefinition` is a flag that controls the emission of the function's
+     * definition instructions by the compiler.
+     * we use it here to indicate that the function is being wrapped
      * by a decorator, so the compiler shouldn't emit definition instructions.
      * this is because the function definition will be rewritten (as described
      * below), and we NEED the function on the stack when this happens.
      */
-    fn.useDecoratorCtx = true;
+    fn.emitDefinition = false;
     /*
      *  @decorator
      *  fn fun(){...}
      *  |--> let fun = decorator(fun);
      */
-    // todo: fix for definitions
     const rvalue = new ast.CallNode(decorator, token.line);
     rvalue.args.push(fn);
     const node = new ast.VarDeclNode(fn.name, rvalue, false, token.line);
     this.push(node);
+};
+
+Parser.prototype.defineDecl = function (consumeArrow) {
+    this.advance();
+    this.inDefinition++;
+    const line = this.previousToken.line;
+    variable.apply(this);
+    const node = new ast.DefNode(this.pop(), line);
+    // derivations
+    if (consumeArrow) {
+        this.consume(tokens.TOKEN_ARROW);
+        variable.apply(this);
+        node.derivingNode = this.pop();
+        // deriving from itself
+        if (node.derivingNode.name === node.defVar.name) {
+            this.pError(errors.EP0042, { token: this.previousToken });
+        }
+        // set a flag indicating that a derivation is currently occurring
+        this.enterDerivation(node.derivingNode.name);
+    }
+    this.consume(tokens.TOKEN_LEFT_CURLY);
+    // methods
+    while (!this.check(tokens.TOKEN_RIGHT_CURLY)) {
+        if (this.check(tokens.TOKEN_AT)) {
+            // decorators aren't yet supported for methods
+            this.pError(errors.EP0041);
+        } else {
+            this.funDecl();
+        }
+        const func = this.pop();
+        func.fnType = func.isStatic ? func.fnType : ast.FnTypes.TYPE_METHOD;
+        /*
+         * do not emit instructions to define the function, since that may
+         * pop the function off the stack, and we need the function on
+         * the stack in order to process it as a method.
+         */
+        func.emitDefinition = false;
+        node.methods.push(new ast.MethodNode(func));
+    }
+    this.consume(tokens.TOKEN_RIGHT_CURLY);
+    this.inDefinition--;
+    this.push(node);
+    if (consumeArrow) {
+        // clear the flag indicating that derivation is done/completed
+        this.leaveDerivation();
+    }
 };
 
 Parser.prototype.varDecl = function() {
@@ -1105,15 +1310,12 @@ Parser.prototype.varDecl = function() {
     }
 };
 
-Parser.prototype.statement = function(forgetSemi) { // , lookAhead, str
+Parser.prototype.statement = function(forgetSemi) {
     let consumeSemicolon = false;
     switch (this.currentToken.type) {
         case tokens.TOKEN_SHOW:
             this.showStatement();
             consumeSemicolon = true;
-            break;
-        case tokens.TOKEN_AT:
-            this.decoratorStatement();
             break;
         case tokens.TOKEN_LEFT_CURLY:
             this.block();
@@ -1166,7 +1368,17 @@ Parser.prototype.declaration = function declaration() {
             this.varDecl();
             break;
         case tokens.TOKEN_FN:
+        case tokens.TOKEN_STATIC:
             this.funDecl();
+            break;
+        case tokens.TOKEN_DEFINE:
+            this.defineDecl();
+            break;
+        case tokens.TOKEN_AT:
+            this.decoratorDecl();
+            break;
+        case tokens.TOKEN_DERIVE:
+            this.defineDecl(true);
             break;
         default:
             this.statement();

@@ -54,6 +54,12 @@ module.exports = {
     OP_CALL: 48,
     OP_GET_UPVALUE: 49,
     OP_SET_UPVALUE: 50,
-    // OP_CLOSURE: 51,
-    // OP_LIFT_UPVALUE: 52,
+    OP_DEF: 51,
+    OP_METHOD: 52,
+    OP_GET_PROPERTY: 53,
+    OP_SET_PROPERTY: 54,
+    OP_INVOKE: 55,
+    OP_DERIVE: 56,
+    OP_INVOKE_DEREF: 57,
+    OP_GET_DEREF_PROPERTY: 58
 };

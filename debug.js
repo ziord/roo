@@ -12,7 +12,7 @@ const pad = 24;
 function Disassembler(func, showSrcLines=false) {
     this.func = func;
     this.code = func.code;
-    this.name = func.name;
+    this.name = func.fname;
     this.showSrcLines = showSrcLines;
 }
 
@@ -62,11 +62,11 @@ Disassembler.prototype.jumpInstruction = function (inst, index, sign){
 
 Disassembler.prototype.closureInstruction = function (inst, index){
     const operandIdx = this.readShort(index);
-    const constant = this.code.cp.pool[operandIdx];
+    const constant = this.code.cp.readConstant(operandIdx);
     const fnObj = constant.asFunction();
     print(inst.padEnd(pad, " "), "\t",
         `${operandIdx}`.padStart(4, ' '), "\t",
-        `(${constant})`);
+        `(${constant})`);   // implicit toString() for `constant`
     index += 3;
     for (let i = 0; i < fnObj.upvalueCount; i++){
         const slot = this.code.bytes[index++];
@@ -78,6 +78,18 @@ Disassembler.prototype.closureInstruction = function (inst, index){
             slot.toString().padStart(4, ' '));
     }
     return index;
+};
+
+Disassembler.prototype.invokeInstruction = function(inst, index){
+    const opIndex = this.readShort(index);
+    index += 2;
+    const opArgsCount = this.code.bytes[++index];
+    const propName = this.code.cp.readConstant(opIndex);
+    // implicit toString() for `propName`
+    print(inst.padEnd(pad, " "), "\t",
+        opArgsCount.toString().padStart(4, " "), "\t",
+        `(${propName})`);
+    return ++index;
 };
 
 Disassembler.prototype.disassembleInstruction = function(index, code) {
@@ -113,8 +125,6 @@ Disassembler.prototype.disassembleInstruction = function(index, code) {
             return this.plainInstruction("OP_LOAD_TRUE", index);
         case opcode.OP_LOAD_NULL:
             return this.plainInstruction("OP_LOAD_NULL", index);
-        case opcode.OP_LOAD_CONST:
-            return this.constantInstruction("OP_LOAD_CONST", index);
         case opcode.OP_BW_INVERT:
             return this.plainInstruction("OP_BW_INVERT", index);
         case opcode.OP_POSITIVE:
@@ -149,38 +159,60 @@ Disassembler.prototype.disassembleInstruction = function(index, code) {
             return this.plainInstruction("OP_BW_OR", index);
         case opcode.OP_BW_XOR:
             return this.plainInstruction("OP_BW_XOR", index);
-        case opcode.OP_SHOW:
-            return this.byteInstruction("OP_SHOW", index);
-        case opcode.OP_BUILD_LIST:
-            return this.shortInstruction("OP_BUILD_LIST", index);
-        case opcode.OP_BUILD_DICT:
-            return this.shortInstruction("OP_BUILD_DICT", index);
-        case opcode.OP_BUILD_RANGE:
-            return this.plainInstruction("OP_BUILD_RANGE", index);
         case opcode.OP_SUBSCRIPT:
             return this.plainInstruction("OP_SUBSCRIPT", index);
         case opcode.OP_SET_SUBSCRIPT:
             return this.plainInstruction("OP_SET_SUBSCRIPT", index);
         case opcode.OP_POP:
             return this.plainInstruction("OP_POP", index);
-        case opcode.OP_DEFINE_GLOBAL:
-            return this.constantInstruction("OP_DEFINE_GLOBAL", index);
-        case opcode.OP_SET_GLOBAL:
-            return this.shortInstruction("OP_SET_GLOBAL", index);
-        case opcode.OP_GET_GLOBAL:
-            return this.constantInstruction("OP_GET_GLOBAL", index);
+        case opcode.OP_BUILD_RANGE:
+            return this.plainInstruction("OP_BUILD_RANGE", index);
         case opcode.OP_DEC:
             return this.plainInstruction("OP_DEC", index);
         case opcode.OP_INC:
             return this.plainInstruction("OP_INC", index);
+        case opcode.OP_METHOD:
+            return this.plainInstruction("OP_METHOD", index);
+        case opcode.OP_DERIVE:
+            return this.plainInstruction("OP_DERIVE", index);
+        case opcode.OP_SHOW:
+            return this.byteInstruction("OP_SHOW", index);
+        case opcode.OP_CALL:
+            return this.byteInstruction("OP_CALL", index);
+        case opcode.OP_GET_UPVALUE:
+            return this.byteInstruction("OP_GET_UPVALUE", index);
+        case opcode.OP_SET_UPVALUE:
+            return this.byteInstruction("OP_SET_UPVALUE", index);
+        case opcode.OP_BUILD_LIST:
+            return this.shortInstruction("OP_BUILD_LIST", index);
+        case opcode.OP_BUILD_DICT:
+            return this.shortInstruction("OP_BUILD_DICT", index);
         case opcode.OP_GET_LOCAL:
             return this.shortInstruction("OP_GET_LOCAL", index);
         case opcode.OP_SET_LOCAL:
             return this.shortInstruction("OP_SET_LOCAL", index);
+        case opcode.OP_SET_PROPERTY:
+            return this.shortInstruction("OP_SET_PROPERTY", index);
+        case opcode.OP_GET_PROPERTY:
+            return this.shortInstruction("OP_GET_PROPERTY", index);
+        case opcode.OP_GET_DEREF_PROPERTY:
+            return this.shortInstruction("OP_GET_DEREF_PROPERTY", index);
         case opcode.OP_DEFINE_LOCAL:
             return this.shortInstruction("OP_DEFINE_LOCAL", index);
         case opcode.OP_FORMAT:
             return this.shortInstruction("OP_FORMAT", index);
+        case opcode.OP_SET_GLOBAL:
+            return this.shortInstruction("OP_SET_GLOBAL", index);
+        case opcode.OP_POP_N:
+            return this.shortInstruction("OP_POP_N", index);
+        case opcode.OP_DEF:
+            return this.shortInstruction("OP_DEF", index);
+        case opcode.OP_LOAD_CONST:
+            return this.constantInstruction("OP_LOAD_CONST", index);
+        case opcode.OP_DEFINE_GLOBAL:
+            return this.constantInstruction("OP_DEFINE_GLOBAL", index);
+        case opcode.OP_GET_GLOBAL:
+            return this.constantInstruction("OP_GET_GLOBAL", index);
         case opcode.OP_JUMP:
             return this.jumpInstruction("OP_JUMP", index, +1);
         case opcode.OP_JUMP_IF_FALSE:
@@ -189,16 +221,12 @@ Disassembler.prototype.disassembleInstruction = function(index, code) {
             return this.jumpInstruction("OP_JUMP_IF_FALSE_OR_POP", index, +1);
         case opcode.OP_LOOP:
             return this.jumpInstruction("OP_LOOP", index, -1);
-        case opcode.OP_POP_N:
-            return this.shortInstruction("OP_POP_N", index);
-        case opcode.OP_CALL:
-            return this.byteInstruction("OP_CALL", index);
-        case opcode.OP_GET_UPVALUE:
-            return this.byteInstruction("OP_GET_UPVALUE", index);
-        case opcode.OP_SET_UPVALUE:
-            return this.byteInstruction("OP_SET_UPVALUE", index);
         case opcode.OP_CLOSURE:
             return this.closureInstruction("OP_CLOSURE", index);
+        case opcode.OP_INVOKE:
+            return this.invokeInstruction("OP_INVOKE", index);
+        case opcode.OP_INVOKE_DEREF:
+            return this.invokeInstruction("OP_INVOKE_DEREF", index);
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
     }
@@ -238,6 +266,8 @@ Disassembler.prototype.getInstructionOffset = function (index){
         case opcode.OP_POP:
         case opcode.OP_DEC:
         case opcode.OP_INC:
+        case opcode.OP_METHOD:
+        case opcode.OP_DERIVE:
             return (index + 1);
         case opcode.OP_SHOW:
         case opcode.OP_CALL:
@@ -259,10 +289,17 @@ Disassembler.prototype.getInstructionOffset = function (index){
         case opcode.OP_JUMP_IF_FALSE:
         case opcode.OP_JUMP_IF_FALSE_OR_POP:
         case opcode.OP_LOOP:
+        case opcode.OP_DEF:
+        case opcode.OP_GET_PROPERTY:
+        case opcode.OP_SET_PROPERTY:
+        case opcode.OP_GET_DEREF_PROPERTY:
             return (index + 3);
         case opcode.OP_CLOSURE:
             // 2 bytes per 'upvalue'
             return (index + 3 + this.func.upvalues.length * 2);
+        case opcode.OP_INVOKE:
+        case opcode.OP_INVOKE_DEREF:
+            return (index + 4);
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
     }
@@ -279,6 +316,7 @@ Disassembler.prototype.disassembleCode = function () {
         if (this.code.bytes[index] === opcode.OP_CLOSURE){
             const c = this.code.cp.readConstant(this.readShort(index));
             if (c.isFunction()){
+                // todo: find a better way of handling this
                 const dis = new Disassembler(c.asFunction(), this.showSrcLines);
                 dis.disassembleCode();
             }

@@ -55,7 +55,24 @@ const EL0000 = 'EL0000',  // no error
     EP0040 = 'EP0040',
     EP0041 = 'EP0041',
     EP0042 = 'EP0042',
-    EP0043 = 'EP0043'
+    EP0043 = 'EP0043',
+    EP0044 = 'EP0044',
+    EP0045 = 'EP0045',
+    EP0046 = 'EP0046',
+    EP0047 = 'EP0047',
+    EP0048 = 'EP0048',
+    EP0049 = 'EP0049',
+    EP0050 = 'EP0050',
+    EP0051 = 'EP0051',
+    EP0052 = 'EP0052',
+    EP0053 = 'EP0053',
+    EP0054 = 'EP0054',
+    EP0055 = 'EP0055',
+    EP0056 = 'EP0056',
+    EP0057 = 'EP0057',
+    EP0058 = 'EP0058',
+    EP0059 = 'EP0059',
+    EP0060 = 'EP0060'
 ;
 
 
@@ -152,10 +169,10 @@ RError[EP0014] = createError(EP0014,
     "Expected ';'",
     "Consider adding a ';' to terminate the statement/expression.");
 
-RError[EP0015] = createError(EP0015,  // todo: remove
-    "Expected '->' after parameter list in lambda function declaration.",
-    "It is a common mistake to forget the arrow operator '->', " +
-    "consider adding it to fix this error.");
+RError[EP0015] = createError(EP0015,
+    "Special method outside definition.",
+    `You can't mark this method as special outside a valid definition.${SEP}` +
+    "Consider eliminating the '*' token.");
 
 RError[EP0016] = createError(EP0016,
     "star arm not last",
@@ -250,6 +267,46 @@ RError[EP0035] = createError(EP0035,
     `${TAB}@decorator${SEP}` +
     `${TAB}fn bar(){${SEP}${TAB}  // some code${SEP}${TAB}}`);
 
+RError[EP0036] = createError(EP0036,
+    "'static' outside definition.",
+    `You can't use the keyword 'static' outside a valid definition.${SEP}` +
+    `Consider removing the keyword 'static'.`);
+
+RError[EP0037] = createError(EP0037,  // todo: remove
+    "'static' with initializer method",
+    `You can't use the keyword 'static' with an initializer method (init*()).${SEP}` +
+    `Consider removing 'static'.`);
+
+RError[EP0038] = createError(EP0038,
+    "'static' with special method",
+    `You can't use the keyword 'static' with any method marked special.${SEP}` +
+    `Consider removing 'static' or eliminating the token '*'.`);
+
+RError[EP0039] = createError(EP0039,
+    "'return' in init method",
+    `You can't use the 'return' keyword in the special init method.${SEP}` +
+    `Consider eliminating the 'return' statement.`);
+
+RError[EP0040] = createError(EP0040,
+    "Implicit return in init method",
+    `Implicit return is ignored in the special init method.${SEP}` +
+    `The last expression statement will not be returned.`);
+
+RError[EP0041] = createError(EP0041,
+    "Decorator on method.",
+    `Decorators are not yet supported for methods.${SEP}` +
+    `Consider removing this.`);
+
+RError[EP0042] = createError(EP0042,
+    "Invalid derivation.",
+    `A definition cannot derive from itself.${SEP}` +
+    `Consider deriving from another definition apart from this.`);
+
+RError[EP0043] = createError(EP0043,
+    "deref outside derivation.",
+    `'deref' can only be used when deriving from a definition (def).${SEP}` +
+    `Consider eliminating the use of 'deref' at this context.`);
+
 
 module.exports = {
     RError,
@@ -303,5 +360,22 @@ module.exports = {
     EP0041,
     EP0042,
     EP0043,
+    EP0044,
+    EP0045,
+    EP0046,
+    EP0047,
+    EP0048,
+    EP0049,
+    EP0050,
+    EP0051,
+    EP0052,
+    EP0053,
+    EP0054,
+    EP0055,
+    EP0056,
+    EP0057,
+    EP0058,
+    EP0059,
+    EP0060,
     SEP
 };

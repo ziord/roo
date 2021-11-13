@@ -26,10 +26,10 @@ Token.prototype.toString = function() {
 Token.typeToString = function(tokenType) {
     switch (tokenType){
         case tokens.TOKEN_SEMI_COLON:           return ";";
-        case tokens.TOKEN_LESS_THAN:            return "<";            // <
-        case tokens.TOKEN_GREATER_THAN:         return ">";         // >
-        case tokens.TOKEN_LEFT_BRACKET:         return "(";         // (
-        case tokens.TOKEN_RIGHT_BRACKET:        return ")";        // )
+        case tokens.TOKEN_LESS_THAN:            return "<";
+        case tokens.TOKEN_GREATER_THAN:         return ">";
+        case tokens.TOKEN_LEFT_BRACKET:         return "(";
+        case tokens.TOKEN_RIGHT_BRACKET:        return ")";
         case tokens.TOKEN_LEFT_SQR_BRACKET:     return "[";
         case tokens.TOKEN_RIGHT_SQR_BRACKET:    return "]";
         case tokens.TOKEN_LEFT_CURLY:           return "{";
@@ -90,12 +90,12 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_LET:                  return "let";
         case tokens.TOKEN_TRUE:                 return "true";
         case tokens.TOKEN_FALSE:                return "false";
-        case tokens.TOKEN_SELF:                 return "self";
+        case tokens.TOKEN_REF:                  return "ref";
         case tokens.TOKEN_CONST:                return "const";
         case tokens.TOKEN_SHOW:                 return "show";
         case tokens.TOKEN_RETURN:               return "return";
         case tokens.TOKEN_CLASS:                return "class";
-        case tokens.TOKEN_SUPER:                return "super";
+        case tokens.TOKEN_DEREF:                return "deref";
         case tokens.TOKEN_BREAK:                return "break";
         case tokens.TOKEN_CONTINUE:             return "continue";
         case tokens.TOKEN_LOOP:                 return "loop";
@@ -105,6 +105,8 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_STRUCT:               return "struct";
         case tokens.TOKEN_ISTRING_START:        return "$";
         case tokens.TOKEN_ISTRING_END:          return "end of $";
+        case tokens.TOKEN_DEFINE:               return "define";
+        case tokens.TOKEN_DERIVE:               return "derive";
         case tokens.TOKEN_ERROR:                return "ERROR";
         case tokens.TOKEN_EOF:                  return "EOF";
     }
@@ -138,9 +140,7 @@ function Lexer(src) {
     this.currentIndex = 0;
     this.errorCode = errors.EL0000;
     this.lines = [this.currentIndex];
-    let kwm = [];
-    Lexer.keywords().forEach((kw) => kwm.push(kw));
-    this.keywords = new Map(kwm);
+    this.keywords = new Map(Lexer.keywords());
     this.lexStack = []; //(new.target !== undefined) ? [] : null;
 }
 
@@ -159,10 +159,11 @@ Lexer.keywords = function() {
         ["return", tokens.TOKEN_RETURN], ["do", tokens.TOKEN_DO],
         ["loop", tokens.TOKEN_LOOP], ["for", tokens.TOKEN_FOR],
         ["fn", tokens.TOKEN_FN], ["static", tokens.TOKEN_STATIC],
-        ["super", tokens.TOKEN_SUPER], ["self", tokens.TOKEN_SELF],
+        ["deref", tokens.TOKEN_DEREF], ["ref", tokens.TOKEN_REF],
         ["show", tokens.TOKEN_SHOW], ["class", tokens.TOKEN_CLASS],
         ["continue", tokens.TOKEN_CONTINUE], ["const", tokens.TOKEN_CONST],
-        ["struct", tokens.TOKEN_STRUCT], ["case", tokens.TOKEN_CASE]
+        ["struct", tokens.TOKEN_STRUCT], ["case", tokens.TOKEN_CASE],
+        ["define", tokens.TOKEN_DEFINE], ["derive", tokens.TOKEN_DERIVE],
     ];
 };
 
