@@ -43,17 +43,41 @@ function FunctionObject(name, arity, code, isLambda){
     this.defaultParamsCount = 0;
     this.isSpecialMethod = false;
     this.isStaticMethod = false;
+    this.builtinExec = null;  // builtin executable
 }
 
-function DefObject(name /*string*/){
+function DefObject(name /*string*/, baseDef = null /*DefObject*/) {
     this.dname = name;
     this.dmethods = new Map();
+    this.baseDef = baseDef;
 }
+
+DefObject.prototype.getMethod = function (methodName) {
+    return this.dmethods.get(methodName);
+};
+
+DefObject.prototype.setMethod = function (
+    methodName /*string*/,
+    methodVal /*Value(FunctionObject)*/
+) {
+    return this.dmethods.set(methodName, methodVal);
+};
 
 function InstanceObject(defObj){
     this.def = defObj;  // DefObject
     this.props = new Map();
 }
+
+InstanceObject.prototype.getProperty = function (propName) {
+    return this.props.get(propName);
+};
+
+InstanceObject.prototype.setProperty = function (
+    propName /*string*/,
+    propVal /*Value()*/
+) {
+    this.props.set(propName, propVal);
+};
 
 function BoundMethodObject(inst, method){
     this.instance = inst;
@@ -183,20 +207,20 @@ Value.prototype.typeToString = function() {
     }
 };
 
-Value.prototype.dictToString = function (){
+Value.prototype.dictToString = function (rvm){
     // uses Map() internally
     let start = "{";
     let i = 0;
     for (let [key, value] of this.value){
         ++i;
-        start += key + ": " + value.stringify();
+        start += key + ": " + value.stringify(true, rvm);
         if (i < this.value.size) start += ", ";
     }
     start += "}";
     return start;
 };
 
-Value.prototype.stringify = function(fromShow=false) {
+Value.prototype.stringify = function(includeQuotes=true, rvm = null) {
     switch (this.type) {
         case VAL_INT:
         case VAL_FLOAT:
@@ -207,23 +231,55 @@ Value.prototype.stringify = function(fromShow=false) {
             return "null";
         case VAL_STRING:
             // todo: check string quote type
-            return fromShow ? this.value : `'${this.value}'`;
+            return includeQuotes ? `'${this.value}'` : this.value;
         case VAL_LIST:
-            return "[" + this.value.map((e) => e.stringify()).join(", ") + "]";
+            return (
+                "[" +
+                this.value.map((e) => e.stringify(true, rvm)).join(", ") +
+                "]"
+            );
         case VAL_DICT:
-            return this.dictToString();
+            return this.dictToString(rvm);
         case VAL_FUNCTION:
+            // todo: top level function should be file name
             // {fn foo}. top level function is 'script'
+            // todo: add support for `builtinExec` if present
             return this.value.fname ? `{fn ${this.value.fname}}` : "{script}";
-        case VAL_DEFINITION:
-            return `{def ${this.asDef().dname}}`;
-        case VAL_INSTANCE:
-            return `{ref ${this.asInstance().def.dname}}`;
         case VAL_BOUND_METHOD:
-            return `{${this.asBoundMethod().method.stringify()}:bound}`;
+            return `{${this.asBoundMethod().method.stringify(true, rvm)}:bound}`;
         case VAL_BFUNCTION:
             // {{fn foo}:native}
             return `{{fn ${this.asBFunction().fname}}:native}`;
+        case VAL_DEFINITION:
+            return `{def ${this.asDef().dname}}`;
+        case VAL_INSTANCE: {
+            // we need to support special printing methods on instances
+            // if available.
+            let strMethod;
+            if (
+                rvm &&
+                (strMethod = this.asInstance().def.getMethod("str")) &&
+                strMethod.asFunction().isSpecialMethod
+            ) {
+                const size = rvm.stackSize();
+                // push instance
+                rvm.pushStack(this);
+                // push the method's frame
+                rvm.callFn(strMethod, 0);
+                // execute the method
+                const status = rvm.run(strMethod);
+                // obtain the result - this would have replaced the instance
+                // pushed on the stack, hence popping this off balances the
+                // stack effect.
+                const val = rvm.popStack(); // returns a Value()
+                assert(
+                    rvm.stackSize() === size && status === rvm.iOK(),
+                    "Value::stringify() - Stack effect unbalanced after str*() call"
+                );
+                return val.stringify(includeQuotes, rvm);
+            }
+            return `{ref ${this.asInstance().def.dname}}`;
+        }
         // todo: object type
         default:
             unreachable("Value::stringify()");
@@ -293,8 +349,10 @@ Value.prototype.equals = function(otherVal) {
 /*
  * utilities
  */
-function createFunctionObj(name, arity, code, isLambda) {
-    return new FunctionObject(name, arity, code, isLambda);
+function createFunctionObj(name, arity, code, isLambda, builtinExec = null) {
+    const fn = new FunctionObject(name, arity, code, isLambda);
+    fn.builtinExec = builtinExec;
+    return fn;
 }
 
 function createFunctionVal(func) {
@@ -350,7 +408,7 @@ module.exports = {
     assert,
     Value,
     FunctionObject,
-    // ListObject,
+    DefObject,
     createFunctionObj,
     createFunctionVal,
     createListVal,

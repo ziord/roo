@@ -87,7 +87,7 @@ const {
 const { Disassembler } = require("./debug");
 const { assert, out, print, unreachable, exitVM } = require("./utils");
 const rcore = require("./rcore");
-const INTERPRET_RESULT_OK = 0, INTERPRET_RESULT_ERROR = 1;
+const INTERPRET_RESULT_OK = 0, INTERPRET_RESULT_ERROR = -1;
 const FRAME_STACK_SIZE = 0x1000;
 const MAX_FRAMES_SIZE = 80;
 
@@ -107,7 +107,7 @@ function VM(func, debug = true) {
     // push 'script' frame
     this.pushFrame(func);
     // register all builtin/core functions
-    this.registerAll();
+    rcore.initAll(this);
 }
 
 function CallFrame(func, retPoint, stack) {
@@ -125,6 +125,14 @@ function CallFrame(func, retPoint, stack) {
     // the stack; yes, that 'stack'.
     this.stack = stack;
 }
+
+VM.prototype.iOK = function () {
+    return INTERPRET_RESULT_OK;
+};
+
+VM.prototype.iERR = function () {
+    return INTERPRET_RESULT_ERROR;
+};
 
 VM.prototype.readByte = function () {
     return this.fp.func.code.bytes[this.fp.ip++];
@@ -185,13 +193,6 @@ VM.prototype.currentFrame = function () {
     return this.frames[this.frames.length - 1];
 };
 
-VM.prototype.registerCoreFunction = function (fname, fexec, arity) {
-    this.globals[fname] = createBFunctionVal(fname, fexec, arity);
-};
-
-VM.prototype.registerAll = function () {
-    this.registerCoreFunction("clock", rcore.clock, 0);
-};
 
 /*
  *   x  | int   | float | bool
@@ -616,6 +617,34 @@ VM.prototype.setSubscript = function (object, subscript) {
     }
 };
 
+VM.prototype.getValProperty = function (prop, val) {
+    let propVal;
+    if (val.isInstance()) {
+        const inst = val.asInstance();
+        // try to obtain the property from the instance's `props`
+        if ((propVal = inst.getProperty(prop))) {
+            this.popStack();
+            this.pushStack(propVal);
+        } else {
+            // if not in there, check the instances' `def`'s 'dmethods'
+            this.bindMethod(inst.def, prop);
+        }
+    } else if (val.isDef()) {
+        const def = val.asDef();
+        if (
+            (propVal = def.getMethod(prop)) &&
+            propVal.asFunction().isStaticMethod
+        ) {
+            this.popStack();
+            this.pushStack(propVal);
+        } else {
+            this.propertyAccessError(val, prop);
+        }
+    } else {
+        this.propertyAccessError(val, prop);
+    }
+};
+
 VM.prototype.captureUpvalue = function (index) {
     return this.stack[this.fp.stackStart + index];
 };
@@ -688,18 +717,33 @@ VM.prototype.callFn = function (fnVal, arity) {
         listObj.value.push(this.popStack());
         this.pushStack(listObj);
     }
-    this.pushFrame(fnObj);
+    // does this function have a builtin executable (callable)?
+    if (fnObj.builtinExec) {
+        // handle builtin methods
+        this.callBuiltinMethod(fnObj);
+    } else {
+        // if not, just push the frame
+        this.pushFrame(fnObj);
+    }
+};
+
+VM.prototype.callBuiltinMethod = function (fnObj, arity) {
+    // call and set the return value directly
+    this.stack[this.sp - 1 - arity] = fnObj.builtinExec(this);
+    // trim the stack pointer - to reflect the return of the builtinExec
+    this.sp -= arity;
 };
 
 VM.prototype.callBuiltinFn = function (val, arity) {
     const bFn = val.asBFunction();
+    // todo: enhance
     if (bFn.arity !== arity) {
         const argsWord = bFn.arity > 1 ? "arguments" : "argument";
         const arityWord = arity >= 1 ? arity : "none";
         const error = `${bFn.fname}() takes ${bFn.arity} ${argsWord} but got ${arityWord}`;
         this.runtimeError(error);
     }
-    this.stack[this.sp - 1 - arity] = bFn.builtinFn(); // returns a Value() obj
+    this.stack[this.sp - 1 - arity] = bFn.builtinFn(this); // returns a Value() obj
     this.sp -= arity;
 };
 
@@ -709,7 +753,7 @@ VM.prototype.callDef = function (val, arity) {
     this.stack[this.sp - 1 - arity] = createInstanceVal(defObj);
     let init;
     if (
-        (init = defObj.dmethods.get(this.initializerMethodName)) &&
+        (init = defObj.getMethod(this.initializerMethodName)) &&
         init.asFunction().isSpecialMethod
     ) {
         this.callFn(init, arity);
@@ -744,9 +788,9 @@ VM.prototype.callValue = function (arity) {
 
 VM.prototype.bindMethod = function (defObj, prop) {
     let method;
-    if ((method = defObj.dmethods.get(prop))) {
+    if ((method = defObj.getMethod(prop))) {
         if (!method.asFunction().isStaticMethod) {
-            this.pushStack(createBoundMethodVal(this.popStack(), method))
+            this.pushStack(createBoundMethodVal(this.popStack(), method));
         } else {
             // pop the instance off the stack
             this.popStack();
@@ -760,20 +804,20 @@ VM.prototype.bindMethod = function (defObj, prop) {
 
 VM.prototype.invokeFromDef = function (defObj, prop, arity) {
     let fnVal;
-    if ((fnVal = defObj.dmethods.get(prop))) {
+    if ((fnVal = defObj.getMethod(prop))) {
         this.callFn(fnVal, arity);
     } else {
         this.propertyAccessError(null, prop, defObj.dname);
     }
 };
 
-VM.prototype.invoke = function (prop, arity) {
+VM.prototype.invokeValue = function (prop, arity) {
     const val = this.peekStack(arity);
     // todo: improve this
     let propVal;
     if (val.isInstance()) {
         const inst = val.asInstance();
-        if ((propVal = inst.props.get(prop))) {
+        if ((propVal = inst.getProperty(prop))) {
             // simulate `OP_GET_PROPERTY idx` by placing the property
             // on the stack at the instance's position, and allowing
             // callValue() handle the call
@@ -786,13 +830,13 @@ VM.prototype.invoke = function (prop, arity) {
     } else if (val.isDef()) {
         const def = val.asDef();
         if (
-            (propVal = def.dmethods.get(prop)) &&
+            (propVal = def.getMethod(prop)) &&
             propVal.asFunction().isStaticMethod
         ) {
             this.stack[this.sp - 1 - arity] = propVal;
-            // we're certain that this is a FunctionObject, since a def's
-            // `dmethods` can contain only FunctionObject values. So we call
-            // the function directly, instead of going through callValue().
+            // we're certain that this is a Value(FunctionObject), since a def's
+            // `dmethods` can contain only Value(FunctionObject) values. So we
+            // call the function directly, instead of going through callValue().
             this.callFn(propVal, arity);
         } else {
             this.propertyAccessError(val, prop);
@@ -802,7 +846,7 @@ VM.prototype.invoke = function (prop, arity) {
     }
 };
 
-VM.prototype.run = function () {
+VM.prototype.run = function (externCaller) {
     let dis = new Disassembler(this.fp.func, this.debug);
     for (;;) {
         if (this.debug) {
@@ -883,7 +927,10 @@ VM.prototype.run = function () {
             case OP_SHOW: {
                 const argCount = this.readByte();
                 for (let i = argCount - 1; i >= 0; i--) {
-                    out(this.peekStack(i).stringify(true));
+                    // try to stringify the value. we also pass the vm (`this`)
+                    // so that instances with a special str*() method can be
+                    // invoked from stringify()
+                    out(this.peekStack(i).stringify(false, this));
                     if (i > 0) out(" ");
                 }
                 out("\n");
@@ -1003,11 +1050,10 @@ VM.prototype.run = function () {
                 break;
             }
             case OP_FORMAT: {
-                // todo: for user defined objects
                 const size = this.readShort();
                 let string = new Value(VAL_STRING, "");
                 for (let i = size - 1; i >= 0; i--) {
-                    string.value += this.peekStack(i).stringify(true);
+                    string.value += this.peekStack(i).stringify(false, this);
                 }
                 this.popStackN(size);
                 this.pushStack(string);
@@ -1086,38 +1132,14 @@ VM.prototype.run = function () {
                 const method = this.popStack();
                 this.peekStack()
                     .asDef()
-                    .dmethods.set(method.asFunction().fname, method);
+                    .setMethod(method.asFunction().fname, method);
                 break;
             }
             case OP_GET_PROPERTY: {
                 // [ ref ] or [ Def ]
                 const prop = this.readString();
                 const val = this.peekStack();
-                let propVal;
-                if (val.isInstance()) {
-                    const inst = val.asInstance();
-                    // try to obtain the property from the instance's `props`
-                    if ((propVal = inst.props.get(prop))) {
-                        this.popStack();
-                        this.pushStack(propVal);
-                    } else {
-                        // if not in there, check the instances' `def`'s 'dmethods'
-                        this.bindMethod(inst.def, prop);
-                    }
-                } else if (val.isDef()) {
-                    const def = val.asDef();
-                    if (
-                        (propVal = def.dmethods.get(prop)) &&
-                        propVal.asFunction().isStaticMethod
-                    ) {
-                        this.popStack();
-                        this.pushStack(propVal);
-                    } else {
-                        this.propertyAccessError(val, prop);
-                    }
-                } else {
-                    this.propertyAccessError(val, prop);
-                }
+                this.getValProperty(prop, val);
                 break;
             }
             case OP_SET_PROPERTY: {
@@ -1127,7 +1149,7 @@ VM.prototype.run = function () {
                    this.propertyAssignError(val, prop);
                 }
                 const inst = val.asInstance();
-                inst.props.set(prop, this.peekStack());
+                inst.setProperty(prop, this.peekStack());
                 break;
             }
             case OP_GET_DEREF_PROPERTY: {
@@ -1141,7 +1163,7 @@ VM.prototype.run = function () {
                 // [ Def ][ arg1 ][ arg2 ]
                 const prop = this.readString();
                 const arity = this.readByte();
-                this.invoke(prop, arity);
+                this.invokeValue(prop, arity);
                 break;
             }
             case OP_INVOKE_DEREF: {
@@ -1165,23 +1187,35 @@ VM.prototype.run = function () {
                     );
                 }
                 baseVal.asDef().dmethods.forEach(
-                    (v, k) => child.dmethods.set(k, v)
+                    (v, k) => child.setMethod(k, v)
                 );
+                // create a link to the base def in the child def.
+                child.baseDef = baseVal.asDef();
                 break;
             }
             case OP_RETURN: {
                 const frame = this.popFrame();
                 const val = this.popStack();
                 if (!this.fp) {
-                    // indicates that we've just popped the top-level frame,
-                    // which is the 'script' frame
+                    // !this.fp indicates that we've just popped the top-level
+                    // frame, which is the 'script' frame.
                     return INTERPRET_RESULT_OK;
                 }
-                // if the frame popped isn't the script frame
-                // then return the value currently on top of the stack for use
-                // by the current frame
+                /* if the frame popped isn't the top-level frame, then return
+                 * the value just popped off the stack for use by the now
+                 * current frame.
+                 */
                 this.stack[frame.returnIndex] = val;
                 this.sp = frame.returnIndex + 1;
+                if (externCaller) {
+                    /* if `externCaller` is provided, then it means the vm is
+                     * being invoked in an external method/function,
+                     * (for example in a str*() special method).
+                     * So we return the result, and give back control to the
+                     * externCaller.
+                     */
+                    return INTERPRET_RESULT_OK;
+                }
                 break;
             }
         }
