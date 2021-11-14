@@ -267,7 +267,7 @@ VM.prototype.runtimeError = function (...msg) {
         prevFrame = this.popFrame();
     }
     console.error(`RuntimeError: ${msg.join(" ")}`);
-    exitVM();
+    // we cannot exit in order to allow roo to be embeddable
 };
 
 VM.prototype.argumentError = function (fnObj, got) {
@@ -495,7 +495,7 @@ VM.prototype.add = function () {
         result = new Value(VAL_LIST, list);
         this.pushStack(result);
     } else {
-        // todo: hook other types here.
+        // todo: hook other types here. for starters, instance type
         this.runtimeError(this.binaryErrorMsg(leftVal, rightVal, OP_ADD));
     }
 };
@@ -582,7 +582,6 @@ VM.prototype.performSubscript = function (object, subscript) {
     if (object.isList()) {
         const index = this.validateListIndexExpr(object, subscript);
         if (index === undefined) {
-            this.atError = true;
             return;
         }
         this.pushStack(object.value[index]);
@@ -603,14 +602,13 @@ VM.prototype.setSubscript = function (object, subscript) {
     if (object.isList()) {
         const index = this.validateListIndexExpr(object, subscript);
         if (index === undefined) {
-            this.atError = true;
             return;
         }
         object.value[index] = this.peekStack();
     } else if (object.isDict()) {
         const val = this.peekStack();
         if (val === object) {
-            this.runtimeError("Attempt to set dict object to itself");
+            this.runtimeError("Cannot set dict object to itself");
             return;
         }
         object.value.set(subscript.toString(), this.peekStack());
@@ -643,6 +641,7 @@ VM.prototype.getValProperty = function (prop, val) {
     } else {
         this.propertyAccessError(val, prop);
     }
+    return !this.atError;
 };
 
 VM.prototype.captureUpvalue = function (index) {
@@ -800,6 +799,7 @@ VM.prototype.bindMethod = function (defObj, prop) {
     } else {
         this.propertyAccessError(null, prop, defObj.dname);
     }
+    return !this.atError;
 };
 
 VM.prototype.invokeFromDef = function (defObj, prop, arity) {
@@ -809,6 +809,7 @@ VM.prototype.invokeFromDef = function (defObj, prop, arity) {
     } else {
         this.propertyAccessError(null, prop, defObj.dname);
     }
+    return !this.atError;
 };
 
 VM.prototype.invokeValue = function (prop, arity) {
@@ -844,6 +845,7 @@ VM.prototype.invokeValue = function (prop, arity) {
     } else {
         this.propertyAccessError(val, prop);
     }
+    return !this.atError;
 };
 
 VM.prototype.run = function (externCaller) {
@@ -855,59 +857,71 @@ VM.prototype.run = function (externCaller) {
         }
         const bytecode = this.readByte();
         switch (bytecode) {
-            case OP_LOAD_NULL:
+            case OP_LOAD_NULL: {
                 this.pushStack(new Value(VAL_NULL));
                 break;
-            case OP_LOAD_TRUE:
+            }
+            case OP_LOAD_TRUE: {
                 this.pushStack(new Value(VAL_BOOLEAN, 1));
                 break;
-            case OP_LOAD_FALSE:
+            }
+            case OP_LOAD_FALSE: {
                 this.pushStack(new Value(VAL_BOOLEAN, 0));
                 break;
-            case OP_LOAD_CONST:
+            }
+            case OP_LOAD_CONST: {
                 this.pushStack(this.readConst());
                 break;
+            }
             case OP_POSITIVE:
                 break;
-            case OP_NEGATE:
+            case OP_NEGATE: {
                 this.fastNegate();
-                // if (this.atError) return INTERPRET_RESULT_ERROR;
+                if (this.atError) return this.iERR();
                 break;
-            case OP_NOT:
+            }
+            case OP_NOT: {
                 const valObj = this.popStack();
                 let newValObj = new Value(VAL_BOOLEAN, this.isFalsy(valObj));
                 this.pushStack(newValObj);
                 break;
-            case OP_BW_INVERT:
+            }
+            case OP_BW_INVERT: {
                 this.fastInvert();
+                if (this.atError) return this.iERR();
                 break;
-            case OP_ADD:
+            }
+            case OP_ADD: {
                 this.add();
-                // if (this.atError) return INTERPRET_RESULT_ERROR;
+                if (this.atError) return this.iERR();
                 break;
+            }
             case OP_MOD:
-            case OP_DIVIDE:
+            case OP_DIVIDE: {
                 this.binaryOp(bytecode);
-                // if (this.atError) return INTERPRET_RESULT_ERROR;
+                if (this.atError) return this.iERR();
                 break;
+            }
             case OP_BW_LSHIFT:
             case OP_BW_RSHIFT:
             case OP_BW_AND:
             case OP_BW_OR:
-            case OP_BW_XOR:
+            case OP_BW_XOR: {
                 this.bwBinaryOp(bytecode);
-                // if (this.atError) return INTERPRET_RESULT_ERROR;
+                if (this.atError) return this.iERR();
                 break;
+            }
             case OP_POW:
             case OP_GREATER:
             case OP_LESS:
             case OP_GREATER_OR_EQUAL:
             case OP_LESS_OR_EQUAL:
             case OP_SUBTRACT:
-            case OP_MULTIPLY:
+            case OP_MULTIPLY: {
                 this.binaryOp(bytecode);
-                // if (this.atError) return INTERPRET_RESULT_ERROR;
+                if (this.atError) return this.iERR();
                 break;
+            }
             case OP_EQUAL: {
                 const rightValObj = this.popStack();
                 const leftValObj = this.popStack();
@@ -926,11 +940,14 @@ VM.prototype.run = function (externCaller) {
             }
             case OP_SHOW: {
                 const argCount = this.readByte();
+                let str;
                 for (let i = argCount - 1; i >= 0; i--) {
                     // try to stringify the value. we also pass the vm (`this`)
                     // so that instances with a special str*() method can be
                     // invoked from stringify()
-                    out(this.peekStack(i).stringify(false, this));
+                    str = this.peekStack(i).stringify(false, this);
+                    if (this.atError) return this.iERR();
+                    out(str);
                     if (i > 0) out(" ");
                 }
                 out("\n");
@@ -955,7 +972,7 @@ VM.prototype.run = function (externCaller) {
                     this.runtimeError(
                         "Range expression sequences only with integers"
                     );
-                    // return INTERPRET_RESULT_ERROR;
+                    return this.iERR();
                 }
                 let valObj = new Value(
                     VAL_LIST,
@@ -981,14 +998,14 @@ VM.prototype.run = function (externCaller) {
                 const subscript = this.popStack();
                 const object = this.popStack();
                 this.performSubscript(object, subscript);
-                // if (this.atError) return INTERPRET_RESULT_ERROR;
+                if (this.atError) return this.iERR();
                 break;
             }
             case OP_SET_SUBSCRIPT: {
                 const subscript = this.popStack();
                 const object = this.popStack();
                 this.setSubscript(object, subscript);
-                // if (this.atError) return INTERPRET_RESULT_ERROR;
+                if (this.atError) return this.iERR();
                 break;
             }
             case OP_POP: {
@@ -1006,7 +1023,7 @@ VM.prototype.run = function (externCaller) {
                 const val = this.globals[name];
                 if (val === undefined) {
                     this.runtimeError(`'${name}' is not defined`);
-                    // return INTERPRET_RESULT_ERROR;
+                    return this.iERR();
                 }
                 this.pushStack(val);
                 break;
@@ -1018,7 +1035,7 @@ VM.prototype.run = function (externCaller) {
                         `Cannot assign value to` +
                             `undefined variable '${name}'`
                     );
-                    // return INTERPRET_RESULT_ERROR;
+                    return this.iERR();
                 }
                 this.globals[name] = this.peekStack();
                 break;
@@ -1054,6 +1071,7 @@ VM.prototype.run = function (externCaller) {
                 let string = new Value(VAL_STRING, "");
                 for (let i = size - 1; i >= 0; i--) {
                     string.value += this.peekStack(i).stringify(false, this);
+                    if (this.atError) return this.iERR();
                 }
                 this.popStackN(size);
                 this.pushStack(string);
@@ -1090,18 +1108,22 @@ VM.prototype.run = function (externCaller) {
                 break;
             }
             case OP_CALL: {
-                this.callValue(this.readByte());
+                if (!this.callValue(this.readByte())) {
+                    return this.iERR();
+                }
                 break;
             }
             case OP_CLOSURE: {
                 const val = this.readConst();
                 const fnObj = val.asFunction();
+                // store defaults if available
                 for (let i = fnObj.defaultParamsCount; i > 0; --i) {
                     const index = this.popStack();
                     fnObj.defaults[index] = this.popStack();
                 }
                 this.pushStack(val);
                 let index, isLocal;
+                // handle upvalues if available
                 for (let i = 0; i < fnObj.upvalueCount; i++) {
                     index = this.readByte();
                     isLocal = this.readByte();
@@ -1139,7 +1161,9 @@ VM.prototype.run = function (externCaller) {
                 // [ ref ] or [ Def ]
                 const prop = this.readString();
                 const val = this.peekStack();
-                this.getValProperty(prop, val);
+                if (!this.getValProperty(prop, val)) {
+                    return this.iERR();
+                }
                 break;
             }
             case OP_SET_PROPERTY: {
@@ -1147,6 +1171,7 @@ VM.prototype.run = function (externCaller) {
                 const val = this.popStack();
                 if (!val.isInstance()) {
                    this.propertyAssignError(val, prop);
+                    return this.iERR();
                 }
                 const inst = val.asInstance();
                 inst.setProperty(prop, this.peekStack());
@@ -1155,7 +1180,9 @@ VM.prototype.run = function (externCaller) {
             case OP_GET_DEREF_PROPERTY: {
                 // [ ref ][ Def ]
                 const prop = this.readString();
-                this.bindMethod(this.popStack().asDef(), prop);
+                if (!this.bindMethod(this.popStack().asDef(), prop)) {
+                    return this.iERR();
+                }
                 break;
             }
             case OP_INVOKE: {
@@ -1163,7 +1190,9 @@ VM.prototype.run = function (externCaller) {
                 // [ Def ][ arg1 ][ arg2 ]
                 const prop = this.readString();
                 const arity = this.readByte();
-                this.invokeValue(prop, arity);
+                if (!this.invokeValue(prop, arity)) {
+                    return this.iERR();
+                }
                 break;
             }
             case OP_INVOKE_DEREF: {
@@ -1174,7 +1203,9 @@ VM.prototype.run = function (externCaller) {
                 const prop = this.readString();
                 const argc = this.readByte();
                 const baseVal = this.popStack();
-                this.invokeFromDef(baseVal.asDef(), prop, argc);
+                if (!this.invokeFromDef(baseVal.asDef(), prop, argc)) {
+                    return this.iERR();
+                }
                 break;
             }
             case OP_DERIVE: {
@@ -1185,6 +1216,7 @@ VM.prototype.run = function (externCaller) {
                     this.runtimeError(
                         `'${baseVal.typeToString()}' can't be interpreted as a definition`
                     );
+                    return this.iERR();
                 }
                 baseVal.asDef().dmethods.forEach(
                     (v, k) => child.setMethod(k, v)
@@ -1199,7 +1231,7 @@ VM.prototype.run = function (externCaller) {
                 if (!this.fp) {
                     // !this.fp indicates that we've just popped the top-level
                     // frame, which is the 'script' frame.
-                    return INTERPRET_RESULT_OK;
+                    return this.iOK();
                 }
                 /* if the frame popped isn't the top-level frame, then return
                  * the value just popped off the stack for use by the now
@@ -1207,15 +1239,13 @@ VM.prototype.run = function (externCaller) {
                  */
                 this.stack[frame.returnIndex] = val;
                 this.sp = frame.returnIndex + 1;
-                if (externCaller) {
-                    /* if `externCaller` is provided, then it means the vm is
-                     * being invoked in an external method/function,
-                     * (for example in a str*() special method).
-                     * So we return the result, and give back control to the
-                     * externCaller.
-                     */
-                    return INTERPRET_RESULT_OK;
-                }
+                /* if `externCaller` is provided, then it means the vm is
+                 * being invoked in an external method/function,
+                 * (for example in a str*() special method).
+                 * So we return the result, and give back control to the
+                 * externCaller.
+                 */
+                if (externCaller) return this.iOK();
                 break;
             }
         }
