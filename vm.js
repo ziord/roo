@@ -7,7 +7,9 @@
 
 const {
     Value,
+    createStringVal,
     createListVal,
+    createDictVal,
     createDefVal,
     createInstanceVal,
     createBoundMethodVal,
@@ -302,6 +304,7 @@ VM.prototype.propertyAccessError = function (val, prop, defName) {
         error = `def ${val.asDef().dname} has no property '${prop}'`;
         this.runtimeError(error);
     }
+    // todo: handle other val types
 };
 
 VM.prototype.propertyAssignError = function (val, prop) {
@@ -481,19 +484,25 @@ VM.prototype.opcodeToString = function (opcode) {
 VM.prototype.add = function () {
     const rightVal = this.popStack();
     const leftVal = this.popStack();
-    let result;
     if (leftVal.isNumber() && rightVal.isNumber()) {
-        result = new Value(this.computeNumType(leftVal.type, rightVal.type));
-        result.value = this[OP_ADD](leftVal, rightVal);
-        this.pushStack(result);
+        this.pushStack(
+            new Value(
+                this.computeNumType(leftVal.type, rightVal.type),
+                this[OP_ADD](leftVal, rightVal)
+            )
+        );
     } else if (leftVal.isString() && rightVal.isString()) {
-        result = new Value(VAL_STRING, leftVal.value + rightVal.value);
-        this.pushStack(result);
+        this.pushStack(
+            createStringVal(
+                leftVal.asString() + rightVal.asString()
+            )
+        );
     } else if (leftVal.isList() && rightVal.isList()) {
-        let list = leftVal.value.slice();
-        rightVal.value.forEach((item) => list.push(item));
-        result = new Value(VAL_LIST, list);
-        this.pushStack(result);
+        this.pushStack(
+            createListVal(
+                leftVal.asList().elements.concat(rightVal.asList().elements)
+            )
+        );
     } else {
         // todo: hook other types here. for starters, instance type
         this.runtimeError(this.binaryErrorMsg(leftVal, rightVal, OP_ADD));
@@ -504,15 +513,16 @@ VM.prototype.binaryOp = function (opcode) {
     const rightVal = this.popStack();
     const leftVal = this.popStack();
     if (leftVal.isNumber() && rightVal.isNumber()) {
-        let result = new Value(
-            this.computeNumType(leftVal.type, rightVal.type, opcode)
+        this.pushStack(
+            new Value(
+                this.computeNumType(leftVal.type, rightVal.type, opcode),
+                this[opcode](leftVal, rightVal)
+            )
         );
-        result.value = this[opcode](leftVal, rightVal);
-        this.pushStack(result);
-        return;
+    } else {
+        // todo: hook other types here.
+        this.runtimeError(this.binaryErrorMsg(leftVal, rightVal, opcode));
     }
-    // todo: hook other types here.
-    this.runtimeError(this.binaryErrorMsg(leftVal, rightVal, opcode));
 };
 
 VM.prototype.bwBinaryOp = function (opcode) {
@@ -523,19 +533,25 @@ VM.prototype.bwBinaryOp = function (opcode) {
             this.computeNumType(leftVal.type, rightVal.type)
         );
         result.value = this[opcode](leftVal, rightVal);
-        this.pushStack(result);
-        return;
+        this.pushStack(
+            new Value(
+                this.computeNumType(leftVal.type, rightVal.type),
+                this[opcode](leftVal, rightVal)
+            )
+        );
+    } else {
+        // todo: hook other types here.
+        this.runtimeError(this.binaryErrorMsg(leftVal, rightVal, opcode));
     }
-    this.runtimeError(this.binaryErrorMsg(leftVal, rightVal, opcode));
 };
 
 VM.prototype.isFalsy = function (valObj) {
     // todo: update
     return (
         (valObj.isNumber() && !valObj.value) || // covers boolean
-        (valObj.isString() && !valObj.value.length) ||
-        (valObj.isList() && !valObj.value.length) ||
-        (valObj.isDict() && !valObj.value.size) ||
+        (valObj.isString() && !valObj.asString().length) ||
+        (valObj.isList() && !valObj.asList().elements.length) ||
+        (valObj.isDict() && !valObj.asDict().htable.size) ||
         valObj.isNull()
     );
 };
@@ -558,9 +574,9 @@ VM.prototype.buildListFromRange = function (start, stop, step) {
     return arr;
 };
 
-VM.prototype.validateListIndexExpr = function (list, idx) {
-    if (!list.isList()) {
-        this.subscriptError(list);
+VM.prototype.validateListIndexExpr = function (listVal, idx) {
+    if (!listVal.isList()) {
+        this.subscriptError(listVal);
         return undefined;
     }
     if (!idx.isInt()) {
@@ -569,8 +585,11 @@ VM.prototype.validateListIndexExpr = function (list, idx) {
         );
         return undefined;
     }
-    let index = idx.value < 0 ? list.value.length + idx.value : idx.value;
-    if (Math.abs(index) >= list.value.length) {
+    let index =
+        idx.value < 0
+            ? listVal.asList().elements.length + idx.value
+            : idx.value;
+    if (Math.abs(index) >= listVal.value.length) {
         this.runtimeError("list index out of range");
         return undefined;
     }
@@ -586,9 +605,9 @@ VM.prototype.performSubscript = function (object, subscript) {
         }
         this.pushStack(object.value[index]);
     } else if (object.isDict()) {
-        const val = object.asDict().get(subscript.toString());
+        const val = object.asDict().getVal(subscript.stringify());
         if (val === undefined) {
-            this.runtimeError(`dict has no key ${subscript.toString()}`);
+            this.runtimeError(`dict has no key '${subscript.stringify()}'`);
             return;
         }
         this.pushStack(val);
@@ -604,18 +623,18 @@ VM.prototype.setSubscript = function (object, subscript) {
         if (index === undefined) {
             return;
         }
-        object.value[index] = this.peekStack();
+        object.asList().elements[index] = this.peekStack();
     } else if (object.isDict()) {
         const val = this.peekStack();
         if (val === object) {
             this.runtimeError("Cannot set dict object to itself");
             return;
         }
-        object.value.set(subscript.toString(), this.peekStack());
+        object.asDict().setVal(subscript.stringify(), this.peekStack());
     }
 };
 
-VM.prototype.getValProperty = function (prop, val) {
+VM.prototype.getValueProperty = function (prop, val) {
     let propVal;
     if (val.isInstance()) {
         const inst = val.asInstance();
@@ -649,18 +668,18 @@ VM.prototype.captureUpvalue = function (index) {
 };
 
 VM.prototype.variadicCall = function (fnObj, arity) {
-    const listObj = createListVal();
+    const arr = [];
     if (arity > fnObj.arity) {
         // Pack all extra args, starting
         // from the arg matching the arity, into a list.
         for (let i = 0, count = (arity - fnObj.arity); i <= count; ++i) {
-            listObj.value.unshift(this.popStack());
+            arr.unshift(this.popStack());
         }
-        this.pushStack(listObj);
+        this.pushStack(createListVal(arr));
     } else if ((fnObj.arity - arity) === 1) {
         // the function is missing only the variadic/spread argument
         // we cater for this by passing an empty list
-        this.pushStack(listObj);
+        this.pushStack(createListVal([]));
     } else {
         // trouble. The function is missing so much more.
         // Can't handle this, just err.
@@ -712,9 +731,8 @@ VM.prototype.callFn = function (fnVal, arity) {
     } else if (fnObj.isVariadic) {
         // function is variadic, but arity matches.
         // Make the last argument a list
-        let listObj = createListVal();
-        listObj.value.push(this.popStack());
-        this.pushStack(listObj);
+        const listVal = createListVal([this.popStack()]);
+        this.pushStack(listVal);
     }
     // does this function have a builtin executable (callable)?
     if (fnObj.builtinExec) {
@@ -741,9 +759,11 @@ VM.prototype.callBuiltinFn = function (val, arity) {
         const arityWord = arity >= 1 ? arity : "none";
         const error = `${bFn.fname}() takes ${bFn.arity} ${argsWord} but got ${arityWord}`;
         this.runtimeError(error);
+    } else {
+        // `bFn.builtinFn` returns a Value() obj
+        this.stack[this.sp - 1 - arity] = bFn.builtinFn(this);
+        this.sp -= arity;
     }
-    this.stack[this.sp - 1 - arity] = bFn.builtinFn(this); // returns a Value() obj
-    this.sp -= arity;
 };
 
 VM.prototype.callDef = function (val, arity) {
@@ -819,9 +839,11 @@ VM.prototype.invokeValue = function (prop, arity) {
     if (val.isInstance()) {
         const inst = val.asInstance();
         if ((propVal = inst.getProperty(prop))) {
-            // simulate `OP_GET_PROPERTY idx` by placing the property
-            // on the stack at the instance's position, and allowing
-            // callValue() handle the call
+            /*
+             * simulate `OP_GET_PROPERTY idx` by placing the property
+             * on the stack at the instance's position, and allowing
+             * callValue() handle the call
+             */
             this.stack[this.sp - 1 - arity] = propVal;
             this.callValue(arity);
         } else {
@@ -835,9 +857,12 @@ VM.prototype.invokeValue = function (prop, arity) {
             propVal.asFunction().isStaticMethod
         ) {
             this.stack[this.sp - 1 - arity] = propVal;
-            // we're certain that this is a Value(FunctionObject), since a def's
-            // `dmethods` can contain only Value(FunctionObject) values. So we
-            // call the function directly, instead of going through callValue().
+            /*
+             * we're certain that this is a Value(FunctionObject),
+             * since a def's `dmethods` can contain only Value(FunctionObject)
+             * values. So we call the function directly, instead of going
+             * through callValue().
+             */
             this.callFn(propVal, arity);
         } else {
             this.propertyAccessError(val, prop);
@@ -945,7 +970,7 @@ VM.prototype.run = function (externCaller) {
                     // try to stringify the value. we also pass the vm (`this`)
                     // so that instances with a special str*() method can be
                     // invoked from stringify()
-                    str = this.peekStack(i).stringify(false, this);
+                    str = this.peekStack(i).stringify(this, false);
                     if (this.atError) return this.iERR();
                     out(str);
                     if (i > 0) out(" ");
@@ -956,12 +981,12 @@ VM.prototype.run = function (externCaller) {
             }
             case OP_BUILD_LIST: {
                 const size = this.readShort();
-                let valObj = createListVal();
+                const arr = [];
                 for (let i = 0; i < size; ++i) {
-                    valObj.value.unshift(this.peekStack(i));
+                    arr.unshift(this.peekStack(i));
                 }
                 this.popStackN(size);
-                this.pushStack(valObj);
+                this.pushStack(createListVal(arr));
                 break;
             }
             case OP_BUILD_RANGE: {
@@ -974,8 +999,7 @@ VM.prototype.run = function (externCaller) {
                     );
                     return this.iERR();
                 }
-                let valObj = new Value(
-                    VAL_LIST,
+                let valObj = createListVal(
                     this.buildListFromRange(start.value, end.value, step.value)
                 );
                 this.pushStack(valObj);
@@ -988,10 +1012,10 @@ VM.prototype.run = function (externCaller) {
                 for (let i = length * 2 - 1; i >= 0; i -= 2) {
                     value = this.peekStack(i - 1);
                     key = this.peekStack(i);
-                    map.set(key.toString(), value);
+                    map.set(key.stringify(), value);
                 }
                 this.popStackN(length * 2);
-                this.pushStack(new Value(VAL_DICT, map));
+                this.pushStack(createDictVal(map));
                 break;
             }
             case OP_SUBSCRIPT: {
@@ -1068,13 +1092,13 @@ VM.prototype.run = function (externCaller) {
             }
             case OP_FORMAT: {
                 const size = this.readShort();
-                let string = new Value(VAL_STRING, "");
+                let string = "";
                 for (let i = size - 1; i >= 0; i--) {
-                    string.value += this.peekStack(i).stringify(false, this);
+                    string += this.peekStack(i).stringify(this, false);
                     if (this.atError) return this.iERR();
                 }
                 this.popStackN(size);
-                this.pushStack(string);
+                this.pushStack(createStringVal(string));
                 break;
             }
             case OP_JUMP: {
@@ -1118,7 +1142,7 @@ VM.prototype.run = function (externCaller) {
                 const fnObj = val.asFunction();
                 // store defaults if available
                 for (let i = fnObj.defaultParamsCount; i > 0; --i) {
-                    const index = this.popStack();
+                    const index = this.popStack().asInt();
                     fnObj.defaults[index] = this.popStack();
                 }
                 this.pushStack(val);
@@ -1161,7 +1185,7 @@ VM.prototype.run = function (externCaller) {
                 // [ ref ] or [ Def ]
                 const prop = this.readString();
                 const val = this.peekStack();
-                if (!this.getValProperty(prop, val)) {
+                if (!this.getValueProperty(prop, val)) {
                     return this.iERR();
                 }
                 break;
@@ -1212,6 +1236,7 @@ VM.prototype.run = function (externCaller) {
                 // [ base Def ][ child Def ]
                 const child = this.popStack().asDef();
                 const baseVal = this.peekStack();
+                // todo: ensure builtin defs are sealed i.e. they can't be derived
                 if (!baseVal.isDef()) {
                     this.runtimeError(
                         `'${baseVal.typeToString()}' can't be interpreted as a definition`

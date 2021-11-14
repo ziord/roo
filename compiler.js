@@ -143,7 +143,7 @@ class Compiler extends ast.NodeVisitor {
     visitStringNode(node) {
         gen.emitConstant(
             this.fn.code,
-            new vmod.Value(vmod.VAL_STRING, node.value),
+            new vmod.createStringVal(node.value),
             node.line
         );
     }
@@ -248,8 +248,8 @@ class Compiler extends ast.NodeVisitor {
         gen.emitByte(this.fn.code, opcode.OP_POP, node.line);
     }
 
-    storeString(name){
-        const value = new vmod.Value(vmod.VAL_STRING, name);
+    storeString(string){
+        const value = new vmod.createStringVal(string);
         return this.fn.code.cp.writeConstant(value);
     }
 

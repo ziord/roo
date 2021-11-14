@@ -91,6 +91,7 @@ BPTable[tokens.TOKEN_FAT_ARROW] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_PLUS_PLUS] = bp(POWER_POSTFIX, unary, postfix);
 BPTable[tokens.TOKEN_MINUS_MINUS] = bp(POWER_POSTFIX, unary, postfix);
 BPTable[tokens.TOKEN_DOT_DOT] = bp(POWER_CALL, null, rangeLiteral);  // d
+BPTable[tokens.TOKEN_DOT_DOT_DOT] = bp(POWER_NONE, null, null);  // d
 BPTable[tokens.TOKEN_HEXINT_NUMBER] = bp(POWER_NONE, number, null);  // d
 BPTable[tokens.TOKEN_INT_NUMBER] = bp(POWER_NONE, number, null);  // d
 BPTable[tokens.TOKEN_FLOAT_NUMBER] = bp(POWER_NONE, number, null);  // d
