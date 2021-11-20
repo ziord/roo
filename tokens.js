@@ -33,8 +33,6 @@ module.exports = {
     TOKEN_BITWISE_INVERT: "TOKEN_BITWISE_INVERT",        // ~
 
     // two character tokens
-    // TOKEN_DOUBLE_LEFT_CURLY: "TOKEN_DOUBLE_LEFT_CURLY",        // {{
-    // TOKEN_DOUBLE_RIGHT_CURLY: "TOKEN_DOUBLE_LEFT_CURLY",        // }}
     TOKEN_LESS_THAN_EQUAL: "TOKEN_LESS_THAN_EQUAL",      // <=
     TOKEN_GREATER_THAN_EQUAL: "TOKEN_GREATER_THAN_EQUAL",   // >=
     TOKEN_EQUAL_EQUAL: "TOKEN_EQUAL_EQUAL",          // ==
@@ -73,6 +71,7 @@ module.exports = {
     // keyword tokens
     TOKEN_FOR: 'TOKEN_FOR',              // for
     TOKEN_OR: 'TOKEN_OR',               // or
+    TOKEN_IN: 'TOKEN_IN',               // or
     TOKEN_OF: 'TOKEN_OF',               // of
     TOKEN_AND: 'TOKEN_AND',              // and
     TOKEN_DO: 'TOKEN_DO',               // do

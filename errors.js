@@ -171,8 +171,8 @@ RError[EP0014] = createError(EP0014,
 
 RError[EP0015] = createError(EP0015,
     "Special method outside definition.",
-    `You can't mark this method as special outside a valid definition.${SEP}` +
-    "Consider eliminating the '*' token.");
+    `You can't use this special method outside a valid definition.${SEP}` +
+    "Consider renaming the function.");
 
 RError[EP0016] = createError(EP0016,
     "star arm not last",
@@ -274,7 +274,7 @@ RError[EP0036] = createError(EP0036,
 
 RError[EP0037] = createError(EP0037,  // todo: remove
     "'static' with initializer method",
-    `You can't use the keyword 'static' with an initializer method (init*()).${SEP}` +
+    `You can't use the keyword 'static' with an initializer method (__init__()).${SEP}` +
     `Consider removing 'static'.`);
 
 RError[EP0038] = createError(EP0038,
@@ -307,6 +307,11 @@ RError[EP0043] = createError(EP0043,
     `'deref' can only be used when deriving from a definition (def).${SEP}` +
     `Consider eliminating the use of 'deref' at this context.`);
 
+RError[EP0044] = createError(EP0044,
+    "Use of dunder name.",
+    `functions/methods with leading and trailing '__' is reserved for use internally.${SEP}` +
+    `Using this now could break your code when it gets adopted in the future.${SEP}` +
+    `Consider eliminating the leading and trailing '__'.`);
 
 module.exports = {
     RError,

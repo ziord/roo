@@ -83,6 +83,7 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_AND:                  return "and";
         case tokens.TOKEN_DO:                   return "do";
         case tokens.TOKEN_IF:                   return "if";
+        case tokens.TOKEN_IN:                   return "in";
         case tokens.TOKEN_ELSE:                 return "else";
         case tokens.TOKEN_WHILE:                return "while";
         case tokens.TOKEN_FN:                   return "fn";
@@ -150,20 +151,35 @@ Lexer.prototype[Symbol.iterator] = function() {
 
 Lexer.keywords = function() {
     return [
-        ["or", tokens.TOKEN_OR], ["of", tokens.TOKEN_OF],
-        ["and", tokens.TOKEN_AND], ["break", tokens.TOKEN_BREAK],
-        ["if", tokens.TOKEN_IF], ["else", tokens.TOKEN_ELSE],
-        ["while", tokens.TOKEN_WHILE], ["null", tokens.TOKEN_NULL],
-        ["let", tokens.TOKEN_LET], ["true", tokens.TOKEN_TRUE],
-        ["false", tokens.TOKEN_FALSE], ["match", tokens.TOKEN_MATCH],
-        ["return", tokens.TOKEN_RETURN], ["do", tokens.TOKEN_DO],
-        ["loop", tokens.TOKEN_LOOP], ["for", tokens.TOKEN_FOR],
-        ["fn", tokens.TOKEN_FN], ["static", tokens.TOKEN_STATIC],
-        ["deref", tokens.TOKEN_DEREF], ["ref", tokens.TOKEN_REF],
-        ["show", tokens.TOKEN_SHOW], ["class", tokens.TOKEN_CLASS],
-        ["continue", tokens.TOKEN_CONTINUE], ["const", tokens.TOKEN_CONST],
-        ["struct", tokens.TOKEN_STRUCT], ["case", tokens.TOKEN_CASE],
-        ["define", tokens.TOKEN_DEFINE], ["derive", tokens.TOKEN_DERIVE],
+        ["or", tokens.TOKEN_OR],
+        ["of", tokens.TOKEN_OF],
+        ["and", tokens.TOKEN_AND],
+        ["break", tokens.TOKEN_BREAK],
+        ["if", tokens.TOKEN_IF],
+        ["else", tokens.TOKEN_ELSE],
+        ["in", tokens.TOKEN_IN],
+        ["while", tokens.TOKEN_WHILE],
+        ["null", tokens.TOKEN_NULL],
+        ["let", tokens.TOKEN_LET],
+        ["true", tokens.TOKEN_TRUE],
+        ["false", tokens.TOKEN_FALSE],
+        ["match", tokens.TOKEN_MATCH],
+        ["return", tokens.TOKEN_RETURN],
+        ["do", tokens.TOKEN_DO],
+        ["loop", tokens.TOKEN_LOOP],
+        ["for", tokens.TOKEN_FOR],
+        ["fn", tokens.TOKEN_FN],
+        ["static", tokens.TOKEN_STATIC],
+        ["deref", tokens.TOKEN_DEREF],
+        ["ref", tokens.TOKEN_REF],
+        ["show", tokens.TOKEN_SHOW],
+        ["class", tokens.TOKEN_CLASS],
+        ["continue", tokens.TOKEN_CONTINUE],
+        ["const", tokens.TOKEN_CONST],
+        ["struct", tokens.TOKEN_STRUCT],
+        ["case", tokens.TOKEN_CASE],
+        ["define", tokens.TOKEN_DEFINE],
+        ["derive", tokens.TOKEN_DERIVE],
     ];
 };
 

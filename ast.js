@@ -31,6 +31,7 @@ const ASTType = {
     AST_NODE_IF_ELSE:           'AST_NODE_IF_ELSE',
     AST_NODE_COND_EXPR:         'AST_NODE_COND_EXPR',
     AST_NODE_FOR_LOOP:          'AST_NODE_FOR_LOOP',
+    AST_NODE_FOR_IN_LOOP:       'AST_NODE_FOR_IN_LOOP',
     AST_NODE_WHILE_LOOP:        'AST_NODE_WHILE_LOOP',
     AST_NODE_DO_WHILE_LOOP:     'AST_NODE_DO_WHILE_LOOP',
     AST_NODE_UNB_LOOP:          'AST_NODE_UNB_LOOP',
@@ -368,8 +369,8 @@ class OrExprNode extends AST{
     }
 }
 
-class IfElseNode extends AST{
-    constructor(conditionExpr, ifBlock, elseBlock, elseLine){
+class IfElseNode extends AST {
+    constructor(conditionExpr, ifBlock, elseBlock, elseLine) {
         super();
         this.type = ASTType.AST_NODE_IF_ELSE;
         this.conditionExpr = conditionExpr;
@@ -379,14 +380,24 @@ class IfElseNode extends AST{
     }
 }
 
-class ForLoopNode extends AST{
-    constructor (initExpr, conditionExpr, incrExpr, block){
+class ForLoopNode extends AST {
+    constructor(initExpr, conditionExpr, incrExpr, block) {
         super();
         this.type = ASTType.AST_NODE_FOR_LOOP;
         this.initExpr = initExpr;
         this.conditionExpr = conditionExpr;
         this.incrExpr = incrExpr;
         this.block = block;
+    }
+}
+
+class ForInLoopNode extends AST {
+    constructor (varNode, iterExprNode, block){
+        super();
+        this.type = ASTType.AST_NODE_FOR_IN_LOOP;
+        this.varNode = varNode;
+        this.iterExprNode = iterExprNode;
+        this.blockNode = block;
     }
 }
 
@@ -564,6 +575,6 @@ module.exports = {
     AndExprNode, OrExprNode, IfElseNode, MethodNode, DotExprNode,
     ForLoopNode, WhileLoopNode, DoWhileLoopNode, UnboundedLoopNode,
     ControlNode, CaseNode, OfNode, DictNode, FunctionNode,
-    CallNode, ReturnNode, ArgumentNode, DefNode,
+    CallNode, ReturnNode, ArgumentNode, DefNode, ForInLoopNode,
     OpType, getOperator, NodeVisitor, getAssignmentOp, FnTypes
 };

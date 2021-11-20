@@ -78,8 +78,8 @@ class Compiler extends ast.NodeVisitor {
         this.loopControls = [];
         // Compiler:
         this.enclosingCompiler = null;
-        // case statement variable counts:
-        this.caseVarCount = 0;
+        // number of free variables currently present
+        this.freeVars = 0;
         this.upvalues = [];
         // is this compiling a special method?: (e.g. init*())
         this.isSpecialMethod = false;
@@ -102,6 +102,10 @@ class Compiler extends ast.NodeVisitor {
                in the vm. */
             return new Local("", this.currentScope);
         }
+    }
+
+    getFreeVar(name) {
+        return `$var_${name}${this.freeVars++}`;
     }
 
     compilationError(msg, node){
@@ -617,6 +621,79 @@ class Compiler extends ast.NodeVisitor {
         this.currentLoop = prevLoop;
     }
 
+    visitForInLoopNode(node){
+        /*
+         *  for x in stuff { ... }
+         *     |
+         *  let $var_itr = stuff.__iter__(), $var_tmp;
+         *  while (($var_tmp = $var_itr.__next__()) && !$var_tmp["done"]) {
+         *      let x = $var_tmp["value"];
+         *  }
+         */
+        const line = node.varNode.line;
+        // itr & tmp
+        const itrName = this.getFreeVar("itr"),
+            tmpName = this.getFreeVar("tmp");
+        const itrVar = new ast.VarNode(itrName, line),
+            tmpVar = new ast.VarNode(tmpName, line);
+
+        // *1* let $var_itr = stuff.__iter__(), $var_tmp;
+        let dotExpr = new ast.DotExprNode(
+            node.iterExprNode, new ast.VarNode("__iter__", line), line
+        );
+        let callNode = new ast.CallNode(dotExpr, line);
+        const nullNode = new ast.NullNode(line);
+        const decls = [
+            new ast.VarDeclNode(itrName, callNode, true, line),
+            new ast.VarDeclNode(tmpName, nullNode, true, line),
+        ];
+        const declListNode = new ast.VarDeclListNode(decls);
+
+        // *2* while (($var_tmp = $var_itr.__next__()) && !$var_tmp["done"])
+        dotExpr = new ast.DotExprNode(
+            itrVar,  new ast.VarNode("__next__", line), line
+        );
+        callNode = new ast.CallNode(dotExpr, line);
+        let assignNode = new ast.AssignNode(
+            tmpVar,
+            callNode,
+            ast.OpType.OPTR_EQ,
+            line
+        );
+        let indexNode = new ast.IndexExprNode(
+            tmpVar,
+            new ast.StringNode("done", line),
+            line
+        );
+        let unaryNode = new ast.UnaryNode(indexNode, line, ast.OpType.OPTR_NOT);
+        const conditionExprNode = new ast.AndExprNode(
+            assignNode,
+            unaryNode,
+            line
+        );
+        // *3* let x = $var_tmp["value"];
+        indexNode = new ast.IndexExprNode(
+            tmpVar,
+            new ast.StringNode("value", line),
+            line
+        );
+        // create the user var and insert as the first declaration in the
+        // body of the for loop block
+        const userDecl = new ast.VarDeclNode(
+            node.varNode.name,
+            indexNode,
+            false,
+            line
+        );
+        node.blockNode.decls.unshift(userDecl);
+        const whileLoopNode = new ast.WhileLoopNode(
+            conditionExprNode,
+            node.blockNode
+        );
+        this.visit(declListNode);
+        this.visit(whileLoopNode);
+    }
+
     visitUnboundedLoopNode(node){
         const prevLoop = this.prepareLoop('unbounded');
         const loopPoint = this.fn.code.length;
@@ -723,6 +800,7 @@ class Compiler extends ast.NodeVisitor {
 
     transformConditionedCaseNode(caseNode){
         /*
+         * todo: move this transformation to the parser
          * case x {
          *   of x, y, z -> stuff,
          *   of * -> ruff
@@ -739,7 +817,7 @@ class Compiler extends ast.NodeVisitor {
             return this.transformRegularCaseNode(caseNode);
         }
         const declNode = new ast.VarDeclNode(
-            `$var${this.caseVarCount++}`,
+            this.getFreeVar("case"),
             caseNode.conditionExpr, caseNode.line
         );
         const ifElseNode = new ast.IfElseNode();

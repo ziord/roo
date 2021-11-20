@@ -2,6 +2,7 @@
 grammars
 test
 tmp
+std
 *.roo
 *.txt
 test.js

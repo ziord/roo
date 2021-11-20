@@ -22,6 +22,8 @@ const VAL_INT = 0,
     VAL_BOUND_METHOD = 11,
     VAL_BFUNCTION = 12;
 
+const builtin_obj_types = [VAL_STRING, VAL_LIST, VAL_DICT];
+
 /*
  * primitive types occupy this.value directly,
  * objects utilize their own constructors
@@ -33,26 +35,33 @@ function Value(valType, value = null) {
 
 /**
  * Roo List object
- * @param elements: elements
+ * @param {Array} elements: elements of the list, a JS Array
+ * @param {DefObject} def: the list's definition
  * @constructor
  */
-function ListObject(elements =  null) {
+function ListObject(elements =  null, def = null) {
     this.elements = elements;
+    this.def = def;
 }
 
 /**
  * Roo Dict object
+ * @param {Map} table: map containing key-value pairs
+ * @param {DefObject} def: the dict's definition
  * @constructor
  */
-function DictObject(table = null) {
+function DictObject(table = null, def = null) {
     this.htable = table;
+    this.def = def;
 }
 
 /**
- * @param name: string, name of the function
- * @param arity: number of accepted arguments
- * @param code: Code object containing the function's bytecode
- * @param isLambda: flag for whether the function is a lambda func
+ * Represents both user defined functions/methods, and builtin methods
+ * (on builtin types)
+ * @param {string} name: string, name of the function
+ * @param {number} arity: number of accepted arguments
+ * @param {Code} code: Code object containing the function's bytecode
+ * @param {boolean} isLambda: flag for whether the function is a lambda func
  * @constructor
  */
 function FunctionObject(name, arity, code, isLambda){
@@ -65,35 +74,36 @@ function FunctionObject(name, arity, code, isLambda){
     this.isVariadic = false;
     this.defaults = [];
     this.defaultParamsCount = 0;
-    this.isSpecialMethod = false;
+    this.isSpecialMethod = false;  // todo: remove
     this.isStaticMethod = false;
-    this.builtinExec = null;  // builtin executable
+    this.builtinMethod = null;  // builtin executable
 }
 
 /**
- * @param name: string, name of the definition
- * @param baseDef: base definition from which this definition derives
+ * @param {string} name: string, name of the definition
+ * @param {DefObject} baseDef: base definition from which this definition derives
  * @constructor
  */
 function DefObject(name /*string*/, baseDef = null /*DefObject*/) {
     this.dname = name;
     this.dmethods = new Map();
     this.baseDef = baseDef;
+    this.def = null;  // the meta def(inition) - the highest hierarchy.
 }
 
 /**
- * @param defObj: DefObject, the instance's definition
+ * @param {DefObject} defObj: the instance's definition
  * @constructor
  */
 function InstanceObject(defObj){
-    this.def = defObj;  // DefObject
+    this.def = defObj;
     this.props = new Map();
 }
 
 /**
  *
- * @param inst: the instance, InstanceObject
- * @param method: FunctionObject embedded in a Value()
+ * @param {InstanceObject} inst: the instance
+ * @param {Value} method: FunctionObject embedded in a Value()
  * @constructor
  */
 function BoundMethodObject(inst, method){
@@ -103,9 +113,9 @@ function BoundMethodObject(inst, method){
 
 /**
  *
- * @param name: string, name of the function
- * @param arity: number of accepted arguments
- * @param builtinFn: direct js function
+ * @param {string} name: name of the function
+ * @param {number} arity: number of accepted arguments
+ * @param {function} builtinFn: direct js function
  * @constructor
  */
 function BFunctionObject(name, arity, builtinFn) {
@@ -214,6 +224,18 @@ Value.prototype.isBFunction = function(){
     return this.type === VAL_BFUNCTION;
 };
 
+Value.prototype.isBuiltinObject = function(){
+    return builtin_obj_types.includes(this.type);
+};
+
+Value.prototype.getBuiltinDef = function(){
+    assert(
+        this.value.def !== undefined,
+        "Value::getBuiltinDef() - Does not have a builtin def"
+    );
+    return this.value.def;
+};
+
 function as() {
     return this.value;
 }
@@ -235,6 +257,8 @@ Value.prototype.asInstance = as;
 Value.prototype.asBoundMethod = as;
 
 Value.prototype.asBFunction = as;
+
+Value.prototype.as = as;
 
 Value.prototype.typeToString = function() {
     switch (this.type) {
@@ -273,16 +297,35 @@ Value.prototype.dictToString = function (){
     let start = "{";
     let i = 0;
     const dict = this.asDict().htable;
-    for (let [key, value] of dict){
+    for (let [key, value] of dict) {
         ++i;
-        start += key + ": " + value.stringify();
+        start +=
+            `'${key}': ` +
+            (value.value === this.value
+                ? "{...}"
+                : value.stringify(true));
         if (i < dict.size) start += ", ";
     }
     start += "}";
     return start;
 };
 
-Value.prototype.stringify = function(rvm = null, includeQuotes=true) {
+Value.prototype.listToString = function () {
+    return (
+        "[" +
+        this.asList()
+            .elements.map((e) => {
+                if (e.value === this.value) {
+                    return "[...]";
+                }
+                return e.stringify(true);
+            })
+            .join(", ") +
+        "]"
+    );
+};
+
+Value.prototype.stringify = function(includeQuotes=false, rvm = null) {
     switch (this.type) {
         case VAL_INT:
         case VAL_FLOAT:
@@ -293,26 +336,20 @@ Value.prototype.stringify = function(rvm = null, includeQuotes=true) {
             return "null";
         case VAL_STRING: {
             // todo: check string quote type
-            return includeQuotes
-                ? `'${this.asString()}'`
-                : this.asString();
+            return includeQuotes ? `'${this.asString()}'` : this.asString();
         }
         case VAL_LIST: {
-            return (
-                "[" +
-                this.asList()
-                    .elements.map((e) => e.stringify())
-                    .join(", ") +
-                "]"
-            );
+            return this.listToString();
         }
         case VAL_DICT:
             return this.dictToString();
         case VAL_FUNCTION:
             // todo: top level function should be file name
             // {fn foo}. top level function is 'script'
-            // todo: add support for `builtinExec` if present
-            return this.value.fname ? `{fn ${this.value.fname}}` : "{script}";
+            const native = this.value.builtinMethod ? " :native" : "";
+            return this.value.fname
+                ? `{fn ${this.value.fname}${native}}`
+                : "{script}";
         case VAL_BOUND_METHOD:
             return `{${this.asBoundMethod().method.stringify()}:bound}`;
         case VAL_BFUNCTION:
@@ -326,25 +363,24 @@ Value.prototype.stringify = function(rvm = null, includeQuotes=true) {
             let strMethod;
             if (
                 rvm &&
-                (strMethod = this.asInstance().def.getMethod("str")) &&
-                strMethod.asFunction().isSpecialMethod
+                (strMethod = this.asInstance().def.getMethod(
+                    rvm.stringMethodName
+                ))
             ) {
-                const size = rvm.stackSize();
                 // push instance
                 rvm.pushStack(this);
                 // push the method's frame
                 rvm.callFn(strMethod, 0);
+                // did an error occur when we tried to push the frame?
+                if (rvm.atFault()) return "";
                 // execute the method
                 const status = rvm.run(strMethod);
                 // obtain the result - this would have replaced the instance
                 // pushed on the stack, hence popping this off balances the
                 // stack effect.
                 const val = rvm.popStack(); // returns a Value()
-                assert(
-                    rvm.stackSize() === size && status === rvm.iOK(),
-                    "Value::stringify() - Stack effect unbalanced after str*() call"
-                );
-                return val.stringify(rvm, includeQuotes);
+                if (status !== rvm.iOK()) return "";
+                return val.stringify(includeQuotes, rvm);
             }
             return `{ref ${this.asInstance().def.dname}}`;
         }
@@ -361,18 +397,26 @@ Value.prototype.printValue = function() {
 };
 
 Value.prototype.listEquals = function listEquals(other){
-    if (this.value.length !== other.value.length) return false;
-    for (let i = 0; i < other.value.length; i++){
-        if (!this.value[i].equals(other.value[i])) return false;
+    if (this.value.elements.length !== other.value.elements.length)
+        return false;
+    else if (this.value === other.value) return true;
+    for (let i = 0; i < other.value.elements.length; i++) {
+        if (!this.value.elements[i].equals(other.value.elements[i]))
+            return false;
     }
     return true;
 };
 
 Value.prototype.dictEquals = function dictEquals(other) {
-    if (this.value.size !== other.value.size) return false;
-    for (let [key, value] of this.value) {
-        if (!(other.value.has(key) &&
-            value.equals(other.value.get(key)))) {
+    if (this.value.htable.size !== other.value.htable.size) return false;
+    else if (this.value === other.value) return true;
+    for (let [key, value] of this.value.htable) {
+        if (
+            !(
+                other.value.htable.has(key) &&
+                value.equals(other.value.htable.get(key))
+            )
+        ) {
             return false;
         }
     }
@@ -417,26 +461,32 @@ Value.prototype.equals = function(otherVal) {
 /*
  * utilities
  */
-function createFunctionObj(name, arity, code, isLambda, builtinExec = null) {
+function createFunctionObj(name, arity, code, isLambda, builtinMethod = null) {
     const fn = new FunctionObject(name, arity, code, isLambda);
-    fn.builtinExec = builtinExec;
+    fn.builtinMethod = builtinMethod;
     return fn;
 }
 
-function createDictVal(map) {
-    return new Value(VAL_DICT, new DictObject(map));
+function createStringVal(str) {  // todo
+    return new Value(VAL_STRING, str);
 }
 
-function createStringVal(str) {
-    return new Value(VAL_STRING, str);
+function createListVal(lst, rvm) {
+    return new Value(
+        VAL_LIST,
+        new ListObject(lst, rvm.builtins["List"].asDef())
+    );
+}
+
+function createDictVal(map, rvm) {
+    return new Value(
+        VAL_DICT,
+        new DictObject(map, ) // todo: rvm.builtins["Dict"].asDef()
+    );
 }
 
 function createFunctionVal(func) {
     return new Value(VAL_FUNCTION, func);
-}
-
-function createListVal(lst) {
-    return new Value(VAL_LIST, new ListObject(lst));
 }
 
 function createDefVal(name) {

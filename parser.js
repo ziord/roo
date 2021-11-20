@@ -101,6 +101,7 @@ BPTable[tokens.TOKEN_ISTRING_END] = bp(POWER_NONE, null, null);  // d
 BPTable[tokens.TOKEN_STRING] = bp(POWER_NONE, stringLiteral, null);  // d
 BPTable[tokens.TOKEN_FOR] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_OR] = bp(POWER_OR, null, OrExprNode);
+BPTable[tokens.TOKEN_IN] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_OF] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_AND] = bp(POWER_AND, null, AndExprNode);
 BPTable[tokens.TOKEN_DO] = bp(POWER_NONE, null, null);
@@ -136,7 +137,7 @@ function Parser(src) {
     // a linked object of binding powers - for assignment
     this.currentBp = { bp: POWER_NONE, prev: null };
     this.pstack = [];
-    // a chain of environments used for tracking constness
+    // a chain of environments for tracking constness
     this.currentScope = { name: "global", enclosingScope: null };
     this.scopeCount = 1;
     this.inLoop = 0;
@@ -149,9 +150,11 @@ function Parser(src) {
     // backtrack from a current path
     this.backtrack = false;
     // init function name
-    this.initializerFnName = "init";
+    this.initializerFnName = "__init__";
     // track derivation
     this.currentBaseDef = { name: "", prev: null };
+    // number of free variables currently present
+    this.freeVars = 0;
 }
 
 Parser.prototype.push = function(val) {
@@ -162,12 +165,32 @@ Parser.prototype.pop = function() {
     return this.pstack.pop();
 };
 
+Parser.prototype.peek = function() {
+    return this.pstack[this.pstack.length - 1];
+};
+
 Parser.prototype.advance = function() {
     this.previousToken = this.currentToken;
     this.currentToken = this.lexer.getToken();
     if (this.currentToken.type === tokens.TOKEN_ERROR) {
         this.pError(this.currentToken.errorCode);  // todo:
     }
+};
+
+Parser.prototype.specialMethodNames = function () {
+    return [this.initializerFnName, "__str__", "__next__", "__iter__"];
+};
+
+Parser.prototype.isDunderFunction = function (name) {
+    return name.startsWith("__") && name.endsWith("__");
+};
+
+Parser.prototype.isSpecialMethod = function (name) {
+    return this.specialMethodNames().includes(name);
+};
+
+Parser.prototype.getFreeVar = function (name) {
+    return `$var_${name}${this.freeVars++}`;
 };
 
 // todo: remove
@@ -778,7 +801,11 @@ function lambdaExpr(firstParam, skipRightBracket) {
     }
     this.consume(tokens.TOKEN_FAT_ARROW);
     const beginLine = this.currentToken.line;
-    this.statement(true);
+    if (!this.check(tokens.TOKEN_LEFT_CURLY)) {
+        this.exprStatement();
+    } else {
+        this.block();
+    }
     fn.block = this.pop();
     if (fn.block.type !== ast.ASTType.AST_NODE_BLOCK) {
         const endLine = this.previousToken.line;
@@ -803,7 +830,7 @@ function callExpr() {
  * prototype assignments
  */
 
-Parser.prototype.ExprStatement = function() {
+Parser.prototype.exprStatement = function() {
     const line = this.currentToken.line;
     this.expression();
     if (this.check(tokens.TOKEN_COLON)) {
@@ -875,7 +902,7 @@ Parser.prototype.injectReturn = function(blockNode) {
     if (!lastNode){
         insertNullNode();
     } else if (lastNode.type === ast.ASTType.AST_NODE_EXPR) {
-        // replace ExprStatement with Return node
+        // replace ExprStatementNode with ReturnNode
         decls[decls.length - 1] = new ast.ReturnNode(lastNode.expr, lastNode.line);
     } else {
         // (lastNode.type !== ast.ASTType.AST_NODE_RETURN)
@@ -894,10 +921,11 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
         line, token
         ;
     // todo: improve this code, it's too gnarly atm.
-    while ((!this.check(tokens.TOKEN_RIGHT_BRACKET) || firstParam || atSpread)
-        && !this.check(tokens.TOKEN_EOF)
-        && !this.check(tokens.TOKEN_ERROR))
-    {
+    while (
+        (!this.check(tokens.TOKEN_RIGHT_BRACKET) || firstParam || atSpread) &&
+        !this.check(tokens.TOKEN_EOF) &&
+        !this.check(tokens.TOKEN_ERROR)
+    ) {
         // `atSpread` helps enter this loop, when we drop into this function
         // due to a lambda expression having the first parameter to be
         // a spread parameter, i.e. (...x) => {...}
@@ -909,19 +937,19 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
         // with the first parameter already parsed. We just use it directly
         // if it's available, and also reset it to prevent distorting the
         // loop logic.
-        if (firstParam){
+        if (firstParam) {
             // handle when dropping from a lambda function
             left = firstParam;
             token = this.previousToken;
             line = this.previousToken.line;
             firstParam = null;
-        }else{
+        } else {
             // handle the spread parameter
-            if (this.match(tokens.TOKEN_DOT_DOT_DOT)){
-                if (hasSpreadParameter){
+            if (this.match(tokens.TOKEN_DOT_DOT_DOT)) {
+                if (hasSpreadParameter) {
                     // multiple spread params
                     this.pError(errors.EP0029, {
-                        token: this.previousToken
+                        token: this.previousToken,
                     });
                 }
                 isSpread = hasSpreadParameter = true;
@@ -935,7 +963,7 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
             if (isSpread) {
                 // spread parameter can have no default
                 this.pError(errors.EP0033, {
-                    token: this.previousToken
+                    token: this.previousToken,
                 });
             }
             right = left.rightNode;
@@ -954,11 +982,13 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
             // spread parameter not the last parameter
             this.pError(errors.EP0030);
         }
-        utils.assert(left instanceof ast.VarNode,
-            "Parser::parseFunctionParams()");
+        utils.assert(
+            left instanceof ast.VarNode,
+            "Parser::parseFunctionParams()"
+        );
         // check for duplicate parameter variables
-        params.forEach(param => {
-            if (param.leftNode.name === left.name){
+        params.forEach((param) => {
+            if (param.leftNode.name === left.name) {
                 this.pError(errors.EP0031, { token });
             }
         });
@@ -969,10 +999,12 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
         right = null;
         // `match(token-comma)` above allows a trailing comma, for now,
         // this shouldn't be supported.
-        if ((this.previousToken.type === tokens.TOKEN_COMMA)
-            && this.check(tokens.TOKEN_RIGHT_BRACKET)){
+        if (
+            this.previousToken.type === tokens.TOKEN_COMMA &&
+            this.check(tokens.TOKEN_RIGHT_BRACKET)
+        ) {
             // error if trailing comma is found in the parameter list
-            this.pError(errors.EP0034, {token: commaToken});
+            this.pError(errors.EP0034, { token: commaToken });
         }
     }
     fn.isVariadic = hasSpreadParameter;
@@ -986,21 +1018,28 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
 };
 
 Parser.prototype.handleMethodSymbols = function(fn, token){
+    fn.isSpecial = this.isSpecialMethod(fn.name);
+    const isDunder = this.isDunderFunction(fn.name);
     // handle invalid use of 'static'
     if (this.inDefinition) {
-        if (this.match(tokens.TOKEN_STAR)) {
-            // functions marked with * are special.
-            // e.g. fn next*() {...}
-            fn.isSpecial = true;
-        }
         // handle 'static' used with a function marked special
-        if (fn.isStatic && fn.isSpecial){
+        if (fn.isStatic && fn.isSpecial) {
             this.pError(errors.EP0038, { token });
+        } else if (isDunder && !fn.isSpecial) {
+            this.pError(errors.EP0044, {
+                token: this.previousToken,
+                warn: true,
+            });
         }
+        return;
     }
     // handle `special` functions outside definition
-    else if (this.check(tokens.TOKEN_STAR)) {
-        this.pError(errors.EP0015);
+    if (fn.isSpecial) {
+        this.pError(errors.EP0015, { token: this.previousToken });
+    }
+    // warn if a non-special dunder method name is used
+    if (isDunder) {
+        this.pError(errors.EP0044, { token: this.previousToken, warn: true });
     }
 };
 
@@ -1014,9 +1053,9 @@ Parser.prototype.purgeReturn = function(blockNode, token){
     const decls = blockNode.decls;
     const lastNode = decls[decls.length - 1];
     if (lastNode) {
-        if (lastNode.type === ast.ASTType.AST_NODE_EXPR){
+        if (lastNode.type === ast.ASTType.AST_NODE_EXPR) {
             this.pError(errors.EP0040, { token, warn: true });
-        }else if (lastNode.type === ast.ASTType.AST_NODE_RETURN){
+        } else if (lastNode.type === ast.ASTType.AST_NODE_RETURN) {
             this.pError(errors.EP0039, { token });
         }
     }
@@ -1032,7 +1071,7 @@ Parser.prototype.returnStatement = function() {
         // can't return in top level script
         this.pError(errors.EP0019);
     } else if (this.inInitFn) {
-        // can't return in init*() function
+        // can't return in init function
         this.pError(errors.EP0039);
     }
     this.advance();
@@ -1116,8 +1155,14 @@ Parser.prototype.unbLoopStatement = function() {
 Parser.prototype.forStatement = function() {
     this.inLoop++;
     this.advance();
+    if (!this.check(tokens.TOKEN_LEFT_BRACKET)) {
+        this.forInStatement();
+        return;
+    }
     this.consume(tokens.TOKEN_LEFT_BRACKET);
-    let initExpr = null, conditionExpr = null, incExpr = null;
+    let initExpr = null,
+        conditionExpr = null,
+        incExpr = null;
     if (!this.match(tokens.TOKEN_SEMI_COLON)) {
         this.varDecl();
         initExpr = this.pop();
@@ -1138,6 +1183,17 @@ Parser.prototype.forStatement = function() {
         initExpr, conditionExpr, incExpr, block
     ));
     this.inLoop--;
+};
+
+Parser.prototype.forInStatement = function() {
+    variable.call(this);
+    const varNode = this.pop();
+    this.consume(tokens.TOKEN_IN);
+    this.expression();
+    const exprNode = this.pop();
+    this.statement();
+    const blockNode = this.pop();
+    this.push(new ast.ForInLoopNode(varNode, exprNode, blockNode));
 };
 
 Parser.prototype.doWhileStatement = function() {
@@ -1231,7 +1287,7 @@ Parser.prototype.decoratorDecl = function () {
     this.push(node);
 };
 
-Parser.prototype.defineDecl = function (consumeArrow) {
+Parser.prototype.defDecl = function (consumeArrow) {
     this.advance();
     this.inDefinition++;
     const line = this.previousToken.line;
@@ -1311,7 +1367,7 @@ Parser.prototype.varDecl = function() {
     }
 };
 
-Parser.prototype.statement = function(forgetSemi) {
+Parser.prototype.statement = function() {
     let consumeSemicolon = false;
     switch (this.currentToken.type) {
         case tokens.TOKEN_SHOW:
@@ -1352,11 +1408,8 @@ Parser.prototype.statement = function(forgetSemi) {
             consumeSemicolon = true;
             break;
         default:
-            this.ExprStatement();
+            this.exprStatement();
             consumeSemicolon = true;
-    }
-    if (forgetSemi) { // from lambdaExpr()
-        return;
     }
     if (consumeSemicolon) {
         this.consume(tokens.TOKEN_SEMI_COLON);
@@ -1373,13 +1426,13 @@ Parser.prototype.declaration = function declaration() {
             this.funDecl();
             break;
         case tokens.TOKEN_DEFINE:
-            this.defineDecl();
+            this.defDecl();
             break;
         case tokens.TOKEN_AT:
             this.decoratorDecl();
             break;
         case tokens.TOKEN_DERIVE:
-            this.defineDecl(true);
+            this.defDecl(true);
             break;
         default:
             this.statement();
