@@ -81,8 +81,8 @@ class Compiler extends ast.NodeVisitor {
         // number of free variables currently present
         this.freeVars = 0;
         this.upvalues = [];
-        // is this compiling a special method?: (e.g. init*())
-        this.isSpecialMethod = false;
+        // interned strings
+        this.strings = null;
     }
 
     getCompilerLocal(){
@@ -147,7 +147,7 @@ class Compiler extends ast.NodeVisitor {
     visitStringNode(node) {
         gen.emitConstant(
             this.fn.code,
-            new vmod.createStringVal(node.value),
+            new vmod.createStringVal(node.value, this.strings),
             node.line
         );
     }
@@ -253,7 +253,7 @@ class Compiler extends ast.NodeVisitor {
     }
 
     storeString(string){
-        const value = new vmod.createStringVal(string);
+        const value = new vmod.createStringVal(string, this.strings);
         return this.fn.code.cp.writeConstant(value);
     }
 
@@ -929,11 +929,13 @@ class Compiler extends ast.NodeVisitor {
          */
         let compiler = new Compiler(this.parser, node.fnType);
         compiler.enclosingCompiler = this;
+        // use the same map for interning all strings
+        compiler.strings = this.strings;
         compiler.fn.isLambda = node.isLambda;
         if (!node.isLambda){
-            compiler.fn.fname = node.name;
+            compiler.fn.fname = vmod.getStringObj(node.name, this.strings);
         }else{
-            compiler.fn.fname = "<lambda>";
+            compiler.fn.fname = vmod.getStringObj("<lambda>", this.strings);
         }
         //! compile params:
         //! first we compile the default parameters' values into
@@ -969,7 +971,6 @@ class Compiler extends ast.NodeVisitor {
         compiler.fn.arity = node.params.length;
         compiler.fn.isVariadic = node.isVariadic;
         compiler.fn.isStaticMethod = node.isStatic;
-        compiler.fn.isSpecialMethod = node.isSpecial;
         compiler.fn.defaultParamsCount = node.defaultParamsCount;
         //! compile fn's body
         node.block.decls.forEach(item => compiler.visit(item));
@@ -1176,6 +1177,7 @@ class Compiler extends ast.NodeVisitor {
         // let optimizer = new opt.ConstantFolder(node, this.parser);
         // node = optimizer.fold();
         // console.log(node);
+        this.strings = new Map();
         this.visit(node);
         gen.emitByte(this.fn.code, opcode.OP_RETURN);
         return this.fn;

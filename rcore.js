@@ -13,8 +13,16 @@ const mod = require("./value");
  */
 
 function registerDef(rvm, dname, methodData, baseDef, excludeGlobal = false) {
+    // obtain an interned StringObject for the string dname
+    dname = mod.getStringObj(dname, rvm.internedStrings);
+    // create def object
     const def = new mod.DefObject(dname, baseDef);
     methodData.forEach((data) => {
+        // obtain an interned StringObject for the string methodName
+        data.methodName = mod.getStringObj(
+            data.methodName,
+            rvm.internedStrings
+        );
         const fn = mod.createFunctionObj(
             data.methodName,
             data.methodArity,
@@ -22,26 +30,26 @@ function registerDef(rvm, dname, methodData, baseDef, excludeGlobal = false) {
             false,
             data.methodExec
         );
-        fn["isSpecialMethod"] = data.isSpecialMethod || false;
         fn["isVariadic"] = data.isVariadic || false;
         fn["defaultParamsCount"] = data.defaultParamsCount || 0;
         def.setMethod(data.methodName, mod.createFunctionVal(fn));
         if (fn.defaultParamsCount) {
             // place the default values at position specified in `defaults`
             // - for builtin methods
-            data.defaults.forEach(
-                ({pos, val}) => fn.defaults[pos] = val
-            );
+            data.defaults.forEach(({ pos, val }) => (fn.defaults[pos] = val));
         }
     });
     const val = new mod.Value(mod.VAL_DEFINITION, def);
-    !excludeGlobal ? (rvm.globals[dname] = val) : void 0;
-    rvm.builtins[dname] = val;
+    !excludeGlobal ? rvm.globals.set(dname, val) : void 0;
+    rvm.builtins.set(dname, val);
 }
 
-function registerFunc(rvm, fname, fexec, arity){
-    rvm.globals[fname] = mod.createBFunctionVal(fname, fexec, arity);
-    rvm.builtins[fname] = rvm.globals[fname];
+function registerFunc(rvm, fname, fexec, arity) {
+    // obtain an interned StringObject for the string fname
+    fname = mod.getStringObj(fname, rvm.internedStrings);
+    const val = mod.createBFunctionVal(fname, fexec, arity);
+    rvm.globals.set(fname, val);
+    rvm.builtins.set(fname, val);
 }
 
 
@@ -68,9 +76,6 @@ function str(rvm) {
 
 /* * *List* * */
 
-/*
- * Errors
- */
 function list_fnError(rvm, callback) {
     rvm.runtimeError(`'${callback.typeToString()}' type is not callable`);
 }
@@ -78,9 +83,9 @@ function list_fnError(rvm, callback) {
 /*
  * Handlers
  */
-function list_init(rvm, arity) {
+function list__init(rvm, arity) {
     /*
-     * list_init() takes only one argument which is variadic.
+     * list__init() takes only one argument which is variadic.
      * any arguments passed must've been packed into a list,
      * we peek the vm's stack for the first argument (the list),
      * and use its value directly
@@ -89,12 +94,12 @@ function list_init(rvm, arity) {
     return mod.createListVal(arr, rvm);
 }
 
-function list_length(rvm, arity) {
+function list__length(rvm, arity) {
     const listObj = rvm.peekStack().asList();
     return new mod.Value(mod.VAL_INT, listObj.elements.length);
 }
 
-function list_map(rvm, arity) {
+function list__map(rvm, arity) {
     // list.map(callback)
     const callback = rvm.peekStack();
     if (!callback.isFunction()) {
@@ -126,7 +131,7 @@ function list_map(rvm, arity) {
     return mod.createListVal(arr, rvm);
 }
 
-function list_filter(rvm, arity) {
+function list__filter(rvm, arity) {
     // list.filter(callback)
     const callback = rvm.peekStack();
     if (!callback.isFunction()) {
@@ -158,7 +163,7 @@ function list_filter(rvm, arity) {
     return mod.createListVal(arr, rvm);
 }
 
-function list_reduce(rvm, arity) {
+function list__reduce(rvm, arity) {
     // list.reduce(callback, start?)
     const callback = rvm.peekStack(1);
     if (!callback.isFunction()) {
@@ -206,7 +211,7 @@ function list_reduce(rvm, arity) {
     return res;
 }
 
-function list_each(rvm, arity) {
+function list__each(rvm, arity) {
     // list.each(callback)
     const callback = rvm.peekStack();
     if (!callback.isFunction()) {
@@ -232,10 +237,10 @@ function list_each(rvm, arity) {
         // which balances the stack effect.
         rvm.popStack();
     }
-    return new mod.Value(mod.VAL_NULL);
+    return mod.createNullVal();
 }
 
-function list_any(rvm, arity) {
+function list__any(rvm, arity) {
     // list.any(callback)
     const callback = rvm.peekStack();
     if (!callback.isFunction()) {
@@ -253,12 +258,12 @@ function list_any(rvm, arity) {
         if (rvm.run(callback) !== rvm.iOK()) return rvm.dummyVal();
         // get the result [rvm.popStack()] - .any() returns once we have a true result
         // check if the result is falsy, if not return immediately
-        if (!rvm.isFalsy(rvm.popStack())) return new mod.Value(mod.VAL_BOOLEAN, true);
+        if (!rvm.isFalsy(rvm.popStack())) return mod.createTrueVal();
     }
-    return new mod.Value(mod.VAL_BOOLEAN, false);
+    return mod.createFalseVal();
 }
 
-function list_index(rvm, arity) {
+function list__index(rvm, arity) {
     // list.index(val)
     const val = rvm.peekStack();
     const listObj = rvm.peekStack(arity).asList();
@@ -270,7 +275,7 @@ function list_index(rvm, arity) {
     return new mod.Value(mod.VAL_INT, -1);
 }
 
-function list_all(rvm, arity) {
+function list__all(rvm, arity) {
     // list.all(callback)
     const callback = rvm.peekStack();
     if (!callback.isFunction()) {
@@ -288,19 +293,44 @@ function list_all(rvm, arity) {
         if (rvm.run(callback) !== rvm.iOK()) return rvm.dummyVal();
         // get the result [rvm.popStack()] - .all() returns once we have a false result
         // check if the result is falsy, if so return immediately
-        if (rvm.isFalsy(rvm.popStack())) return new mod.Value(mod.VAL_BOOLEAN, false);
+        if (rvm.isFalsy(rvm.popStack())) return mod.createFalseVal();
     }
-    return new mod.Value(mod.VAL_BOOLEAN, true);
+    return mod.createTrueVal();
 }
 
-function list_append(rvm, arity) {
+function list__append(rvm, arity) {
     // list.append(val)
     const listObj = rvm.peekStack(arity).asList();
     listObj.elements.push(rvm.peekStack());
     return new mod.Value(mod.VAL_INT, listObj.elements.length);
 }
 
-function list_pop(rvm, arity) {
+function list__join(rvm, arity) {
+    // list.join(val)
+    const listObj = rvm.peekStack(arity).asList();
+    const val = rvm.peekStack();
+    if (!val.isString()) {
+        rvm.runtimeError("join arg must be a string");
+        return rvm.dummyVal();
+    }
+    let item,
+        str = "",
+        len = listObj.elements.length,
+        arg = val.asString().raw;
+    for (let i = 0; i < len; ++i) {
+        item = listObj.elements[i];
+        if (!item.isString()) {
+            rvm.runtimeError(
+                `Expected string instance at index ${i}, found ${item.typeToString()}`
+            );
+            return rvm.dummyVal();
+        }
+        str += item.asString().raw + (i < len - 1 ? arg : "");
+    }
+    return mod.createVMStringVal(str, rvm);
+}
+
+function list__pop(rvm, arity) {
     // list.pop()
     const listObj = rvm.peekStack(arity).asList();
     if (!listObj.elements.length) {
@@ -310,7 +340,7 @@ function list_pop(rvm, arity) {
     return listObj.elements.pop();
 }
 
-function list_insert(rvm, arity) {
+function list__insert(rvm, arity) {
     // list.insert()
     const listObj = rvm.peekStack(arity).asList();
     let index = rvm.peekStack(1);
@@ -328,21 +358,42 @@ function list_insert(rvm, arity) {
     return new mod.Value(mod.VAL_INT, listObj.elements.length);
 }
 
-function list_iter(rvm, arity) {
-    // list.iter*() -> ListIterator(list)
-    //# const listObj = rvm.peekStack(arity).asList();
-    const itrVal = new mod.Value(
-        mod.VAL_DEFINITION,
-        rvm.builtins["ListIterator"].asDef()
-    );
+function list__slice(rvm, arity) {
+    // takes 2 args
+    const list = rvm.peekStack(arity).asList().elements;
+    const arg2 = rvm.peekStack();
+    const arg1 = rvm.peekStack(1);
+    let start, end;
+    if (arg1.isInt()) {
+        start = arg1.asInt();
+    } else if (arg1.isNull()) {
+        start = 0;
+    } else {
+        rvm.runtimeError("slice arg must be an integer or null");
+        return rvm.dummyVal();
+    }
+    if (arg2.isInt()) {
+        end = arg2.asInt();
+    } else if (arg2.isNull()) {
+        end = list.length;
+    } else {
+        rvm.runtimeError("slice arg must be an integer or null");
+        return rvm.dummyVal();
+    }
+    return mod.createListVal(list.slice(start, end), rvm);
+}
+
+function list__iter(rvm, arity) {
+    // list.__iter__() -> ListIterator(list)
+    const itrVal = rvm.builtins.get(mod.getVMStringObj("ListIterator", rvm));
     rvm.pushStack(itrVal);
     // swap list and iterator positions
     rvm.swapLastTwo();
-    // invoke and run the ListIterator's init*() method - init*() is run
+    // invoke and run the ListIterator's init() method - init() is run
     // immediately because the ListIterator's init method is a builtin method
     rvm.callDef(itrVal, 1);
-    // after init*() is run above, the value on the stack is the result of the
-    // init*() method call, so all we have to do is return that value,
+    // after init() is run above, the value on the stack is the result of the
+    // init() method call, so all we have to do is return that value,
     // without popping the stack
     return rvm.peekStack();
 }
@@ -353,133 +404,561 @@ function list_iter(rvm, arity) {
 /*
  * Handlers
  */
-function listiterator_init(rvm, arity) {
+function listiterator__init(rvm, arity) {
     // listiterator.init()
-    const itrInstVal = rvm.peekStack(arity);
-    const itrInst = itrInstVal.asInstance();
-    itrInst.setProperty("$__list_ref", rvm.peekStack());
-    itrInst.setProperty("$__current_idx", new mod.Value(mod.VAL_INT, 0));
-    return itrInstVal;
+    // the stack: [ ref ListIterator ][ string val ]
+    const listItrInstVal = rvm.peekStack(arity);
+    const listItrInst = listItrInstVal.asInstance();
+    const refStr = mod.getVMStringObj("$__list_ref", rvm);
+    const idxStr = mod.getVMStringObj("$__current_index", rvm);
+    listItrInst.setProperty(refStr, rvm.peekStack());
+    listItrInst.setProperty(idxStr, new mod.Value(mod.VAL_INT, 0));
+    return listItrInstVal;
 }
 
-function listiterator_next(rvm, arity) {
-    // listiterator.next()
-    const listItrObj = rvm.peekStack(arity).asInstance();
-    const listObj = listItrObj.getProperty("$__list_ref").asList();
-    let currentIndex = listItrObj.getProperty("$__current_idx").asInt();
+function listiterator__next(rvm, arity) {
+    // listiterator.__next__()
+    const listItrInst = rvm.peekStack(arity).asInstance();
+    const refStr = mod.getVMStringObj("$__list_ref", rvm);
+    const idxStr = mod.getVMStringObj("$__current_index", rvm);
+    const listObj = listItrInst.getProperty(refStr).asList();
+    let currentIndex = listItrInst.getProperty(idxStr).asInt();
     const map = new Map();
     if (currentIndex < listObj.elements.length) {
-        map.set("done", new mod.Value(mod.VAL_BOOLEAN, false));
         map.set("value", listObj.elements[currentIndex]);
-        listItrObj.setProperty(
-            "$__current_idx",
+        map.set("done", mod.createFalseVal()); // todo: dict str
+        listItrInst.setProperty(
+            idxStr,
             new mod.Value(mod.VAL_INT, ++currentIndex)
         );
     } else {
-        map.set("done", new mod.Value(mod.VAL_BOOLEAN, true));
-        map.set("value", new mod.Value(mod.VAL_NULL));
+        map.set("value", mod.createNullVal());
+        map.set("done", mod.createTrueVal()); // todo: dict str
     }
     return mod.createDictVal(map, rvm)
 }
 
 
+/* * *String* * */
+
+/*
+ * Handlers
+ */
+function str__init(rvm, arity) {
+    // str init takes 1 argument
+    const val = rvm.peekStack();
+    // stringify the value
+    const str = val.stringify(false, rvm);
+    // create and return a string object
+    return mod.createVMStringVal(str, rvm);
+}
+
+function str__length(rvm, arity) {
+    // str.length() - length takes 0 argument
+    const strObj = rvm.peekStack().asString();
+    return new mod.Value(mod.VAL_INT, strObj.raw.length);
+}
+
+function str__iter(rvm, arity) {
+    // str.__iter__()  -  iter takes 0 argument
+    // push the StringIterator def on the stack
+    const itrVal = rvm.builtins.get(mod.getVMStringObj("StringIterator", rvm));
+    rvm.pushStack(itrVal);
+    // swap the StringIterator def's position with the str val, and call the
+    // the definition
+    rvm.swapLastTwo();
+    // invoke and run the StringIterator's init() method - init() is run
+    // immediately because the ListIterator's init method is a builtin method
+    rvm.callDef(itrVal, 1);
+    if (rvm.atFault()) return rvm.dummyVal();
+    // the result would be the value on the stack
+    return rvm.peekStack();
+}
+
+function str__capitalize(rvm, arity) {
+    // str.capitalize() - takes 0 argument
+    const strObj = rvm.peekStack().asString();
+    if (!strObj.raw.length) return rvm.peekStack();
+    const newStr = strObj.raw.charAt(0).toUpperCase() + strObj.raw.slice(1);
+    return mod.createVMStringVal(newStr, rvm);
+}
+
+function str__contains(rvm, arity) {
+    // takes 1 argument
+    const strObj = rvm.peekStack(arity).asString();
+    const arg = rvm.peekStack();
+    if (!arg.isString()) {
+        rvm.runtimeError("contains arg must be a string");
+        return rvm.dummyVal();
+    }
+    return strObj.raw.includes(arg.asString().raw)
+        ? mod.createTrueVal()
+        : mod.createFalseVal();
+}
+
+function str__startswith(rvm, arity) {
+    // takes 1 argument
+    const strObj = rvm.peekStack(arity).asString();
+    const arg = rvm.peekStack();
+    if (!arg.isString()) {
+        rvm.runtimeError("startsWith arg must be a string");
+        return rvm.dummyVal();
+    }
+    return strObj.raw.startsWith(arg.asString().raw)
+        ? mod.createTrueVal()
+        : mod.createFalseVal();
+}
+
+function str__endswith(rvm, arity) {
+    // takes 1 argument
+    const strObj = rvm.peekStack(arity).asString();
+    const arg = rvm.peekStack();
+    if (!arg.isString()) {
+        rvm.runtimeError("endsWith arg must be a string");
+        return rvm.dummyVal();
+    }
+    return strObj.raw.endsWith(arg.asString().raw)
+        ? mod.createTrueVal()
+        : mod.createFalseVal();
+}
+
+function str__trim(rvm, arity) {
+    // takes 0 argument
+    const strObj = rvm.peekStack(arity).asString();
+    return mod.createVMStringVal(strObj.raw.trim(), rvm);
+}
+
+function str__ltrim(rvm, arity) {
+    // takes 0 argument
+    const strObj = rvm.peekStack(arity).asString();
+    return mod.createVMStringVal(strObj.raw.trimLeft(), rvm);
+}
+
+function str__rtrim(rvm, arity) {
+    // takes 0 argument
+    const strObj = rvm.peekStack(arity).asString();
+    return mod.createVMStringVal(strObj.raw.trimRight(), rvm);
+}
+
+function str__upper(rvm, arity) {
+    // takes 0 argument
+    const strObj = rvm.peekStack(arity).asString();
+    return mod.createVMStringVal(strObj.raw.toUpperCase(), rvm);
+}
+
+function str__lower(rvm, arity) {
+    // takes 0 argument
+    const strObj = rvm.peekStack(arity).asString();
+    return mod.createVMStringVal(strObj.raw.toLowerCase(), rvm);
+}
+
+function str__find(rvm, arity) {
+    // takes 1 argument
+    const strObj = rvm.peekStack(arity).asString();
+    const arg = rvm.peekStack();
+    if (!arg.isString()) {
+        rvm.runtimeError("find arg must be a string");
+        return rvm.dummyVal();
+    }
+    return new mod.Value(mod.VAL_INT, strObj.raw.indexOf(arg.asString().raw));
+}
+
+function str__split(rvm, arity) {
+    // takes 1 argument
+    const strObj = rvm.peekStack(arity).asString();
+    const arg = rvm.peekStack();
+    let splitArg;
+    if (arg.isNull()) {
+        splitArg = null;
+    } else if (arg.isString()) {
+        splitArg = arg.asString().raw;
+    } else {
+        rvm.runtimeError("split arg must be a string or null");
+        return rvm.dummyVal();
+    }
+    const arr = strObj.raw.split(splitArg);
+    for (let i = 0; i < arr.length; ++i) {
+        arr[i] = mod.createVMStringVal(arr[i], rvm);
+    }
+    return mod.createListVal(arr, rvm);
+}
+
+function str__isAlNum(rvm, arity) {
+    // takes 0 argument
+    const str = rvm.peekStack().asString().raw;
+    let code;
+    for (let i = 0; i < str.length; ++i) {
+        code = str.charCodeAt(i);
+        if (
+            !(code > 47 && code < 58) &&  // 0 - 9
+            !(code > 64 && code < 91) &&  // A - Z
+            !(code > 96 && code < 123)    // a - z
+        ) {
+            return mod.createFalseVal();
+        }
+    }
+    return mod.createTrueVal();
+}
+
+function str__isDigit(rvm, arity) {
+    // takes 0 argument
+    const str = rvm.peekStack().asString().raw;
+    let code;
+    for (let i = 0; i < str.length; ++i) {
+        code = str.charCodeAt(i);
+        if (!(code > 47 && code < 58)) {
+            return mod.createFalseVal();
+        }
+    }
+    return mod.createTrueVal();
+}
+
+function str__isAlpha(rvm, arity) {
+    // takes 0 argument
+    const str = rvm.peekStack().asString().raw;
+    let code;
+    for (let i = 0; i < str.length; ++i) {
+        code = str.charCodeAt(i);
+        if (
+            !(code > 64 && code < 91) &&
+            !(code > 96 && code < 123)
+        ) {
+            return mod.createFalseVal();
+        }
+    }
+    return mod.createTrueVal();
+}
+
+function isLower(str) {
+    return str === str.toLowerCase() && str !== str.toUpperCase();
+}
+
+function isUpper(str) {
+    return str === str.toUpperCase() && str !== str.toLowerCase();
+}
+
+function str__isUpper(rvm, arity) {
+    const str = rvm.peekStack().asString().raw;
+    return isUpper(str) ? mod.createTrueVal() : mod.createFalseVal();
+}
+
+function str__isLower(rvm, arity) {
+    const str = rvm.peekStack().asString().raw;
+    return isLower(str) ? mod.createTrueVal() : mod.createFalseVal();
+}
+
+function str__slice(rvm, arity) {
+    // takes 2 args
+    const str = rvm.peekStack(arity).asString().raw;
+    const arg1 = rvm.peekStack(1);
+    const arg2 = rvm.peekStack();
+    let start, end;
+    if (arg1.isInt()) {
+        start = arg1.asInt();
+    } else if (arg1.isNull()) {
+        start = 0;
+    } else {
+        rvm.runtimeError("slice arg must be an integer or null");
+        return rvm.dummyVal();
+    }
+    if (arg2.isInt()) {
+        end = arg2.asInt();
+    } else if (arg2.isNull()) {
+        end = str.length;
+    } else {
+        rvm.runtimeError("slice arg must be an integer or null");
+        return rvm.dummyVal();
+    }
+    return mod.createVMStringVal(str.slice(start, end), rvm);
+}
+
+
+/* * *StringIterator* * */
+
+/*
+ * Handlers
+ */
+function striterator__init(rvm, arity) {
+    // the stack: [ ref StringIterator ][ string val ]
+    const strItrInstVal = rvm.peekStack(arity);
+    const strItrInst = strItrInstVal.asInstance();
+    const refStr = mod.getVMStringObj("$__str_ref", rvm);
+    const idxStr = mod.getVMStringObj("$__current_index", rvm);
+    // set the string as the StringIterator instance's property
+    strItrInst.setProperty(refStr, rvm.peekStack());
+    // set the current index for use in the StringIterator's next() method
+    strItrInst.setProperty(idxStr, new mod.Value(mod.VAL_INT, 0));
+    return strItrInstVal;
+}
+
+function striterator__next(rvm, arity) {
+    const strItrInst = rvm.peekStack().asInstance();
+    const refStr = mod.getVMStringObj("$__str_ref", rvm);
+    const idxStr = mod.getVMStringObj("$__current_index", rvm);
+    const strObj = strItrInst.getProperty(refStr).asString();
+    let index = strItrInst.getProperty(idxStr).asInt();
+    let map = new Map();
+    if (index < strObj.raw.length) {
+        map.set("value", mod.createVMStringVal(strObj.raw[index++], rvm)); // todo: dict str
+        map.set("done", mod.createFalseVal());
+        strItrInst.setProperty(idxStr, new mod.Value(mod.VAL_INT, index));
+    } else {
+        map.set("value", mod.createVMStringVal("", rvm)); // todo: dict str
+        map.set("done", mod.createTrueVal());
+    }
+    return mod.createDictVal(map, rvm);
+}
+
+
 function initAll(rvm) {
-    // Functions
+    // intern the string "String"
+    const strObj = mod.getStringObj("String", rvm.internedStrings);
+
+    // Global Functions
     registerFunc(rvm, "clock", clock, 0);
+
+    // String
+    registerDef(rvm, "String", [
+        {
+            methodName: "__init__",
+            methodExec: str__init,
+            methodArity: 1,
+            defaultParamsCount: 1,
+            defaults: [
+                { pos: 1, val: mod.createStringVal("", rvm.internedStrings) },
+            ],
+        },
+        {
+            methodName: "length",
+            methodExec: str__length,
+            methodArity: 0,
+        },
+        {
+            methodName: "__iter__",
+            methodExec: str__iter,
+            methodArity: 0,
+        },
+        {
+            methodName: "capitalize",
+            methodExec: str__capitalize,
+            methodArity: 0,
+        },
+        {
+            methodName: "contains",
+            methodExec: str__contains,
+            methodArity: 1,
+        },
+        {
+            methodName: "startsWith",
+            methodExec: str__startswith,
+            methodArity: 1,
+        },
+        {
+            methodName: "endsWith",
+            methodExec: str__endswith,
+            methodArity: 1,
+        },
+        {
+            methodName: "trim",
+            methodExec: str__trim,
+            methodArity: 0,
+        },
+        {
+            methodName: "ltrim",
+            methodExec: str__ltrim,
+            methodArity: 0,
+        },
+        {
+            methodName: "rtrim",
+            methodExec: str__rtrim,
+            methodArity: 0,
+        },
+        {
+            methodName: "lower",
+            methodExec: str__lower,
+            methodArity: 0,
+        },
+        {
+            methodName: "upper",
+            methodExec: str__upper,
+            methodArity: 0,
+        },
+        {
+            methodName: "find",
+            methodExec: str__find,
+            methodArity: 1,
+        },
+        {
+            methodName: "split",
+            methodExec: str__split,
+            methodArity: 1,
+            defaultParamsCount: 1,
+            defaults: [{ pos: 1, val: mod.createNullVal() }],
+        },
+        {
+            methodName: "isAlNum",
+            methodExec: str__isAlNum,
+            methodArity: 0,
+        },
+        {
+            methodName: "isDigit",
+            methodExec: str__isDigit,
+            methodArity: 0,
+        },
+        {
+            methodName: "isAlpha",
+            methodExec: str__isAlpha,
+            methodArity: 0,
+        },
+        {
+            methodName: "isLower",
+            methodExec: str__isLower,
+            methodArity: 0,
+        },
+        {
+            methodName: "isUpper",
+            methodExec: str__isUpper,
+            methodArity: 0,
+        },
+        {
+            methodName: "slice",
+            methodExec: str__slice,
+            methodArity: 2,
+            defaultParamsCount: 2,
+            defaults: [
+                { pos: 1, val: mod.createNullVal() },
+                { pos: 2, val: mod.createNullVal() },
+            ],
+        },
+    ]);
+
+    // StringIterator
+    registerDef(rvm, "StringIterator", [
+        {
+            methodName: "__init__",
+            methodExec: striterator__init,
+            methodArity: 1,
+        },
+        {
+            methodName: "__next__",
+            methodExec: striterator__next,
+            methodArity: 0,
+        },
+    ]);
 
     // List
     registerDef(rvm, "List", [
         {
-            methodName: rvm.initializerMethodName,
-            methodExec: list_init,
+            methodName: "__init__",
+            methodExec: list__init,
             methodArity: 1,
-            isSpecialMethod: true,
             isVariadic: true,
         },
         {
             methodName: "length",
-            methodExec: list_length,
+            methodExec: list__length,
             methodArity: 0,
         },
         {
             methodName: "map",
-            methodExec: list_map,
+            methodExec: list__map,
             methodArity: 1,
         },
         {
             methodName: "each",
-            methodExec: list_each,
+            methodExec: list__each,
             methodArity: 1,
         },
         {
             methodName: "any",
-            methodExec: list_any,
+            methodExec: list__any,
             methodArity: 1,
         },
         {
             methodName: "all",
-            methodExec: list_all,
+            methodExec: list__all,
             methodArity: 1,
         },
         {
             methodName: "append",
-            methodExec: list_append,
+            methodExec: list__append,
+            methodArity: 1,
+        },
+        {
+            methodName: "join",
+            methodExec: list__join,
             methodArity: 1,
         },
         {
             methodName: "pop",
-            methodExec: list_pop,
+            methodExec: list__pop,
             methodArity: 0,
         },
         {
             methodName: "insert",
-            methodExec: list_insert,
+            methodExec: list__insert,
             methodArity: 2,
+        },{
+            methodName: "slice",
+            methodExec: list__slice,
+            methodArity: 2,
+            defaultParamsCount: 2,
+            defaults: [
+                { pos: 1, val: mod.createNullVal() },
+                { pos: 2, val: mod.createNullVal() },
+            ],
         },
         {
             methodName: "filter",
-            methodExec: list_filter,
+            methodExec: list__filter,
             methodArity: 1,
         },
         {
             methodName: "reduce",
-            methodExec: list_reduce,
+            methodExec: list__reduce,
             methodArity: 2,
             defaultParamsCount: 1,
-            defaults: [{ pos: 2, val: new mod.Value(mod.VAL_NULL) }],
+            defaults: [{ pos: 2, val: mod.createNullVal() }],
         },
         {
             methodName: "index",
-            methodExec: list_index,
+            methodExec: list__index,
             methodArity: 1,
         },
         {
             methodName: "__iter__",
-            methodExec: list_iter,
+            methodExec: list__iter,
             methodArity: 0,
         },
     ]);
+
+    // ListIterator
     registerDef(rvm, "ListIterator", [
         {
-            methodName: rvm.initializerMethodName,
-            methodExec: listiterator_init,
+            methodName: "__init__",
+            methodExec: listiterator__init,
             methodArity: 1,
-            isSpecialMethod: true,
         },
         {
             methodName: "__next__",
-            methodExec: listiterator_next,
+            methodExec: listiterator__next,
             methodArity: 0,
-            isSpecialMethod: true,
         },
     ], null, true);
+
+    // associate the builtin String def with all string objects
+    for (let [key, value] of rvm.internedStrings) {
+        // key -> string | value -> StringObject()
+        value.def = rvm.builtins.get(strObj).asDef();
+    }
 }
 
 const builtins = [
     "List",
     "ListIterator",
     "Dict",
-    "String"
+    "String",
+    "StringIterator",
 ];
 
 

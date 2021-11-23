@@ -306,7 +306,7 @@ Disassembler.prototype.getInstructionOffset = function (index){
 };
 
 Disassembler.prototype.disassembleCode = function () {
-    print(`==Disassembly of ${this.name ? this.name : "script"}==`);
+    print(`==Disassembly of ${this.name ? this.name.raw : "script"}==`);
     for (let index = 0; index < this.code.length; ) {
         index = this.disassembleInstruction(index);
     }

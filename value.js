@@ -34,6 +34,17 @@ function Value(valType, value = null) {
 }
 
 /**
+ * Roo String object
+ * @param {string} str: the string
+ * @param {DefObject} def: the string's definition
+ * @constructor
+ */
+function StringObject(str, def = null) {
+    this.raw = str;
+    this.def = def;
+}
+
+/**
  * Roo List object
  * @param {Array} elements: elements of the list, a JS Array
  * @param {DefObject} def: the list's definition
@@ -58,14 +69,14 @@ function DictObject(table = null, def = null) {
 /**
  * Represents both user defined functions/methods, and builtin methods
  * (on builtin types)
- * @param {string} name: string, name of the function
+ * @param {StringObject} name: name of the function
  * @param {number} arity: number of accepted arguments
  * @param {Code} code: Code object containing the function's bytecode
  * @param {boolean} isLambda: flag for whether the function is a lambda func
  * @constructor
  */
 function FunctionObject(name, arity, code, isLambda){
-    this.fname = name;  /*string*/
+    this.fname = name;  /*StringObject*/
     this.arity = arity;
     this.code = code;
     this.isLambda = isLambda;
@@ -74,17 +85,16 @@ function FunctionObject(name, arity, code, isLambda){
     this.isVariadic = false;
     this.defaults = [];
     this.defaultParamsCount = 0;
-    this.isSpecialMethod = false;  // todo: remove
     this.isStaticMethod = false;
     this.builtinMethod = null;  // builtin executable
 }
 
 /**
- * @param {string} name: string, name of the definition
+ * @param {StringObject} name: name of the definition
  * @param {DefObject} baseDef: base definition from which this definition derives
  * @constructor
  */
-function DefObject(name /*string*/, baseDef = null /*DefObject*/) {
+function DefObject(name /*StringObject*/, baseDef = null /*DefObject*/) {
     this.dname = name;
     this.dmethods = new Map();
     this.baseDef = baseDef;
@@ -113,7 +123,7 @@ function BoundMethodObject(inst, method){
 
 /**
  *
- * @param {string} name: name of the function
+ * @param {StringObject} name: name of the function
  * @param {number} arity: number of accepted arguments
  * @param {function} builtinFn: direct js function
  * @constructor
@@ -135,23 +145,40 @@ DictObject.prototype.setVal = function (key, value) {
     return this.htable.set(key, value);
 };
 
+/**
+ * @param {StringObject} methodName
+ * @returns {Value} FunctionObject value
+ */
 DefObject.prototype.getMethod = function (methodName) {
     return this.dmethods.get(methodName);
 };
 
+/**
+ * @param {StringObject} methodName: name of the method
+ * @param {Value} methodVal: FunctionObject value
+ * @returns {Map<StringObject, Value(FunctionObject)>}
+ */
 DefObject.prototype.setMethod = function (
-    methodName /*string*/,
+    methodName /*StringObject*/,
     methodVal /*Value(FunctionObject)*/
 ) {
     return this.dmethods.set(methodName, methodVal);
 };
 
+/**
+ * @param {StringObject} propName: property name
+ * @returns {Value}
+ */
 InstanceObject.prototype.getProperty = function (propName) {
     return this.props.get(propName);
 };
 
+/**
+ * @param {StringObject} propName: property name
+ * @param {Value} propVal: property value
+ */
 InstanceObject.prototype.setProperty = function (
-    propName /*string*/,
+    propName /*StringObject*/,
     propVal /*Value()*/
 ) {
     this.props.set(propName, propVal);
@@ -325,7 +352,7 @@ Value.prototype.listToString = function () {
     );
 };
 
-Value.prototype.stringify = function(includeQuotes=false, rvm = null) {
+Value.prototype.stringify = function (includeQuotes = false, rvm = null) {
     switch (this.type) {
         case VAL_INT:
         case VAL_FLOAT:
@@ -336,11 +363,12 @@ Value.prototype.stringify = function(includeQuotes=false, rvm = null) {
             return "null";
         case VAL_STRING: {
             // todo: check string quote type
-            return includeQuotes ? `'${this.asString()}'` : this.asString();
+            return includeQuotes
+                ? `'${this.asString().raw}'`
+                : this.asString().raw;
         }
-        case VAL_LIST: {
+        case VAL_LIST:
             return this.listToString();
-        }
         case VAL_DICT:
             return this.dictToString();
         case VAL_FUNCTION:
@@ -348,15 +376,15 @@ Value.prototype.stringify = function(includeQuotes=false, rvm = null) {
             // {fn foo}. top level function is 'script'
             const native = this.value.builtinMethod ? " :native" : "";
             return this.value.fname
-                ? `{fn ${this.value.fname}${native}}`
+                ? `{fn ${this.value.fname.raw}${native}}`
                 : "{script}";
         case VAL_BOUND_METHOD:
             return `{${this.asBoundMethod().method.stringify()}:bound}`;
         case VAL_BFUNCTION:
             // {{fn foo}:native}
-            return `{{fn ${this.asBFunction().fname}}:native}`;
+            return `{{fn ${this.asBFunction().fname.raw}}:native}`;
         case VAL_DEFINITION:
-            return `{def ${this.asDef().dname}}`;
+            return `{def ${this.asDef().dname.raw}}`;
         case VAL_INSTANCE: {
             // we need to support special printing methods on instances
             // if available.
@@ -382,7 +410,7 @@ Value.prototype.stringify = function(includeQuotes=false, rvm = null) {
                 if (status !== rvm.iOK()) return "";
                 return val.stringify(includeQuotes, rvm);
             }
-            return `{ref ${this.asInstance().def.dname}}`;
+            return `{ref ${this.asInstance().def.dname.raw}}`;
         }
         // todo: object type
         default:
@@ -434,21 +462,17 @@ Value.prototype.equals = function(otherVal) {
             case VAL_BOOLEAN:
             case VAL_NULL:
             case VAL_STRING:
+            case VAL_DEFINITION:
+            case VAL_INSTANCE:
+            case VAL_BFUNCTION:
+            case VAL_FUNCTION:
                 return this.value === otherVal.value;
             case VAL_LIST:
                 return this.listEquals(otherVal);
             case VAL_DICT:
                 return this.dictEquals(otherVal);
-            case VAL_FUNCTION:
-                return this.asFunction() === otherVal.asFunction();
-            case VAL_DEFINITION:
-                return this.asDef() === otherVal.asDef();
-            case VAL_INSTANCE:
-                return this.asInstance() === otherVal.asInstance();
             case VAL_BOUND_METHOD:
                 return this.asBoundMethod().method === otherVal.asBoundMethod().method;
-            case VAL_BFUNCTION:
-                return this.asBFunction() === otherVal.asBFunction();
             case VAL_OBJECT:
                 // todo: update
                 return false;
@@ -467,14 +491,54 @@ function createFunctionObj(name, arity, code, isLambda, builtinMethod = null) {
     return fn;
 }
 
-function createStringVal(str) {  // todo
-    return new Value(VAL_STRING, str);
+/**
+ * @param {string} str
+ * @param {Map<string, StringObject>} strings: interned strings
+ * @param {DefObject} defObj
+ * @returns {StringObject}
+ */
+function getStringObj(str, strings, defObj) {
+    let strObj = strings.get(str);
+    if (!strObj) {
+        // intern the string
+        strObj = new StringObject(str, defObj);
+        strings.set(str, strObj);
+    }
+    return strObj;
+}
+
+/**
+ * @param {string} str
+ * @param {VM} rvm: the vm
+ * @returns {StringObject}
+ */
+function getVMStringObj(str, rvm) {
+    assert(
+        rvm.internedStrings instanceof Map,
+        "Expected a map container of strings"
+    );
+    const defObj = rvm.builtins
+        .get(getStringObj("String", rvm.internedStrings))
+        .asDef();
+    return getStringObj(str, rvm.internedStrings, defObj);
+}
+
+function createStringVal(str, strings) {
+    assert(strings instanceof Map, "Expected a map container of strings");
+    return new Value(VAL_STRING, getStringObj(str, strings));
+}
+
+function createVMStringVal(str, rvm) {
+    return new Value(VAL_STRING, getVMStringObj(str, rvm));
 }
 
 function createListVal(lst, rvm) {
     return new Value(
         VAL_LIST,
-        new ListObject(lst, rvm.builtins["List"].asDef())
+        new ListObject(
+            lst,
+            rvm.builtins.get(getStringObj("List", rvm.internedStrings)).asDef()
+        )
     );
 }
 
@@ -503,6 +567,18 @@ function createBoundMethodVal(inst, method) {
 
 function createBFunctionVal(fname, fexec, arity) {
     return new Value(VAL_BFUNCTION, new BFunctionObject(fname, arity, fexec));
+}
+
+function createFalseVal() {
+    return new Value(VAL_BOOLEAN, 0);
+}
+
+function createTrueVal() {
+    return new Value(VAL_BOOLEAN, 1);
+}
+
+function createNullVal() {
+    return new Value(VAL_NULL);
 }
 
 /*
@@ -535,8 +611,14 @@ module.exports = {
     Value,
     FunctionObject,
     DefObject,
-    createDictVal,
+    getStringObj,
+    getVMStringObj,
+    createFalseVal,
+    createTrueVal,
+    createNullVal,
     createStringVal,
+    createVMStringVal,
+    createDictVal,
     createFunctionObj,
     createFunctionVal,
     createListVal,
