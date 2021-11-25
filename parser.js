@@ -91,6 +91,7 @@ BPTable[tokens.TOKEN_FAT_ARROW] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_PLUS_PLUS] = bp(POWER_POSTFIX, unary, postfix);
 BPTable[tokens.TOKEN_MINUS_MINUS] = bp(POWER_POSTFIX, unary, postfix);
 BPTable[tokens.TOKEN_DOT_DOT] = bp(POWER_CALL, null, rangeLiteral);  // d
+BPTable[tokens.TOKEN_PIPE] = bp(POWER_FACTOR, null, pipeExpr);  // d
 BPTable[tokens.TOKEN_DOT_DOT_DOT] = bp(POWER_NONE, null, null);  // d
 BPTable[tokens.TOKEN_HEXINT_NUMBER] = bp(POWER_NONE, number, null);  // d
 BPTable[tokens.TOKEN_INT_NUMBER] = bp(POWER_NONE, number, null);  // d
@@ -465,6 +466,19 @@ function binary() {
     this.parse(bPower);
     const rightNode = this.pop();
     const node = new ast.BinaryNode(leftNode, rightNode, op);
+    this.push(node);
+}
+
+function pipeExpr() {
+    // x |> f -> f(x)
+    const leftNode = this.pop();
+    const bPower = BPTable[this.currentToken.type].power;
+    this.advance();
+    const line = this.currentToken.line;
+    this.parse(bPower);
+    const rightNode = this.pop();
+    const node = new ast.CallNode(rightNode, line);
+    node.args.push(leftNode);
     this.push(node);
 }
 

@@ -69,9 +69,12 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_STAR_STAR:            return "**";
         case tokens.TOKEN_STAR_STAR_EQUAL:      return "**=";
         case tokens.TOKEN_ARROW:                return "->";
+        case tokens.TOKEN_FAT_ARROW:            return "=>";
         case tokens.TOKEN_PLUS_PLUS:            return "++";
         case tokens.TOKEN_MINUS_MINUS:          return "--";
         case tokens.TOKEN_DOT_DOT:              return "..";
+        case tokens.TOKEN_DOT_DOT_DOT:          return "...";
+        case tokens.TOKEN_PIPE:                 return "|>";
         case tokens.TOKEN_HEXINT_NUMBER:        return "hex";
         case tokens.TOKEN_INT_NUMBER:           return "int";
         case tokens.TOKEN_FLOAT_NUMBER:         return "float";
@@ -644,7 +647,8 @@ Lexer.prototype.getToken = function() {
                 tokens.TOKEN_NOT_EQUAL : tokens.TOKEN_NOT);
         case "|":
             return this.newToken(this.check("=") ?
-                tokens.TOKEN_OR_EQUAL : tokens.TOKEN_BITWISE_OR);
+                tokens.TOKEN_OR_EQUAL : this.check(">") ?
+                    tokens.TOKEN_PIPE : tokens.TOKEN_BITWISE_OR);
         case '^':
             return this.newToken(this.check("=") ?
                 tokens.TOKEN_XOR_EQUAL : tokens.TOKEN_BITWISE_XOR);

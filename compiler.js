@@ -1050,7 +1050,7 @@ class Compiler extends ast.NodeVisitor {
         // place the args on the stack.
         node.args.forEach((arg) => this.visit(arg));
         // now place the base def on the stack, in prep for op_invoke_deref
-        // node.leftNod is a DotExprNode having a leftNode and rightNode props
+        // node.leftNode is a DotExprNode having a leftNode and rightNode props
         utils.assert(
             node.leftNode instanceof ast.DotExprNode,
             "Compiler::compileDerefMethodCall()"
