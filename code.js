@@ -64,4 +64,8 @@ Code.prototype.resetBy = function (count) {
         : void 0;
 };
 
+Code.prototype.getCode = function () {
+    return this.bytes;
+};
+
 module.exports = {Code};

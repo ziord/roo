@@ -314,6 +314,9 @@ VM.prototype.propertyAccessError = function (val, prop, defName) {
     } else if (val.isDef()) {
         error = `'${val.asDef().dname.raw}' has no property '${prop.raw}'`;
         this.runtimeError(error);
+    } else {
+        error = `'${val.typeToString()}' has no property '${prop.raw}'`;
+        this.runtimeError(error);
     }
     // todo: handle other val types
 };
@@ -428,12 +431,12 @@ VM.prototype[OP_MOD] = function (leftVal, rightVal) {
 };
 
 VM.prototype[OP_POW] = function (leftVal, rightVal) {
-    const val = leftVal.value ** rightVal.value;
-    if (val === Infinity) {
-        this.runtimeError("Value too large"); // todo
-        return this.dummyVal();
-    }
-    return val;
+    // todo: handle infinity on all number operations
+    // if (val === Infinity) {
+    //     this.runtimeError("Value too large");
+    //     return this.dummyVal();
+    // }
+    return leftVal.value ** rightVal.value;
 };
 
 VM.prototype[OP_GREATER] = function (leftVal, rightVal) {
@@ -612,8 +615,8 @@ VM.prototype.performSubscript = function (object, subscript) {
         }
         this.pushStack(object.asList().elements[index]);
     } else if (object.isDict()) {
-        const val = object.asDict().getVal(subscript.stringify());
-        if (val === undefined) {
+        const val = object.asDict().getVal(subscript);
+        if (!val) {
             this.runtimeError(`dict has no key ${subscript.stringify(true)}`);
             return;
         }
@@ -646,7 +649,7 @@ VM.prototype.setSubscript = function (object, subscript) {
         }
         object.asList().elements[index] = this.peekStack();
     } else if (object.isDict()) {
-        object.asDict().setVal(subscript.stringify(), this.peekStack());
+        object.asDict().setVal(subscript, this.peekStack());
     } else {
         this.runtimeError(
             `'${object.typeToString()}' type does not support index assignment`
@@ -1040,7 +1043,7 @@ VM.prototype.run = function (externCaller) {
                 for (let i = length * 2 - 1; i >= 0; i -= 2) {
                     value = this.peekStack(i - 1);
                     key = this.peekStack(i);
-                    map.set(key.stringify(), value);
+                    map.set(key, value);
                 }
                 this.popStackN(length * 2);
                 this.pushStack(createDictVal(map, this));
@@ -1085,7 +1088,7 @@ VM.prototype.run = function (externCaller) {
                 if (!this.globals.has(name)) {
                     this.runtimeError(
                         `Cannot assign value to ` +
-                            `undefined variable '${name}'`
+                            `undefined variable '${name.raw}'`
                     );
                     return this.iERR();
                 }

@@ -1192,7 +1192,10 @@ Parser.prototype.forInStatement = function() {
     this.expression();
     const exprNode = this.pop();
     this.statement();
-    const blockNode = this.pop();
+    let blockNode = this.pop();
+    if (blockNode.type !== ast.ASTType.AST_NODE_BLOCK) {
+        blockNode = new ast.BlockNode([blockNode]);
+    }
     this.push(new ast.ForInLoopNode(varNode, exprNode, blockNode));
 };
 

@@ -137,12 +137,44 @@ function BFunctionObject(name, arity, builtinFn) {
 /*
  * Object methods
  */
+
+/**
+ *
+ * @param {Value} key
+ * @returns {Value | null} value if available, else null
+ */
 DictObject.prototype.getVal = function (key) {
-    return this.htable.get(key);
+    // todo: this is super inefficient, need to revamp this.
+    const v = this.htable.get(key);
+    if (v) return v;
+    for (let [k, v] of this.htable) {
+        if (key.equals(k)) return v;
+    }
+    return null;
 };
 
-DictObject.prototype.setVal = function (key, value) {
-    return this.htable.set(key, value);
+/**
+ *
+ * @param {Value} key
+ * @returns {[Value, Value] | null} key-value pair if available, else null
+ */
+DictObject.prototype.getKeyValPair = function (key) {
+    const v = this.htable.get(key);
+    if (v) return [key, v];
+    for (let [k, v] of this.htable) {
+        if (key.equals(k)) return [k, v];
+    }
+    return null;
+};
+
+/**
+ *
+ * @param {Value} keyVal
+ * @param {Value} value
+ * @returns {Map<Value, Value>}
+ */
+DictObject.prototype.setVal = function (keyVal, value) {
+    return this.htable.set(keyVal, value);
 };
 
 /**
@@ -267,7 +299,11 @@ function as() {
     return this.value;
 }
 
+Value.prototype.asBoolean = as;
+
 Value.prototype.asInt = as;
+
+Value.prototype.asFloat = as;
 
 Value.prototype.asList = as;
 
@@ -287,7 +323,7 @@ Value.prototype.asBFunction = as;
 
 Value.prototype.as = as;
 
-Value.prototype.typeToString = function() {
+Value.prototype.typeToString = function () {
     switch (this.type) {
         case VAL_INT:
             return "int";
@@ -319,7 +355,7 @@ Value.prototype.typeToString = function() {
     }
 };
 
-Value.prototype.dictToString = function (){
+Value.prototype.dictToString = function () {
     // uses Map() internally
     let start = "{";
     let i = 0;
@@ -327,10 +363,9 @@ Value.prototype.dictToString = function (){
     for (let [key, value] of dict) {
         ++i;
         start +=
-            `'${key}': ` +
-            (value.value === this.value
-                ? "{...}"
-                : value.stringify(true));
+            key.stringify(true) +
+            ": " +
+            (value.value !== this.value ? value.stringify(true) : "{...}");
         if (i < dict.size) start += ", ";
     }
     start += "}";
@@ -438,13 +473,9 @@ Value.prototype.listEquals = function listEquals(other){
 Value.prototype.dictEquals = function dictEquals(other) {
     if (this.value.htable.size !== other.value.htable.size) return false;
     else if (this.value === other.value) return true;
+    let tmp;
     for (let [key, value] of this.value.htable) {
-        if (
-            !(
-                other.value.htable.has(key) &&
-                value.equals(other.value.htable.get(key))
-            )
-        ) {
+        if (!((tmp = other.value.getVal(key)) && value.equals(tmp))) {
             return false;
         }
     }
@@ -545,7 +576,10 @@ function createListVal(lst, rvm) {
 function createDictVal(map, rvm) {
     return new Value(
         VAL_DICT,
-        new DictObject(map, ) // todo: rvm.builtins["Dict"].asDef()
+        new DictObject(
+            map,
+            rvm.builtins.get(getStringObj("Dict", rvm.internedStrings)).asDef()
+        )
     );
 }
 
@@ -579,6 +613,14 @@ function createTrueVal() {
 
 function createNullVal() {
     return new Value(VAL_NULL);
+}
+
+function createIntVal(intVal) {
+    return new Value(VAL_INT, intVal);
+}
+
+function createFloatVal(floatVal) {
+    return new Value(VAL_FLOAT, floatVal);
 }
 
 /*
@@ -616,6 +658,8 @@ module.exports = {
     createFalseVal,
     createTrueVal,
     createNullVal,
+    createIntVal,
+    createFloatVal,
     createStringVal,
     createVMStringVal,
     createDictVal,
@@ -638,5 +682,6 @@ module.exports = {
     VAL_FUNCTION,
     VAL_DEFINITION,
     VAL_INSTANCE,
-    VAL_BOUND_METHOD
+    VAL_BOUND_METHOD,
+    VAL_BFUNCTION
 };

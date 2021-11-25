@@ -6,20 +6,21 @@
 "use strict";
 
 const opcode = require("./opcode");
-const {out, print} = require("./utils");
+const { out, print } = require("./utils");
 const pad = 24;
 
-function Disassembler(func, showSrcLines=false) {
+function Disassembler(func, showSrcLines = false) {
     this.func = func;
     this.code = func.code;
     this.name = func.fname;
     this.showSrcLines = showSrcLines;
+    this.hasSrcLines = Boolean(this.code.srcLines.length);
 }
 
-Disassembler.prototype.readShort = function (index){
+Disassembler.prototype.readShort = function (index) {
     const first = this.code.bytes[++index];
     const second = this.code.bytes[++index];
-    return ((first << 8) | second);
+    return (first << 8) | second;
 };
 
 Disassembler.prototype.plainInstruction = (inst, index) => {
@@ -31,72 +32,91 @@ Disassembler.prototype.constantInstruction = function (inst, index) {
     // op args o1..o2 next-op
     const operandIdx = this.readShort(index);
     const constant = this.code.cp.pool[operandIdx]; // Value obj
-    print(inst.padEnd(pad, " "), "\t",
-        `${operandIdx}`.padStart(4, ' '), "\t",
-        `(${constant})`);  // implicit toString()
+    print(
+        inst.padEnd(pad, " "),
+        "\t",
+        `${operandIdx}`.padStart(4, " "),
+        "\t",
+        `(${constant})`
+    ); // implicit toString()
     return index + 3; // next-op
 };
 
-Disassembler.prototype.byteInstruction = function (inst, index){
+Disassembler.prototype.byteInstruction = function (inst, index) {
     const operand = this.code.bytes[++index];
-    print(inst.padEnd(pad, " "), "\t", `${operand}`.padStart(4, ' '));
+    print(inst.padEnd(pad, " "), "\t", `${operand}`.padStart(4, " "));
     return ++index;
 };
 
-Disassembler.prototype.shortInstruction = function (inst, index){
+Disassembler.prototype.shortInstruction = function (inst, index) {
     const operand = this.readShort(index);
-    print(inst.padEnd(pad, " "), "\t", `${operand}`.padStart(4, ' '));
+    print(inst.padEnd(pad, " "), "\t", `${operand}`.padStart(4, " "));
     return index + 3;
 };
 
-Disassembler.prototype.jumpInstruction = function (inst, index, sign){
+Disassembler.prototype.jumpInstruction = function (inst, index, sign) {
     // op_jmp  10 -> 5
     const jmpOffset = this.readShort(index);
     // sign -> +1 or -1 (determines forward or backwards jump)
     let jmpIndex = index + 3 + jmpOffset * sign;
-    print(inst.padEnd(pad, " "), "\t",
-        index.toString().padStart(4, " "), "->",
-        jmpIndex);
+    print(
+        inst.padEnd(pad, " "),
+        "\t",
+        index.toString().padStart(4, " "),
+        "->",
+        jmpIndex
+    );
     return index + 3;
 };
 
-Disassembler.prototype.closureInstruction = function (inst, index){
+Disassembler.prototype.closureInstruction = function (inst, index) {
     const operandIdx = this.readShort(index);
     const constant = this.code.cp.readConstant(operandIdx);
     const fnObj = constant.asFunction();
-    print(inst.padEnd(pad, " "), "\t",
-        `${operandIdx}`.padStart(4, ' '), "\t",
-        `(${constant})`);   // implicit toString() for `constant`
+    print(
+        inst.padEnd(pad, " "),
+        "\t",
+        `${operandIdx}`.padStart(4, " "),
+        "\t",
+        `(${constant})`
+    ); // implicit toString() for `constant`
     index += 3;
-    for (let i = 0; i < fnObj.upvalueCount; i++){
+    for (let i = 0; i < fnObj.upvalueCount; i++) {
         const slot = this.code.bytes[index++];
         const isLocal = this.code.bytes[index++];
-        print("   |   ",
-            (index - 2).toString().padStart(4, "0"), "\t",
-            "  | ".padEnd(pad + (pad / 2), ' '),
+        print(
+            "   |   ",
+            (index - 2).toString().padStart(4, "0"),
+            "\t",
+            "  | ".padEnd(pad + pad / 2, " "),
             isLocal ? "l-upvalue" : "upvalue  ",
-            slot.toString().padStart(4, ' '));
+            slot.toString().padStart(4, " ")
+        );
     }
     return index;
 };
 
-Disassembler.prototype.invokeInstruction = function(inst, index){
+Disassembler.prototype.invokeInstruction = function (inst, index) {
     const opIndex = this.readShort(index);
     index += 2;
     const opArgsCount = this.code.bytes[++index];
     const propName = this.code.cp.readConstant(opIndex);
     // implicit toString() for `propName`
-    print(inst.padEnd(pad, " "), "\t",
-        opArgsCount.toString().padStart(4, " "), "\t",
-        `(${propName})`);
+    print(
+        inst.padEnd(pad, " "),
+        "\t",
+        opArgsCount.toString().padStart(4, " "),
+        "\t",
+        `(${propName})`
+    );
     return ++index;
 };
 
-Disassembler.prototype.disassembleInstruction = function(index, code) {
-    code !== undefined ? this.code = code : void 0;
-    if (this.showSrcLines){
+Disassembler.prototype.disassembleInstruction = function (index, code) {
+    code !== undefined ? (this.code = code) : void 0;
+    if (this.showSrcLines && this.hasSrcLines) {
         const srcLine = this.code.srcLines[index];
-        if (srcLine !== 0xff){
+        if (srcLine !== 0xff) {
             const lineNum = this.code.lines[index];
             print(`\n<line: ${lineNum}>\t${srcLine}`);
         }
@@ -232,7 +252,7 @@ Disassembler.prototype.disassembleInstruction = function(index, code) {
     }
 };
 
-Disassembler.prototype.getInstructionOffset = function (index){
+Disassembler.prototype.getInstructionOffset = function (index) {
     const byte = this.code.bytes[index];
     switch (byte) {
         case opcode.OP_ADD:
@@ -268,12 +288,12 @@ Disassembler.prototype.getInstructionOffset = function (index){
         case opcode.OP_INC:
         case opcode.OP_METHOD:
         case opcode.OP_DERIVE:
-            return (index + 1);
+            return index + 1;
         case opcode.OP_SHOW:
         case opcode.OP_CALL:
         case opcode.OP_GET_UPVALUE:
         case opcode.OP_SET_UPVALUE:
-            return (index + 2);
+            return index + 2;
         case opcode.OP_DEFINE_GLOBAL:
         case opcode.OP_LOAD_CONST:
         case opcode.OP_GET_GLOBAL:
@@ -293,13 +313,13 @@ Disassembler.prototype.getInstructionOffset = function (index){
         case opcode.OP_GET_PROPERTY:
         case opcode.OP_SET_PROPERTY:
         case opcode.OP_GET_DEREF_PROPERTY:
-            return (index + 3);
+            return index + 3;
         case opcode.OP_CLOSURE:
             // 2 bytes per 'upvalue'
-            return (index + 3 + this.func.upvalues.length * 2);
+            return index + 3 + this.func.upvalues.length * 2;
         case opcode.OP_INVOKE:
         case opcode.OP_INVOKE_DEREF:
-            return (index + 4);
+            return index + 4;
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
     }
@@ -313,9 +333,9 @@ Disassembler.prototype.disassembleCode = function () {
     out("\n");
     // disassemble functions found earlier
     for (let index = 0; index < this.code.length; ) {
-        if (this.code.bytes[index] === opcode.OP_CLOSURE){
+        if (this.code.bytes[index] === opcode.OP_CLOSURE) {
             const c = this.code.cp.readConstant(this.readShort(index));
-            if (c.isFunction()){
+            if (c.isFunction()) {
                 // todo: find a better way of handling this
                 const dis = new Disassembler(c.asFunction(), this.showSrcLines);
                 dis.disassembleCode();

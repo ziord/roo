@@ -5,6 +5,7 @@
 "use strict";
 
 const mod = require("./value");
+const utils = require("./utils");
 
 /*
  ***************
@@ -62,17 +63,228 @@ function registerFunc(rvm, fname, fexec, arity) {
 /***********
  * Functions
  ***********/
-function clock(rvm) {
-    return new mod.Value(mod.VAL_INT, new Date().getTime() / 1000);
+function roo__clock(rvm, arity) {
+    return mod.createIntVal(new Date().getTime() / 1000);
 }
 
-function str(rvm) {
-
+function roo__str(rvm, arity) {
+    const str = rvm.peekStack().stringify(true, rvm);
+    return mod.createVMStringVal(str, rvm);
 }
+
+function roo__setProperty(rvm, arity) {
+    // takes 3 args
+    const obj = rvm.peekStack(2);
+    const prop = rvm.peekStack(1);
+    const val = rvm.peekStack();
+    if (!prop.isString()) {
+        rvm.runtimeError(
+            `property name must be string, not '${prop.typeToString()}'`
+        );
+        return rvm.dummyVal();
+    }
+    if (obj.isInstance()) {
+        obj.asInstance().setProperty(prop.asString(), val);
+        return mod.createNullVal();
+    } else {
+        rvm.runtimeError(`Can't set property on '${obj.typeToString()}'`);
+        return rvm.dummyVal();
+    }
+}
+
+function roo__getProperty(rvm, arity) {
+    // takes 2 args
+    const obj = rvm.peekStack(1);
+    const prop = rvm.peekStack();
+    if (!prop.isString()) {
+        rvm.runtimeError(
+            `property name must be string, not '${prop.typeToString()}'`
+        );
+        return rvm.dummyVal();
+    }
+    let def,
+        val,
+        strObj = prop.asString();
+    if (obj.isInstance() && (val = obj.asInstance().getProperty(strObj))) {
+        return val;
+    } else if ((def = obj.as().def) && (val = def.getMethod(strObj))) {
+        return val;
+    }
+    rvm.runtimeError(
+        `${obj.stringify()} has no property ${prop.stringify(true)}`
+    );
+    return rvm.dummyVal();
+}
+
+function roo__hasProperty(rvm, arity) {
+    // takes 2 args
+    const obj = rvm.peekStack(1);
+    const prop = rvm.peekStack();
+    if (!prop.isString()) {
+        rvm.runtimeError(
+            `property name must be string, not '${prop.typeToString()}'`
+        );
+        return rvm.dummyVal();
+    }
+    let def, strObj = prop.asString();
+    if (obj.isInstance() && obj.asInstance().getProperty(strObj)) {
+        return mod.createTrueVal();
+    } else if ((def = obj.as().def) && def.getMethod(strObj)) {
+        return mod.createTrueVal();
+    }
+    return mod.createFalseVal();
+}
+
+function roo__typeOf(rvm, arity) {
+    // takes 1 arg
+    const obj = rvm.peekStack();
+    return mod.createVMStringVal(obj.typeToString(), rvm);
+}
+
+function roo__isInstance(rvm, arity) {
+    const obj1 = rvm.peekStack(1);
+    const obj2 = rvm.peekStack();
+    if (!obj2.isDef()) {
+        rvm.runtimeError(
+            `second arg must be a definition`
+        );
+        return rvm.dummyVal();
+    }
+    const defName = obj2.asDef().dname.raw;
+    if (obj1.isInt() && defName === "Int") {
+        return mod.createTrueVal();
+    } else if (obj1.isFloat() && defName === "Float") {
+        return mod.createTrueVal();
+    } else if (obj1.as().def === obj2.asDef()) {
+        return mod.createTrueVal();
+    }
+    return mod.createFalseVal();
+}
+
+function roo__dir(rvm, arity) {
+    const val = rvm.peekStack();
+    let def;
+    const props = [];
+    switch (val.type) {
+        case mod.VAL_BOOLEAN:
+        case mod.VAL_INT:
+        case mod.VAL_FLOAT:
+        case mod.VAL_NULL:
+        case mod.VAL_BFUNCTION:  // todo
+        case mod.VAL_DEFINITION:  // todo
+            return mod.createListVal();
+        case mod.VAL_STRING:
+        case mod.VAL_LIST:
+        case mod.VAL_DICT:
+        case mod.VAL_FUNCTION: // todo
+            def = val.as().def;
+            break;
+        case mod.VAL_INSTANCE: {
+            const m = val.asInstance().props;
+            for (let k of m.keys()) {
+                props.push(new mod.Value(mod.VAL_STRING, k));
+            }
+            def = val.as().def;
+            break;
+        }
+        case mod.VAL_BOUND_METHOD:
+            def = val.asBoundMethod().method.asFunction().def;
+            break;
+        default:
+            utils.unreachable("rcore::roo__dir()");
+    }
+    for (let k of def.dmethods.keys()) {
+        props.push(new mod.Value(mod.VAL_STRING, k));
+    }
+    return mod.createListVal(props, rvm);
+}
+
 
 /************
  * Methods
  ***********/
+
+/* * *Int* * */
+
+/*
+ * Handlers
+ */
+function int__init(rvm, arity) {
+    // takes 1 argument
+    const val = rvm.peekStack();
+    switch (val.type) {
+        case mod.VAL_INT:
+            return val;
+        case mod.VAL_FLOAT:
+            return mod.createIntVal(Math.trunc(val.asFloat()));
+        case mod.VAL_BOOLEAN:
+            return mod.createIntVal(val.asBoolean());
+        case mod.VAL_NULL:
+            return mod.createIntVal(0);
+        case mod.VAL_STRING: {
+            const res = Number.parseInt(val.asString().raw);
+            if (Number.isNaN(res)) {
+                rvm.runtimeError("invalid literal for Int");
+                return rvm.dummyVal();
+            }
+            return mod.createIntVal(res);
+        }
+        case mod.VAL_LIST:
+        case mod.VAL_DICT:
+        case mod.VAL_FUNCTION:
+        case mod.VAL_DEFINITION:
+        case mod.VAL_INSTANCE:
+        case mod.VAL_BOUND_METHOD:
+        case mod.VAL_BFUNCTION:
+        case mod.VAL_OBJECT:
+            rvm.runtimeError("invalid argument for Int");
+            return rvm.dummyVal();
+        default:
+            utils.unreachable("core::int__init()");
+    }
+}
+
+
+/* * *Float* * */
+
+/*
+ * Handlers
+ */
+function float__init(rvm, arity) {
+    // takes 1 argument
+    const val = rvm.peekStack();
+    switch (val.type) {
+        case mod.VAL_INT:
+            return mod.createFloatVal(val.asInt());
+        case mod.VAL_FLOAT:
+            return val;
+        case mod.VAL_BOOLEAN:
+            return mod.createFloatVal(val.asBoolean());
+        case mod.VAL_NULL:
+            return mod.createFloatVal(0);
+        case mod.VAL_STRING: {
+            const res = Number.parseFloat(val.asString().raw);
+            if (Number.isNaN(res)) {
+                rvm.runtimeError("invalid literal for Float");
+                return rvm.dummyVal();
+            }
+            return mod.createFloatVal(res);
+        }
+        case mod.VAL_LIST:
+        case mod.VAL_DICT:
+        case mod.VAL_FUNCTION:
+        case mod.VAL_DEFINITION:
+        case mod.VAL_INSTANCE:
+        case mod.VAL_BOUND_METHOD:
+        case mod.VAL_BFUNCTION:
+        case mod.VAL_OBJECT:
+            rvm.runtimeError("invalid argument for Float");
+            return rvm.dummyVal();
+        default:
+            utils.unreachable("core::float__init()");
+    }
+}
+
 
 /* * *List* * */
 
@@ -96,7 +308,7 @@ function list__init(rvm, arity) {
 
 function list__length(rvm, arity) {
     const listObj = rvm.peekStack().asList();
-    return new mod.Value(mod.VAL_INT, listObj.elements.length);
+    return mod.createIntVal(listObj.elements.length);
 }
 
 function list__map(rvm, arity) {
@@ -269,10 +481,10 @@ function list__index(rvm, arity) {
     const listObj = rvm.peekStack(arity).asList();
     for (let i = 0; i < listObj.elements.length; ++i) {
         if (listObj.elements[i].equals(val)) {
-            return new mod.Value(mod.VAL_INT, i);
+            return mod.createIntVal(i);
         }
     }
-    return new mod.Value(mod.VAL_INT, -1);
+    return mod.createIntVal(-1);
 }
 
 function list__all(rvm, arity) {
@@ -302,7 +514,7 @@ function list__append(rvm, arity) {
     // list.append(val)
     const listObj = rvm.peekStack(arity).asList();
     listObj.elements.push(rvm.peekStack());
-    return new mod.Value(mod.VAL_INT, listObj.elements.length);
+    return mod.createIntVal(listObj.elements.length);
 }
 
 function list__join(rvm, arity) {
@@ -355,7 +567,7 @@ function list__insert(rvm, arity) {
     } else {
         listObj.elements.splice(index, 0, item);
     }
-    return new mod.Value(mod.VAL_INT, listObj.elements.length);
+    return mod.createIntVal(listObj.elements.length);
 }
 
 function list__slice(rvm, arity) {
@@ -404,7 +616,7 @@ function list__iter(rvm, arity) {
 /*
  * Handlers
  */
-function listiterator__init(rvm, arity) {
+function list_iterator__init(rvm, arity) {
     // listiterator.init()
     // the stack: [ ref ListIterator ][ string val ]
     const listItrInstVal = rvm.peekStack(arity);
@@ -412,28 +624,30 @@ function listiterator__init(rvm, arity) {
     const refStr = mod.getVMStringObj("$__list_ref", rvm);
     const idxStr = mod.getVMStringObj("$__current_index", rvm);
     listItrInst.setProperty(refStr, rvm.peekStack());
-    listItrInst.setProperty(idxStr, new mod.Value(mod.VAL_INT, 0));
+    listItrInst.setProperty(idxStr, mod.createIntVal(0));
     return listItrInstVal;
 }
 
-function listiterator__next(rvm, arity) {
+function list_iterator__next(rvm, arity) {
     // listiterator.__next__()
     const listItrInst = rvm.peekStack(arity).asInstance();
     const refStr = mod.getVMStringObj("$__list_ref", rvm);
     const idxStr = mod.getVMStringObj("$__current_index", rvm);
+    const doneStr = mod.createVMStringVal("done", rvm);
+    const valStr = mod.createVMStringVal("value", rvm);
     const listObj = listItrInst.getProperty(refStr).asList();
     let currentIndex = listItrInst.getProperty(idxStr).asInt();
     const map = new Map();
     if (currentIndex < listObj.elements.length) {
-        map.set("value", listObj.elements[currentIndex]);
-        map.set("done", mod.createFalseVal()); // todo: dict str
+        map.set(valStr, listObj.elements[currentIndex]);
+        map.set(doneStr, mod.createFalseVal());
         listItrInst.setProperty(
             idxStr,
-            new mod.Value(mod.VAL_INT, ++currentIndex)
+            mod.createIntVal(++currentIndex)
         );
     } else {
-        map.set("value", mod.createNullVal());
-        map.set("done", mod.createTrueVal()); // todo: dict str
+        map.set(valStr, mod.createNullVal());
+        map.set(doneStr, mod.createTrueVal());
     }
     return mod.createDictVal(map, rvm)
 }
@@ -456,7 +670,7 @@ function str__init(rvm, arity) {
 function str__length(rvm, arity) {
     // str.length() - length takes 0 argument
     const strObj = rvm.peekStack().asString();
-    return new mod.Value(mod.VAL_INT, strObj.raw.length);
+    return mod.createIntVal(strObj.raw.length);
 }
 
 function str__iter(rvm, arity) {
@@ -468,7 +682,7 @@ function str__iter(rvm, arity) {
     // the definition
     rvm.swapLastTwo();
     // invoke and run the StringIterator's init() method - init() is run
-    // immediately because the ListIterator's init method is a builtin method
+    // immediately because the StringIterator's init method is a builtin method
     rvm.callDef(itrVal, 1);
     if (rvm.atFault()) return rvm.dummyVal();
     // the result would be the value on the stack
@@ -560,23 +774,28 @@ function str__find(rvm, arity) {
         rvm.runtimeError("find arg must be a string");
         return rvm.dummyVal();
     }
-    return new mod.Value(mod.VAL_INT, strObj.raw.indexOf(arg.asString().raw));
+    return mod.createIntVal(strObj.raw.indexOf(arg.asString().raw));
 }
 
 function str__split(rvm, arity) {
-    // takes 1 argument
+    // takes 2 arguments
     const strObj = rvm.peekStack(arity).asString();
-    const arg = rvm.peekStack();
-    let splitArg;
-    if (arg.isNull()) {
-        splitArg = null;
-    } else if (arg.isString()) {
+    const arg = rvm.peekStack(1);
+    const arg2 = rvm.peekStack();
+    let splitArg, limitArg;
+    if (arg.isString()) {
         splitArg = arg.asString().raw;
     } else {
-        rvm.runtimeError("split arg must be a string or null");
+        rvm.runtimeError("split first arg must be a string or null");
         return rvm.dummyVal();
     }
-    const arr = strObj.raw.split(splitArg);
+    if (arg2.isInt()) {
+        limitArg = arg2.asInt();
+    }  else {
+        rvm.runtimeError("split second arg must be an int");
+        return rvm.dummyVal();
+    }
+    const arr = strObj.raw.split(splitArg, limitArg);
     for (let i = 0; i < arr.length; ++i) {
         arr[i] = mod.createVMStringVal(arr[i], rvm);
     }
@@ -678,7 +897,7 @@ function str__slice(rvm, arity) {
 /*
  * Handlers
  */
-function striterator__init(rvm, arity) {
+function str_iterator__init(rvm, arity) {
     // the stack: [ ref StringIterator ][ string val ]
     const strItrInstVal = rvm.peekStack(arity);
     const strItrInst = strItrInstVal.asInstance();
@@ -687,35 +906,232 @@ function striterator__init(rvm, arity) {
     // set the string as the StringIterator instance's property
     strItrInst.setProperty(refStr, rvm.peekStack());
     // set the current index for use in the StringIterator's next() method
-    strItrInst.setProperty(idxStr, new mod.Value(mod.VAL_INT, 0));
+    strItrInst.setProperty(idxStr, mod.createIntVal(0));
     return strItrInstVal;
 }
 
-function striterator__next(rvm, arity) {
+function str_iterator__next(rvm, arity) {
     const strItrInst = rvm.peekStack().asInstance();
     const refStr = mod.getVMStringObj("$__str_ref", rvm);
     const idxStr = mod.getVMStringObj("$__current_index", rvm);
+    const doneStr = mod.createVMStringVal("done", rvm);
+    const valStr = mod.createVMStringVal("value", rvm);
     const strObj = strItrInst.getProperty(refStr).asString();
     let index = strItrInst.getProperty(idxStr).asInt();
     let map = new Map();
     if (index < strObj.raw.length) {
-        map.set("value", mod.createVMStringVal(strObj.raw[index++], rvm)); // todo: dict str
-        map.set("done", mod.createFalseVal());
-        strItrInst.setProperty(idxStr, new mod.Value(mod.VAL_INT, index));
+        map.set(valStr, mod.createVMStringVal(strObj.raw[index++], rvm));
+        map.set(doneStr, mod.createFalseVal());
+        strItrInst.setProperty(idxStr, mod.createIntVal(index));
     } else {
-        map.set("value", mod.createVMStringVal("", rvm)); // todo: dict str
-        map.set("done", mod.createTrueVal());
+        map.set(valStr, mod.createVMStringVal("", rvm));
+        map.set(doneStr, mod.createTrueVal());
     }
     return mod.createDictVal(map, rvm);
 }
 
 
+/* * *Dict* * */
+
+/*
+ * Handlers
+ */
+function dict__init(rvm, arity) {
+    // takes no argument.
+    return mod.createDictVal(new Map(), rvm);
+}
+
+function dict__keys(rvm, arity) {
+    // takes no argument.
+    const dictObj = rvm.peekStack().asDict();
+    return mod.createListVal(Array.from(dictObj.htable.keys()), rvm);
+}
+
+function dict__values(rvm, arity) {
+    // takes no argument.
+    const dictObj = rvm.peekStack().asDict();
+    return mod.createListVal(Array.from(dictObj.htable.values()), rvm);
+}
+
+function dict__entries(rvm, arity) {
+    // takes no argument.
+    const dictObj = rvm.peekStack().asDict();
+    const arr = [];
+    for (let [k, v] of dictObj.htable) {
+        arr.push(mod.createListVal([k, v], rvm));
+    }
+    return mod.createListVal(arr, rvm);
+}
+
+function dict__length(rvm, arity) {
+    // takes no argument.
+    return mod.createIntVal(rvm.peekStack().asDict().htable.size);
+}
+
+function dict__clear(rvm, arity) {
+    // takes no argument.
+    rvm.peekStack().asDict().htable.clear();
+    return mod.createNullVal();
+}
+
+function dict__copy(rvm, arity) {
+    // takes no argument.
+    return mod.createDictVal(new Map(rvm.peekStack().asDict().htable), rvm);
+}
+
+function dict__get(rvm, arity) {
+    // takes 2 arguments.
+    const dictObj = rvm.peekStack(arity).asDict();
+    let val;
+    if ((val = dictObj.getVal(rvm.peekStack(1)))) {
+        return val;
+    }
+    return rvm.peekStack();
+}
+
+function dict__pop(rvm, arity) {
+    // takes 1 argument.
+    const dictObj = rvm.peekStack(arity).asDict();
+    const key = rvm.peekStack();
+    let kv;
+    if ((kv = dictObj.getKeyValPair(key))) {
+        dictObj.htable.delete(kv[0]);
+        return kv[1];
+    }
+    rvm.runtimeError(`No such key ${key.stringify(true)}`);
+    return mod.createNullVal();
+}
+
+function dict__set(rvm, arity) {
+    // takes 2 arguments.
+    const dictObj = rvm.peekStack(arity).asDict();
+    dictObj.htable.set(rvm.peekStack(1), rvm.peekStack());
+    return rvm.peekStack(arity);
+}
+
+function dict__iter(rvm, arity) {
+    // takes no argument.
+    // push the DictKeyIterator def on the stack
+    const itrVal = rvm.builtins.get(mod.getVMStringObj("DictKeyIterator", rvm));
+    rvm.pushStack(itrVal);
+    // swap the DictKeyIterator def's position with the dict val, and call the
+    // the definition
+    rvm.swapLastTwo();
+    // invoke and run the DictKeyIterator's init() method - init() is run
+    // immediately because the DictKeyIterator's init method is a builtin method
+    rvm.callDef(itrVal, 1);
+    if (rvm.atFault()) return rvm.dummyVal();
+    // the result would be the value on the stack
+    return rvm.peekStack();
+}
+
+
+/* * *DictKeyIterator* * */
+
+/*
+ * Handlers
+ */
+function dict_key_iterator__init(rvm, arity) {
+    // the stack: [ ref DictKeyIterator ][ dict val ]
+    const dictItrInstVal = rvm.peekStack(arity);
+    const dictItrInst = dictItrInstVal.asInstance();
+    const keysStr = mod.getVMStringObj("$__dict_keys", rvm);
+    const idxStr = mod.getVMStringObj("$__current_index", rvm);
+    // set the dict's keys as the DictKeyIterator instance's property
+    const keys = Array.from(rvm.peekStack().asDict().htable.keys());
+    dictItrInst.setProperty(keysStr, mod.createListVal(keys, rvm));
+    // set the current index for use in the DictKeyIterator's next() method
+    dictItrInst.setProperty(idxStr, mod.createIntVal(0));
+    return dictItrInstVal;
+}
+
+function dict_key_iterator__next(rvm, arity) {
+    const dictItrInst = rvm.peekStack().asInstance();
+    const doneStr = mod.createVMStringVal("done", rvm);
+    const valStr = mod.createVMStringVal("value", rvm);
+    const idxStr = mod.getVMStringObj("$__current_index", rvm);
+    const keysStr = mod.getVMStringObj("$__dict_keys", rvm);
+    const listObj = dictItrInst.getProperty(keysStr).asList();
+    let index = dictItrInst.getProperty(idxStr).asInt();
+    let map = new Map();
+    if (index < listObj.elements.length) {
+        map.set(valStr, listObj.elements[index++]);
+        map.set(doneStr, mod.createFalseVal());
+        dictItrInst.setProperty(idxStr, mod.createIntVal(index));
+    } else {
+        map.set(valStr, mod.createNullVal());
+        map.set(doneStr, mod.createTrueVal());
+    }
+    return mod.createDictVal(map, rvm);
+}
+
+
+/* * *Function* * */
+
+/*
+ * Handlers
+ */
+function function__init(rvm, arity) {
+    // takes no argument.
+    return mod.createNullVal();
+}
+
+function function__code(rvm, arity) {
+    // takes no argument.
+    const fnObj = rvm.peekStack().asFunction();
+    const code = fnObj.code.getCode();
+    const arr = [];
+    code.forEach(byte => (arr.push(mod.createIntVal(byte))));
+    return mod.createListVal(arr);
+}
+
+function function__name(rvm, arity) {
+
+}
+
+
+/******************
+ * Initialization *
+ ******************/
 function initAll(rvm) {
     // intern the string "String"
     const strObj = mod.getStringObj("String", rvm.internedStrings);
 
     // Global Functions
-    registerFunc(rvm, "clock", clock, 0);
+    registerFunc(rvm, "clock", roo__clock, 0);
+    registerFunc(rvm, "str", roo__str, 1);
+    registerFunc(rvm, "setProperty", roo__setProperty, 3);
+    registerFunc(rvm, "getProperty", roo__getProperty, 2);
+    registerFunc(rvm, "hasProperty", roo__hasProperty, 2);
+    registerFunc(rvm, "typeOf", roo__typeOf, 1);
+    registerFunc(rvm, "isInstance", roo__isInstance, 2);
+    // registerFunc(rvm, "dir", roo__dir, 1); todo
+
+    // Int
+    registerDef(rvm, "Int", [
+        {
+            methodName: "__init__",
+            methodExec: int__init,
+            methodArity: 1,
+            defaultParamsCount: 1,
+            defaults: [
+                { pos: 1, val: mod.createIntVal(0) },
+            ],
+        },
+    ]);
+
+    // Float
+    registerDef(rvm, "Float", [
+        {
+            methodName: "__init__",
+            methodExec: float__init,
+            methodArity: 1,
+            defaultParamsCount: 1,
+            defaults: [
+                { pos: 1, val: mod.createFloatVal(0) },
+            ],
+        },
+    ]);
 
     // String
     registerDef(rvm, "String", [
@@ -791,9 +1207,12 @@ function initAll(rvm) {
         {
             methodName: "split",
             methodExec: str__split,
-            methodArity: 1,
-            defaultParamsCount: 1,
-            defaults: [{ pos: 1, val: mod.createNullVal() }],
+            methodArity: 2,
+            defaultParamsCount: 2,
+            defaults: [
+                { pos: 1, val: mod.createStringVal(" ", rvm.internedStrings) },
+                { pos: 2, val: mod.createIntVal(-1) },
+            ],
         },
         {
             methodName: "isAlNum",
@@ -836,15 +1255,15 @@ function initAll(rvm) {
     registerDef(rvm, "StringIterator", [
         {
             methodName: "__init__",
-            methodExec: striterator__init,
+            methodExec: str_iterator__init,
             methodArity: 1,
         },
         {
             methodName: "__next__",
-            methodExec: striterator__next,
+            methodExec: str_iterator__next,
             methodArity: 0,
         },
-    ]);
+    ], null, true);
 
     // List
     registerDef(rvm, "List", [
@@ -936,12 +1355,87 @@ function initAll(rvm) {
     registerDef(rvm, "ListIterator", [
         {
             methodName: "__init__",
-            methodExec: listiterator__init,
+            methodExec: list_iterator__init,
             methodArity: 1,
         },
         {
             methodName: "__next__",
-            methodExec: listiterator__next,
+            methodExec: list_iterator__next,
+            methodArity: 0,
+        },
+    ], null, true);
+
+
+    registerDef(rvm, "Dict", [
+        {
+            methodName: "__init__",
+            methodExec: dict__init,
+            methodArity: 0,
+        },
+        {
+            methodName: "keys",
+            methodExec: dict__keys,
+            methodArity: 0,
+        },
+        {
+            methodName: "values",
+            methodExec: dict__values,
+            methodArity: 0,
+        },
+        {
+            methodName: "entries",
+            methodExec: dict__entries,
+            methodArity: 0,
+        },
+        {
+            methodName: "length",
+            methodExec: dict__length,
+            methodArity: 0,
+        },
+        {
+            methodName: "clear",
+            methodExec: dict__clear,
+            methodArity: 0,
+        },
+        {
+            methodName: "copy",
+            methodExec: dict__copy,
+            methodArity: 0,
+        },
+        {
+            methodName: "get",
+            methodExec: dict__get,
+            methodArity: 2,
+            defaultParamsCount: 1,
+            defaults: [{ pos: 2, val: mod.createNullVal() }],
+        },
+        {
+            methodName: "pop",
+            methodExec: dict__pop,
+            methodArity: 1,
+        },
+        {
+            methodName: "set",
+            methodExec: dict__set,
+            methodArity: 2,
+        },
+        {
+            methodName: "__iter__",
+            methodExec: dict__iter,
+            methodArity: 0,
+        },
+    ]);
+
+    // DictKeyIterator
+    registerDef(rvm, "DictKeyIterator", [
+        {
+            methodName: "__init__",
+            methodExec: dict_key_iterator__init,
+            methodArity: 1,
+        },
+        {
+            methodName: "__next__",
+            methodExec: dict_key_iterator__next,
             methodArity: 0,
         },
     ], null, true);
@@ -954,11 +1448,14 @@ function initAll(rvm) {
 }
 
 const builtins = [
+    "Int",
+    "Float",
+    "String",
+    "StringIterator",
     "List",
     "ListIterator",
     "Dict",
-    "String",
-    "StringIterator",
+    "DictKeyIterator",
 ];
 
 
