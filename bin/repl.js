@@ -23,7 +23,7 @@ function execute(src, interned, vm) {
     if (vm) {
         vm.initFrom(fnObj);
     } else {
-        vm = new VM(fnObj, false, compiler.strings, true);
+        vm = new VM(fnObj, false, compiler.strings, true); // todo
     }
     if (vm.run() !== vm.iOK()) {
         // clear the error state, as this will prevent the VM from being
