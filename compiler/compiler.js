@@ -4,12 +4,12 @@
 
 "use strict";
 
-const ast = require("./ast");
-const utils = require("./utils");
-const { Code } = require("./code");
+const ast = require("../parser/ast");
+const utils = require("../utils");
+const { Code } = require("../code/code");
 const gen = require("./codegen");
-const vmod = require("./value");
-const opcode = require("./opcode");
+const vmod = require("../constant/value");
+const opcode = require("../code/opcode");
 const opt = require("./optimizer");
 
 const OPS = {

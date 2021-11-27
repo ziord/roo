@@ -4,7 +4,7 @@
 
 "use strict";
 
-const tokens = require("./tokens");
+const tokens = require("../lexer/tokens");
 
 const ASTType = {
     AST_NODE_NUMBER:            'AST_NODE_NUMBER',

@@ -15,16 +15,11 @@ const {
     createInstanceVal,
     createBoundMethodVal,
     createFunctionVal,
-    createBFunctionVal,
-    ConstantPool,
     VAL_INT,
     VAL_FLOAT,
     VAL_BOOLEAN,
     VAL_NULL,
-    VAL_STRING,
-    VAL_LIST,
-    VAL_DICT,
-} = require("./value");
+} = require("../constant/value");
 const {
     Code,
     OP_ADD,
@@ -86,15 +81,21 @@ const {
     OP_DERIVE,
     OP_INVOKE_DEREF,
     OP_GET_DEREF_PROPERTY,
-} = require("./opcode");
-const { Disassembler } = require("./debug");
-const { assert, out, print, unreachable, exitVM } = require("./utils");
-const rcore = require("./rcore");
+} = require("../code/opcode");
+const { Disassembler } = require("../debug/disassembler");
+const { assert, out, print, unreachable, exit } = require("../utils");
+const rcore = require("../rcore/core");
 const INTERPRET_RESULT_OK = 0, INTERPRET_RESULT_ERROR = -1;
 const FRAME_STACK_SIZE = 0x1000;
 const MAX_FRAMES_SIZE = 80;
 const MAX_RANGE_LENGTH = 10000000;  // todo
 
+/**
+ * @param {FunctionObject} func
+ * @param {boolean} debug
+ * @param {Map<string, StringObject>} strings
+ * @constructor
+ */
 function VM(func, debug = true, strings = null) {
     // inits
     this.debug = debug;
@@ -117,6 +118,12 @@ function VM(func, debug = true, strings = null) {
     rcore.initAll(this);
 }
 
+/**
+ * @param {FunctionObject} func
+ * @param {number} retPoint
+ * @param {Array} stack
+ * @constructor
+ */
 function CallFrame(func, retPoint, stack) {
     // function object
     this.func = func;
@@ -132,6 +139,18 @@ function CallFrame(func, retPoint, stack) {
     // the stack; yes, that 'stack'.
     this.stack = stack;
 }
+
+/**
+ * Re-initialize the VM with a new FunctionObject, after it
+ * has originally been created.
+ * @param {FunctionObject} fnObj
+ */
+VM.prototype.initFrom = function(fnObj) {
+    // push 'script' function to stack
+    this.pushStack(createFunctionVal(fnObj));
+    // push 'script' frame
+    this.pushFrame(fnObj);
+};
 
 VM.prototype.iOK = function () {
     return INTERPRET_RESULT_OK;
@@ -192,7 +211,7 @@ VM.prototype.stackSize = function () {
 VM.prototype.pushFrame = function (func) {
     if (this.frames.length >= MAX_FRAMES_SIZE) {
         this.runtimeError("Stack overflow");
-        exitVM();
+        exit();
     }
     const retIndex = this.sp - 1 - func.arity;
     const frame = new CallFrame(func, retIndex, this.stack);
@@ -900,7 +919,7 @@ VM.prototype.invokeValue = function (prop, arity) {
 };
 
 VM.prototype.isBuiltinDef = function (defVal) {
-    return rcore.builtins.includes(defVal.asDef().dname.raw);
+    return rcore.builtinDefs.includes(defVal.asDef().dname.raw);
 };
 
 VM.prototype.run = function (externCaller) {

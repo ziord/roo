@@ -5,10 +5,10 @@
 "use strict";
 
 const ast = require("./ast");
-const errors = require("./errors");
-const tokens = require("./tokens");
-const { Token, Lexer } = require("./lexer");
-const utils = require("./utils");
+const errors = require("../lexer/errors");
+const tokens = require("../lexer/tokens");
+const { Token, Lexer } = require("../lexer/lexer");
+const utils = require("../utils");
 
 // token-type -> binding-power | prefix | infix
 

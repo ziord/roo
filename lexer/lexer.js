@@ -4,7 +4,7 @@
 
 "use strict";
 
-const { assert } = require("./utils");
+const { assert } = require("../utils");
 const tokens = require("./tokens");
 const errors = require("./errors");
 

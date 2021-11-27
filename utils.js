@@ -25,11 +25,11 @@ function error(msg){
    process.exit(-1);
 }
 
-function exitVM(code){
+function exit(code){
     process.exit(code !== undefined ? code : -1);
 }
 
 module.exports = {
     UINT16_MAX, UINT16_COUNT, MAX_FUNCTION_PARAMS, MAX_UPVALUE_COUNT,
-    assert, out, print, unreachable, error, exitVM
+    assert, out, print, unreachable, error, exit
 };

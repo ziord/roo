@@ -5,7 +5,7 @@
 
 "use strict";
 
-const { assert, print, unreachable, UINT16_MAX, error } = require("./utils");
+const { assert, print, unreachable } = require("../utils");
 
 // roo value types
 const VAL_INT = 0,
@@ -50,7 +50,7 @@ function StringObject(str, def = null) {
  * @param {DefObject} def: the list's definition
  * @constructor
  */
-function ListObject(elements =  null, def = null) {
+function ListObject(elements = null, def = null) {
     this.elements = elements;
     this.def = def;
 }
@@ -75,8 +75,8 @@ function DictObject(table = null, def = null) {
  * @param {boolean} isLambda: flag for whether the function is a lambda func
  * @constructor
  */
-function FunctionObject(name, arity, code, isLambda){
-    this.fname = name;  /*StringObject*/
+function FunctionObject(name, arity, code, isLambda) {
+    this.fname = name; /*StringObject*/
     this.arity = arity;
     this.code = code;
     this.isLambda = isLambda;
@@ -86,7 +86,7 @@ function FunctionObject(name, arity, code, isLambda){
     this.defaults = [];
     this.defaultParamsCount = 0;
     this.isStaticMethod = false;
-    this.builtinMethod = null;  // builtin executable
+    this.builtinMethod = null; // builtin executable
 }
 
 /**
@@ -98,14 +98,14 @@ function DefObject(name /*StringObject*/, baseDef = null /*DefObject*/) {
     this.dname = name;
     this.dmethods = new Map();
     this.baseDef = baseDef;
-    this.def = null;  // the meta def(inition) - the highest hierarchy.
+    this.def = null; // the meta def(inition) - the highest hierarchy.
 }
 
 /**
  * @param {DefObject} defObj: the instance's definition
  * @constructor
  */
-function InstanceObject(defObj){
+function InstanceObject(defObj) {
     this.def = defObj;
     this.props = new Map();
 }
@@ -116,7 +116,7 @@ function InstanceObject(defObj){
  * @param {Value} method: FunctionObject embedded in a Value()
  * @constructor
  */
-function BoundMethodObject(inst, method){
+function BoundMethodObject(inst, method) {
     this.instance = inst;
     this.method = method; // Value(FunctionObject)
 }
@@ -220,11 +220,11 @@ InstanceObject.prototype.setProperty = function (
  * Value methods
  */
 
-Value.fromValue = function (valObj, value){
+Value.fromValue = function (valObj, value) {
     return new Value(valObj.type, value);
 };
 
-Value.prototype.isNumber = function() {
+Value.prototype.isNumber = function () {
     return (
         this.type === VAL_INT ||
         this.type === VAL_FLOAT ||
@@ -232,62 +232,59 @@ Value.prototype.isNumber = function() {
     );
 };
 
-Value.prototype.isString = function() {
+Value.prototype.isString = function () {
     return this.type === VAL_STRING;
 };
 
-Value.prototype.isInt = function() {
-    return (
-        this.type === VAL_INT ||
-        this.type === VAL_BOOLEAN
-    );
+Value.prototype.isInt = function () {
+    return this.type === VAL_INT || this.type === VAL_BOOLEAN;
 };
 
-Value.prototype.isFloat = function() {
+Value.prototype.isFloat = function () {
     return this.type === VAL_FLOAT;
 };
 
-Value.prototype.isBoolean = function() {
+Value.prototype.isBoolean = function () {
     return this.type === VAL_BOOLEAN;
 };
 
-Value.prototype.isNull = function() {
+Value.prototype.isNull = function () {
     return this.type === VAL_NULL;
 };
 
-Value.prototype.isList = function() {
+Value.prototype.isList = function () {
     return this.type === VAL_LIST;
 };
 
-Value.prototype.isDict = function(){
-  return this.type === VAL_DICT;
+Value.prototype.isDict = function () {
+    return this.type === VAL_DICT;
 };
 
-Value.prototype.isFunction = function(){
+Value.prototype.isFunction = function () {
     return this.type === VAL_FUNCTION;
 };
 
-Value.prototype.isDef = function(){
+Value.prototype.isDef = function () {
     return this.type === VAL_DEFINITION;
 };
 
-Value.prototype.isInstance = function(){
+Value.prototype.isInstance = function () {
     return this.type === VAL_INSTANCE;
 };
 
-Value.prototype.isBoundMethod = function(){
+Value.prototype.isBoundMethod = function () {
     return this.type === VAL_BOUND_METHOD;
 };
 
-Value.prototype.isBFunction = function(){
+Value.prototype.isBFunction = function () {
     return this.type === VAL_BFUNCTION;
 };
 
-Value.prototype.isBuiltinObject = function(){
+Value.prototype.isBuiltinObject = function () {
     return builtin_obj_types.includes(this.type);
 };
 
-Value.prototype.getBuiltinDef = function(){
+Value.prototype.getBuiltinDef = function () {
     assert(
         this.value.def !== undefined,
         "Value::getBuiltinDef() - Does not have a builtin def"
@@ -455,11 +452,11 @@ Value.prototype.stringify = function (includeQuotes = false, rvm = null) {
 
 Value.prototype.toString = Value.prototype.stringify;
 
-Value.prototype.printValue = function() {
+Value.prototype.printValue = function () {
     print(this.toString());
 };
 
-Value.prototype.listEquals = function listEquals(other){
+Value.prototype.listEquals = function listEquals(other) {
     if (this.value.elements.length !== other.value.elements.length)
         return false;
     else if (this.value === other.value) return true;
@@ -482,7 +479,7 @@ Value.prototype.dictEquals = function dictEquals(other) {
     return true;
 };
 
-Value.prototype.equals = function(otherVal) {
+Value.prototype.equals = function (otherVal) {
     if (this.isNumber() && otherVal.isNumber()) {
         return this.value === otherVal.value;
     } else {
@@ -503,7 +500,10 @@ Value.prototype.equals = function(otherVal) {
             case VAL_DICT:
                 return this.dictEquals(otherVal);
             case VAL_BOUND_METHOD:
-                return this.asBoundMethod().method === otherVal.asBoundMethod().method;
+                return (
+                    this.asBoundMethod().method ===
+                    otherVal.asBoundMethod().method
+                );
             case VAL_OBJECT:
                 // todo: update
                 return false;
@@ -623,31 +623,6 @@ function createFloatVal(floatVal) {
     return new Value(VAL_FLOAT, floatVal);
 }
 
-/*
- * ConstantPool
- */
-function ConstantPool() {
-    // a pool of constants
-    this.pool = [];
-}
-
-ConstantPool.prototype.length = function() {
-    return this.pool.length;
-};
-
-ConstantPool.prototype.writeConstant = function(val) {
-    assert(val, "ConstantPool::writeConstant()::Expected value");
-    if (this.pool.length > UINT16_MAX){
-        error("Too many constants")
-    }
-    this.pool.push(val);
-    return this.pool.length - 1;
-};
-
-ConstantPool.prototype.readConstant = function (index){
-    return this.pool[index];
-};
-
 module.exports = {
     assert,
     Value,
@@ -666,7 +641,6 @@ module.exports = {
     createFunctionObj,
     createFunctionVal,
     createListVal,
-    ConstantPool,
     createDefVal,
     createInstanceVal,
     createBoundMethodVal,
@@ -683,5 +657,5 @@ module.exports = {
     VAL_DEFINITION,
     VAL_INSTANCE,
     VAL_BOUND_METHOD,
-    VAL_BFUNCTION
+    VAL_BFUNCTION,
 };

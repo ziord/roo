@@ -1,6 +1,6 @@
 "use strict";
 
-const ast = require("./ast");
+const ast = require("../parser/ast");
 const ASTType = ast.ASTType;
 
 /*

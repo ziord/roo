@@ -5,9 +5,15 @@
 
 "use strict";
 
-const {assert, ConstantPool} = require("./value");
+const { assert } = require("../utils");
+const { ConstantPool } = require("../constant/cp");
 
-function Code(lineGen=null) {
+/**
+ * Code object
+ * @param {Lexer} lineGen: Source line generator
+ * @constructor
+ */
+function Code(lineGen = null) {
     this.length = 0;
     this.capacity = 0;
     this.lines = [];
@@ -39,12 +45,12 @@ Code.prototype.writeByte = function (byte, line) {
     this.bytes[this.length++] = byte;
     this.lines.push(line);
     if (!this.lineGen) return;
-    if (this.lines[this.lines.length - 2] !==
-        this.lines[this.lines.length - 1])
-    {
+    if (
+        this.lines[this.lines.length - 2] !== this.lines[this.lines.length - 1]
+    ) {
         const srcAtLine = this.lineGen.getSrcAtLine(line);
         this.srcLines.push(srcAtLine);
-    }else{
+    } else {
         this.srcLines.push(0xff);
     }
 };
@@ -55,17 +61,13 @@ Code.prototype.writeBytes = function (first, second, line) {
 };
 
 Code.prototype.resetBy = function (count) {
-    this.length ? this.length -= count : void 0;
-    (this.srcLines.length >= count)
-        ? this.srcLines.length -= count
-        : void 0;
-    (this.lines.length >= count)
-        ? this.lines.length -= count
-        : void 0;
+    this.length ? (this.length -= count) : void 0;
+    this.srcLines.length >= count ? (this.srcLines.length -= count) : void 0;
+    this.lines.length >= count ? (this.lines.length -= count) : void 0;
 };
 
 Code.prototype.getCode = function () {
     return this.bytes;
 };
 
-module.exports = {Code};
+module.exports = { Code };

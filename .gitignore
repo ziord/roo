@@ -1,6 +1,6 @@
 .idea
 grammars
-test
+tests
 tmp
 std
 *.roo

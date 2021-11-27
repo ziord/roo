@@ -61,5 +61,5 @@ module.exports = {
     OP_INVOKE: 55,
     OP_DERIVE: 56,
     OP_INVOKE_DEREF: 57,
-    OP_GET_DEREF_PROPERTY: 58
+    OP_GET_DEREF_PROPERTY: 58,
 };

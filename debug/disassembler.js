@@ -1,12 +1,12 @@
 /*
- * debug.js
+ * disassembler.js
  *
  */
 
 "use strict";
 
-const opcode = require("./opcode");
-const { out, print } = require("./utils");
+const opcode = require("../code/opcode");
+const { out, print } = require("../utils");
 const pad = 24;
 
 function Disassembler(func, showSrcLines = false) {
