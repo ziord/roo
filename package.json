@@ -1,0 +1,18 @@
+{
+  "name": "roo",
+  "version": "0.1.0",
+  "description": "The Roo Programming Language",
+  "main": "bin/cli.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "roo": "./bin/cli.js"
+  },
+  "keywords": ["cli"],
+  "author": "ziord",
+  "license": "MIT"
+}
