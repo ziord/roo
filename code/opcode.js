@@ -12,7 +12,7 @@ module.exports = {
     OP_LOAD_NULL: 6,
     OP_LOAD_TRUE: 7,
     OP_LOAD_FALSE: 8,
-    OP_POSITIVE: 9,
+    OP_POSITIVE: 9,  // todo: remove
     OP_NEGATE: 10,
     OP_BW_INVERT: 11,
     OP_NOT: 12,
@@ -40,7 +40,7 @@ module.exports = {
     OP_SET_SUBSCRIPT: 34,
     OP_INC: 35,
     OP_DEC: 36,
-    OP_DEFINE_LOCAL: 37,
+    OP_DEFINE_LOCAL: 37,  // todo: remove
     OP_GET_LOCAL: 38,
     OP_SET_LOCAL: 39,
     OP_FORMAT: 40,

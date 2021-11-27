@@ -1172,12 +1172,12 @@ class Compiler extends ast.NodeVisitor {
         node.decls.forEach(decl => this.visit(decl));
     }
 
-    compile(node) {
+    compile(node, interned = null) {
         // todo: optimization 
         // let optimizer = new opt.ConstantFolder(node, this.parser);
         // node = optimizer.fold();
         // console.log(node);
-        this.strings = new Map();
+        this.strings = interned || new Map();
         this.visit(node);
         gen.emitByte(this.fn.code, opcode.OP_RETURN);
         return this.fn;

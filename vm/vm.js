@@ -94,9 +94,10 @@ const MAX_RANGE_LENGTH = 10000000;  // todo
  * @param {FunctionObject} func
  * @param {boolean} debug
  * @param {Map<string, StringObject>} strings
+ * @param {boolean} repl: flag indicating if the VM is invoked in a repl
  * @constructor
  */
-function VM(func, debug = true, strings = null) {
+function VM(func, debug = true, strings = null, repl = false) {
     // inits
     this.debug = debug;
     this.atError = false;
@@ -104,6 +105,8 @@ function VM(func, debug = true, strings = null) {
     this.frames = [];
     this.fp = null; // frame pointer; current frame
     this.sp = 0; // stack pointer
+    this.popCallback = null;  // todo
+    this.setPopCallback(repl);  // todo
     this.builtins = new Map();
     this.globals = new Map();
     this.internedStrings = strings || new Map();
@@ -145,11 +148,21 @@ function CallFrame(func, retPoint, stack) {
  * has originally been created.
  * @param {FunctionObject} fnObj
  */
-VM.prototype.initFrom = function(fnObj) {
+VM.prototype.initFrom = function (fnObj) {
     // push 'script' function to stack
     this.pushStack(createFunctionVal(fnObj));
     // push 'script' frame
     this.pushFrame(fnObj);
+    rcore.initInternedStrings(this, null);
+};
+
+VM.prototype.setPopCallback = function (repl) {
+    // set the callback used in handling an OP_POP instruction; this
+    // allows the VM to overload the pop instruction depending
+    // on the environment the VM is being invoked in.
+    this.popCallback = repl
+        ? (val) => print(val.stringify(true, this))
+        : () => {};
 };
 
 VM.prototype.iOK = function () {
@@ -162,6 +175,10 @@ VM.prototype.iERR = function () {
 
 VM.prototype.atFault = function () {
     return this.atError;
+};
+
+VM.prototype.clearError = function () {
+    this.atError = false;
 };
 
 VM.prototype.readByte = function () {
@@ -1083,7 +1100,7 @@ VM.prototype.run = function (externCaller) {
                 break;
             }
             case OP_POP: {
-                this.popStack();
+                this.popCallback(this.popStack()); // todo
                 break;
             }
             case OP_DEFINE_GLOBAL: {

@@ -6,9 +6,15 @@ const { parseSourceInternal } = require("../parser/parser");
 const { Compiler } = require("../compiler/compiler");
 
 exports.compileSourceCode = function(src) {
-    let [root, parser] = parseSourceInternal(src);
-    let compiler = new Compiler(parser);
+    const [root, parser] = parseSourceInternal(src);
+    const compiler = new Compiler(parser);
     return [compiler.compile(root), compiler];
+};
+
+exports.compileSourceCodeFromRepl = function(src, interned) {
+    const [root, parser] = parseSourceInternal(src);
+    const compiler = new Compiler(parser);
+    return [compiler.compile(root, interned), compiler];
 };
 
 exports.runSourceCode = function(src) {

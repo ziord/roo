@@ -75,6 +75,7 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_DOT_DOT:              return "..";
         case tokens.TOKEN_DOT_DOT_DOT:          return "...";
         case tokens.TOKEN_PIPE:                 return "|>";
+        case tokens.TOKEN_AT:                   return "@";
         case tokens.TOKEN_HEXINT_NUMBER:        return "hex";
         case tokens.TOKEN_INT_NUMBER:           return "int";
         case tokens.TOKEN_FLOAT_NUMBER:         return "float";
@@ -542,12 +543,11 @@ Lexer.prototype.lexString = function (start, isIString){
             continue;
         }
         if (tmp === start){
-            break;
+            return this.newToken(tokens.TOKEN_STRING, str);
         }
         str += tmp;
     }
-    if (this.atEnd() && tmp !== start) return this.errorToken(errors.EL0003);
-    return this.newToken(tokens.TOKEN_STRING, str);
+    return this.errorToken(errors.EL0003);
 };
 
 Lexer.prototype.getToken = function() {
@@ -575,8 +575,8 @@ Lexer.prototype.getToken = function() {
         }
     }
     this.skipWhitespace();
-    if (this.atError) return this.errorToken(this.errorCode);
     if (this.atEnd()) return this.eofToken();
+    if (this.atError) return this.errorToken(this.errorCode);
     this.startIndex = this.currentIndex;
     let char = this.move();
     if (isAlpha(char)){

@@ -131,7 +131,10 @@ BPTable[tokens.TOKEN_ERROR] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_EOF] = bp(POWER_NONE, null, null);
 
 function Parser(src) {
-    this.atError = false;
+    // has the parser encountered an error?
+    this.hadError = false;
+    // sho n para lowo?
+    this.panicking = false;
     this.lexer = new Lexer(src);
     this.currentToken = null;
     this.previousToken = null;
@@ -238,14 +241,20 @@ Parser.prototype.pError = function(errorCode, args) {
          |       ^^
          | Consider changing the operator to '='
      */
-    this.atError = true; // todo
+
+    // return if an error was previously reported,
+    // helpful when the parser is panicking.
+    if (this.panicking) return;
+    let isWarning = args && args.warn;
+    this.hadError = Boolean(!isWarning);
+    this.panicking = this.hadError;
     let error = errors.RError[errorCode];
-    let warning = args && args.warn ? "[Warning] " : " ";
+    let warningMsg = isWarning ? "[Warning] " : " ";
     let token = args ? (args["token"] || this.currentToken) : this.currentToken;
     let helpMsg = args ? (args["helpMsg"] || error.helpMsg) : error.helpMsg;
     let helpInfo = "";
     let lineNum = `${token.line}`.padStart(4, " ");
-    let errMsg = ` |[${errorCode}]${warning}${error.errorMsg}\n`;
+    let errMsg = ` |[${errorCode}]${warningMsg}${error.errorMsg}\n`;
     let padding = "|".padStart(6, " ") + " ";
     let [src, squigglePadding] = this.lexer.getSrcWithPaddingAtLine(token);
     let errSrc = padding + src + "\n";
@@ -266,7 +275,6 @@ Parser.prototype.pError = function(errorCode, args) {
         }
     }
     console.error(lineNum + errMsg + errSrc + helpInfo);
-    warning.trim() ? void 0 : process.exit(-1);
 };
 
 Parser.prototype.consume = function(tokenType, errorCode) {
@@ -312,6 +320,15 @@ Parser.prototype.parse = function(bp) {
 
 Parser.prototype.check = function(tokenType) {
     return this.currentToken.type === tokenType;
+};
+
+Parser.prototype.isNotMatching = function (tokenType) {
+    return (
+        !this.check(tokenType) &&
+        !this.check(tokens.TOKEN_EOF) &&
+        !this.check(tokens.TOKEN_ERROR) &&
+        !this.hadError
+    );
 };
 
 Parser.prototype.match = function(tokenType) {
@@ -614,10 +631,7 @@ function dictLiteral(fromBlock) {
     } else {
         this.consume(tokens.TOKEN_LEFT_CURLY);
     }
-    while (!this.check(tokens.TOKEN_RIGHT_CURLY)
-        && !this.check(tokens.TOKEN_EOF)
-        && !this.check(tokens.TOKEN_ERROR))
-    {
+    while (this.isNotMatching(tokens.TOKEN_RIGHT_CURLY)) {
         this.expression();
         const key = this.pop();
         this.consume(tokens.TOKEN_COLON);
@@ -690,11 +704,8 @@ function derefExpr() {
     dotExpr.call(this);
 }
 
-function argsList(args){
-    while (!this.check(tokens.TOKEN_RIGHT_BRACKET)
-        && !this.check(tokens.TOKEN_EOF)
-        && !this.check(tokens.TOKEN_ERROR))
-    {
+function argsList(args) {
+    while (this.isNotMatching(tokens.TOKEN_RIGHT_BRACKET)) {
         this.expression();
         args.push(this.pop());
         this.match(tokens.TOKEN_COMMA);
@@ -841,7 +852,7 @@ function callExpr() {
 }
 
 /*
- * prototype assignments
+ * methods
  */
 
 Parser.prototype.exprStatement = function() {
@@ -866,10 +877,7 @@ Parser.prototype.caseStatement = function () {
         caseNode.conditionExpr = this.pop();
     }
     this.consume(tokens.TOKEN_LEFT_CURLY);
-    while (!this.check(tokens.TOKEN_RIGHT_CURLY)
-    && !this.check(tokens.TOKEN_EOF)
-    && !this.check(tokens.TOKEN_ERROR))
-    {
+    while (this.isNotMatching(tokens.TOKEN_RIGHT_CURLY)) {
         const node = ofStmt.call(this);
         caseNode.arms.push(node);
     }
@@ -965,6 +973,7 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
                     this.pError(errors.EP0029, {
                         token: this.previousToken,
                     });
+                    return;
                 }
                 isSpread = hasSpreadParameter = true;
             }
@@ -979,6 +988,7 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
                 this.pError(errors.EP0033, {
                     token: this.previousToken,
                 });
+                return;
             }
             right = left.rightNode;
             left = left.leftNode;
@@ -988,6 +998,7 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
             // only a spread parameter is allowed after a parameter
             // with a default value
             this.pError(errors.EP0032, { token: this.previousToken });
+            return;
         }
         const commaToken = this.currentToken;
         this.match(tokens.TOKEN_COMMA);
@@ -995,6 +1006,7 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
         if (hasSpreadParameter && this.check(tokens.TOKEN_IDENTIFIER)) {
             // spread parameter not the last parameter
             this.pError(errors.EP0030);
+            return;
         }
         utils.assert(
             left instanceof ast.VarNode,
@@ -1006,6 +1018,7 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
                 this.pError(errors.EP0031, { token });
             }
         });
+        if (this.hadError) return;
         // store param
         params.push(new ast.ArgumentNode(left, right, line));
         // reset variables for processing of the next parameter
@@ -1019,6 +1032,7 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
         ) {
             // error if trailing comma is found in the parameter list
             this.pError(errors.EP0034, { token: commaToken });
+            return;
         }
     }
     fn.isVariadic = hasSpreadParameter;
@@ -1078,6 +1092,36 @@ Parser.prototype.purgeReturn = function(blockNode, token){
     decls.push(new ast.ReturnNode(
         new ast.VarNode("ref", line),
         line));
+};
+
+Parser.prototype.synchronize = function () {
+    // reset the panic flag;
+    this.panicking = false;
+    // skip tokens until we hit a new statement boundary.
+    while (this.currentToken.type !== tokens.TOKEN_EOF) {
+        // if (this.previousToken.type === tokens.TOKEN_SEMI_COLON) return;
+        switch (this.currentToken.type) {
+            case tokens.TOKEN_FOR:
+            case tokens.TOKEN_SHOW:
+            case tokens.TOKEN_IF:
+            case tokens.TOKEN_WHILE:
+            case tokens.TOKEN_DO:
+            case tokens.TOKEN_LOOP:
+            case tokens.TOKEN_CASE:
+            case tokens.TOKEN_BREAK:
+            case tokens.TOKEN_CONTINUE:
+            case tokens.TOKEN_RETURN:
+            case tokens.TOKEN_LET:
+            case tokens.TOKEN_FN:
+            case tokens.TOKEN_STATIC:
+            case tokens.TOKEN_DEFINE:
+            case tokens.TOKEN_AT:
+            case tokens.TOKEN_DERIVE:
+                return;
+            default: // pass
+        }
+        this.advance();
+    }
 };
 
 Parser.prototype.returnStatement = function() {
@@ -1324,7 +1368,7 @@ Parser.prototype.defDecl = function (consumeArrow) {
     }
     this.consume(tokens.TOKEN_LEFT_CURLY);
     // methods
-    while (!this.check(tokens.TOKEN_RIGHT_CURLY)) {
+    while (this.isNotMatching(tokens.TOKEN_RIGHT_CURLY)) {
         if (this.check(tokens.TOKEN_AT)) {
             // decorators aren't yet supported for methods
             this.pError(errors.EP0041);
@@ -1454,17 +1498,15 @@ Parser.prototype.declaration = function declaration() {
         default:
             this.statement();
     }
+    if (this.panicking) this.synchronize();
 };
 
-Parser.prototype.block = function() {
+Parser.prototype.block = function () {
     this.enterScope();
     const lineStart = this.currentToken.line;
     this.consume(tokens.TOKEN_LEFT_CURLY);
     let decls = [];
-    while (!this.check(tokens.TOKEN_RIGHT_CURLY)
-        && !this.check(tokens.TOKEN_EOF)
-        && !this.check(tokens.TOKEN_ERROR))
-    {
+    while (this.isNotMatching(tokens.TOKEN_RIGHT_CURLY)) {
         this.declaration();
         // are we really in a block? we're not if for example,
         // the declaration found was a dict {'k': v} expression
@@ -1536,7 +1578,7 @@ function parseSourceInternal(src) {
     let parser = new Parser(src);
     parser.advance();
     parser.program();
-    return [parser.pop(), parser];
+    return [parser.hadError ? new ast.ProgramNode() : parser.pop(), parser];
 }
 
 function parseSource(src) {

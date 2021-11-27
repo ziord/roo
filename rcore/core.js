@@ -15,6 +15,19 @@ const rnum = require("../rcore/rnum");
 /******************
  * Initialization *
  ******************/
+
+exports.initInternedStrings = function (rvm, strObj) {
+    strObj = strObj || mod.getStringObj("String", rvm.internedStrings);
+    const strDef = rvm.builtins.get(strObj).asDef();
+    // associate the builtin String def with all string objects
+    for (let [_, value] of rvm.internedStrings) {
+        // key -> string | value -> StringObject()
+        if (!value.def) {
+            value.def = strDef;
+        }
+    }
+};
+
 exports.initAll = function(rvm) {
     // intern the string "String"
     const strObj = mod.getStringObj("String", rvm.internedStrings);
