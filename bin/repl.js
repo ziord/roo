@@ -47,7 +47,7 @@ function inspectLine(line, inMLString, inMLComment, depth) {
             i += 1;
         }
     }
-    return [inMLString, inMLComment, depth];
+    return [inMLString, inMLComment, (depth < 0 ? 0 : depth)];
 }
 
 function execute(src, interned, vm) {
