@@ -127,6 +127,8 @@ BPTable[tokens.TOKEN_MATCH] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_CASE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_STATIC] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_STRUCT] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_DEFINE] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_DERIVE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_ERROR] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_EOF] = bp(POWER_NONE, null, null);
 
@@ -242,8 +244,8 @@ Parser.prototype.pError = function(errorCode, args) {
          | Consider changing the operator to '='
      */
 
-    // return if an error was previously reported,
-    // helpful when the parser is panicking.
+    // return if an error was previously reported, helpful when the parser is
+    // panicking - to prevent too many error reports/cascading error messages.
     if (this.panicking) return;
     let isWarning = args && args.warn;
     this.hadError = Boolean(!isWarning);
@@ -804,25 +806,29 @@ function lambdaExpr(firstParam, skipRightBracket) {
     // when there are multiple parameters in the lambda function declaration.
     if (!skipRightBracket) {
         this.parseFunctionParams(
-            fn, firstParam,
+            fn,
+            firstParam,
             this.check(tokens.TOKEN_DOT_DOT_DOT)
         );
         this.consume(tokens.TOKEN_RIGHT_BRACKET);
     }
     // drops here if there's only one argument
     else if (firstParam) {
-        let line = firstParam.line, left, right;
+        let line = firstParam.line,
+            left,
+            right;
         // we get an `AssignNode` if a default parameter was declared
         if (firstParam instanceof ast.AssignNode) {
             right = firstParam.rightNode;
             left = firstParam.leftNode;
             fn.defaultParamsCount++;
-        } else { // else a `VarNode`
+        } else if (firstParam instanceof ast.VarNode) {
+            // else a `VarNode`
             left = firstParam;
+        } else {
+            this.pError(errors.EP0045, { token: this.previousToken });
         }
-        fn.params.push(new ast.ArgumentNode(
-            left, right, line
-        ));
+        fn.params.push(new ast.ArgumentNode(left, right, line));
     }
     this.consume(tokens.TOKEN_FAT_ARROW);
     const beginLine = this.currentToken.line;
@@ -858,7 +864,7 @@ function callExpr() {
 Parser.prototype.exprStatement = function() {
     const line = this.currentToken.line;
     this.expression();
-    if (this.check(tokens.TOKEN_COLON)) {
+    if (this.check(tokens.TOKEN_COLON) && this.blockSet) {
         this.backtrack = true;
         dictLiteral.call(this, true);
     }
@@ -1505,6 +1511,9 @@ Parser.prototype.block = function () {
     this.enterScope();
     const lineStart = this.currentToken.line;
     this.consume(tokens.TOKEN_LEFT_CURLY);
+    // set a flag indicating that the left curly token was consumed,
+    // useful when this block is actually a dict and not a block.
+    this.blockSet = true;
     let decls = [];
     while (this.isNotMatching(tokens.TOKEN_RIGHT_CURLY)) {
         this.declaration();
@@ -1520,6 +1529,7 @@ Parser.prototype.block = function () {
         decls.push(this.pop());
     }
     this.consume(tokens.TOKEN_RIGHT_CURLY);
+    this.blockSet = false;
     this.leaveScope();
     this.push(new ast.BlockNode(decls, lineStart, this.previousToken.line));
 };

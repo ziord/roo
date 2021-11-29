@@ -9,28 +9,61 @@ function showPrompt(cons, depth) {
     let prompt;
     if (depth) {
         prompt = "...";
-        for (let i = 0; i < depth; ++i) prompt += "..";
+        for (let i = 0; i < depth - 1; ++i) prompt += "..";
         prompt += " ";
     } else {
-        prompt = ">>> ";
+        prompt = ">> ";
     }
     cons.setPrompt(prompt);
     cons.prompt();
 }
 
+function inspectLine(line, inMLString, inMLComment, depth) {
+    let strStart = null,
+        ch = null;
+    for (let i = 0; i < line.length; ++i) {
+        ch = line[i];
+        if ((ch === '"' || ch === "'") && !inMLComment) {
+            if (strStart) {
+                if (strStart === ch) {
+                    inMLString = !inMLString;
+                    strStart = null;
+                }
+            } else {
+                strStart = ch;
+                inMLString = !inMLString;
+            }
+        } else if (inMLString) {
+            void 0;
+        } else if (ch === "{" && !inMLComment) {
+            depth++;
+        } else if (ch === "}" && !inMLComment) {
+            depth--;
+        } else if (ch === "/" && line[i + 1] === "*") {
+            inMLComment = true;
+            i += 1;
+        } else if (ch === "*" && line[i + 1] === "/") {
+            inMLComment = false;
+            i += 1;
+        }
+    }
+    return [inMLString, inMLComment, depth];
+}
+
 function execute(src, interned, vm) {
     const [fnObj, compiler] = vmApi.compileSourceCodeFromRepl(src, interned);
+    interned = compiler.strings;
     if (vm) {
         vm.initFrom(fnObj);
     } else {
-        vm = new VM(fnObj, false, compiler.strings, true); // todo
+        vm = new VM(fnObj, false, interned, true); // todo
     }
     if (vm.run() !== vm.iOK()) {
         // clear the error state, as this will prevent the VM from being
         // re-used (newer instructions will not be executed) if not cleared.
         vm.clearError();
     }
-    return [vm, compiler.strings];
+    return [vm, interned];
 }
 
 function repl() {
@@ -41,26 +74,21 @@ function repl() {
     let src = "",
         depth = 0,
         inMLComment = false,
+        inMLString = false,
         interned = null,
         vm = null;
 
     showPrompt(cons, depth);
 
     cons.on("line", (line) => {
-        for (let i = 0; i < line.length; ++i) {
-            let ch = line[i];
-            if (ch === "{" && !inMLComment) depth++;
-            else if (ch === "}" && !inMLComment) depth--;
-            else if (ch === "/" && line[i + 1] === "*") {
-                inMLComment = true;
-                i += 1;
-            } else if (ch === "*" && line[i + 1] === "/") {
-                inMLComment = false;
-                i += 1;
-            }
-        }
+        [inMLString, inMLComment, depth] = inspectLine(
+            line,
+            inMLString,
+            inMLComment,
+            depth
+        );
         src += line + "\n";
-        if (inMLComment) {
+        if (inMLComment || inMLString) {
             // display the prompt using the current depth,
             // if available or a depth of 1
             showPrompt(cons, depth || 1);

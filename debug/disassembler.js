@@ -9,10 +9,11 @@ const opcode = require("../code/opcode");
 const { out, print } = require("../utils");
 const pad = 24;
 
-function Disassembler(func, showSrcLines = false) {
+function Disassembler(func, showSrcLines = false, repl = false) {
     this.func = func;
     this.code = func.code;
     this.name = func.fname;
+    this.envName = repl ? "repl" : "script";
     this.showSrcLines = showSrcLines;
     this.hasSrcLines = Boolean(this.code.srcLines.length);
 }
@@ -326,7 +327,7 @@ Disassembler.prototype.getInstructionOffset = function (index) {
 };
 
 Disassembler.prototype.disassembleCode = function () {
-    print(`==Disassembly of ${this.name ? this.name.raw : "script"}==`);
+    print(`==Disassembly of ${this.name ? this.name.raw : this.envName}==`);
     for (let index = 0; index < this.code.length; ) {
         index = this.disassembleInstruction(index);
     }

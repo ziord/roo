@@ -105,6 +105,7 @@ function VM(func, debug = true, strings = null, repl = false) {
     this.frames = [];
     this.fp = null; // frame pointer; current frame
     this.sp = 0; // stack pointer
+    this.envName = repl ? "repl" : "script";
     this.popCallback = null;  // todo
     this.setPopCallback(repl);  // todo
     this.builtins = new Map();
@@ -113,9 +114,9 @@ function VM(func, debug = true, strings = null, repl = false) {
     this.initializerMethodName = getStringObj("__init__", this.internedStrings);
     this.stringMethodName = getStringObj("__str__", this.internedStrings);
 
-    // push 'script' function to stack
+    // push 'environment' function on the value stack
     this.pushStack(createFunctionVal(func));
-    // push 'script' frame
+    // push 'environment' frame
     this.pushFrame(func);
     // register all builtin/core functions
     rcore.initAll(this);
@@ -149,9 +150,9 @@ function CallFrame(func, retPoint, stack) {
  * @param {FunctionObject} fnObj
  */
 VM.prototype.initFrom = function (fnObj) {
-    // push 'script' function to stack
+    // push 'environment' function on the value stack
     this.pushStack(createFunctionVal(fnObj));
-    // push 'script' frame
+    // push 'environment' frame
     this.pushFrame(fnObj);
     rcore.initInternedStrings(this, null);
 };
@@ -228,7 +229,6 @@ VM.prototype.stackSize = function () {
 VM.prototype.pushFrame = function (func) {
     if (this.frames.length >= MAX_FRAMES_SIZE) {
         this.runtimeError("Stack overflow");
-        exit();
     }
     const retIndex = this.sp - 1 - func.arity;
     const frame = new CallFrame(func, retIndex, this.stack);
@@ -294,7 +294,7 @@ VM.prototype.runtimeError = function (...msg) {
         if (prevFrame && prevFrame.func.fname === this.fp.func.fname) {
             // todo
             repeatingFrameCount++;
-            if (repeatingFrameCount >= 7) {
+            if (repeatingFrameCount >= 4) {
                 prevFrame = this.popFrame();
                 continue;
             }
@@ -303,7 +303,7 @@ VM.prototype.runtimeError = function (...msg) {
         if (srcAtLine && srcAtLine !== 0xff) {
             const fnName = this.fp.func.fname
                 ? this.fp.func.fname.raw + "()"
-                : "script";
+                : this.envName;
             const lineNum = this.fp.func.code.lines[this.fp.ip];
             console.error(`<Line ${lineNum}: [${fnName}]>`); // todo: decide best strategy
             console.error(`  ${srcAtLine.trim()}`);
@@ -1330,7 +1330,7 @@ VM.prototype.run = function (externCaller) {
                 const val = this.popStack();
                 if (!this.fp) {
                     // !this.fp indicates that we've just popped the top-level
-                    // frame, which is the 'script' frame.
+                    // frame, which is the 'environment' frame.
                     return this.iOK();
                 }
                 /* if the frame popped isn't the top-level frame, then return

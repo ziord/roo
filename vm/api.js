@@ -18,13 +18,13 @@ exports.compileSourceCodeFromRepl = function(src, interned) {
 };
 
 exports.runSourceCode = function(src) {
-    const [fnObj, compiler] = compileSourceCode(src);
+    const [fnObj, compiler] = exports.compileSourceCode(src);
     const vm = new VM(fnObj, false, compiler.strings);
     return vm.run();
 };
 
 exports.disSourceCode = function(src) {
-    const  [fnObj] = compileSourceCode(src);
+    const  [fnObj] = exports.compileSourceCode(src);
     const dis = new Disassembler(fnObj, true);
     dis.disassembleCode();
 };

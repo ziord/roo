@@ -313,6 +313,12 @@ RError[EP0044] = createError(EP0044,
     `Using this now could break your code when it gets adopted in the future.${SEP}` +
     `Consider eliminating the leading and trailing '__'.`);
 
+RError[EP0045] = createError(EP0045,
+    "Illegal parameter list.",
+    `The parameter defined in the function is illegal.${SEP}` +
+    `Consider declaring valid parameter(s).`);
+
+
 module.exports = {
     RError,
     EL0000,  // no error
