@@ -97,9 +97,11 @@ function repl() {
             showPrompt(cons, depth);
             return;
         } else if (line.endsWith("}")) {
-            showPrompt(cons, depth);
             // return if there's still a block depth
-            if (depth) return;
+            if (depth) {
+                showPrompt(cons, depth);
+                return;
+            }
         } else if (depth) {
             showPrompt(cons, depth);
             return;
