@@ -104,7 +104,6 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_BREAK:                return "break";
         case tokens.TOKEN_CONTINUE:             return "continue";
         case tokens.TOKEN_LOOP:                 return "loop";
-        case tokens.TOKEN_MATCH:                return "match";
         case tokens.TOKEN_CASE:                 return "case";
         case tokens.TOKEN_STATIC:               return "static";
         case tokens.TOKEN_STRUCT:               return "struct";
@@ -167,7 +166,6 @@ Lexer.keywords = function() {
         ["let", tokens.TOKEN_LET],
         ["true", tokens.TOKEN_TRUE],
         ["false", tokens.TOKEN_FALSE],
-        ["match", tokens.TOKEN_MATCH],
         ["return", tokens.TOKEN_RETURN],
         ["do", tokens.TOKEN_DO],
         ["loop", tokens.TOKEN_LOOP],

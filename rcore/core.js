@@ -6,10 +6,11 @@
 
 const mod = require("../constant/value");
 const functions = require("../rcore/functions");
-const rdict = require("../rcore/rdict");
-const rlist = require("../rcore/rlist");
-const rstring = require("../rcore/rstring");
-const rnum = require("../rcore/rnum");
+const rdict = require("./types/dict");
+const rlist = require("./types/list");
+const rstring = require("./types/string");
+const rnum = require("./types/num");
+const rresult = require("./types/result");
 
 
 /******************
@@ -36,6 +37,7 @@ exports.initAll = function(rvm) {
     rstring.init(rvm);  // string def is created here
     rlist.init(rvm);
     rdict.init(rvm);
+    rresult.init(rvm);
     const strDef = rvm.builtins.get(strObj).asDef();
     // associate the builtin String def with all string objects
     for (let [_, value] of rvm.internedStrings) {

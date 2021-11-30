@@ -1,8 +1,8 @@
 "use strict";
 
-const mod = require("../constant/value");
-const utils = require("../utils");
-const register = require("../rcore/register");
+const mod = require("../../constant/value");
+const utils = require("../../utils");
+const register = require("../register");
 
 /* * *Bool* * */
 

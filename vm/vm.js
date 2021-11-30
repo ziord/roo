@@ -106,14 +106,16 @@ function VM(func, debug = true, strings = null, repl = false) {
     this.fp = null; // frame pointer; current frame
     this.sp = 0; // stack pointer
     this.envName = repl ? "repl" : "script";
+    this.execFnNow = false;
     this.popCallback = null;  // todo
-    this.setPopCallback(repl);  // todo
     this.builtins = new Map();
     this.globals = new Map();
     this.internedStrings = strings || new Map();
     this.initializerMethodName = getStringObj("__init__", this.internedStrings);
     this.stringMethodName = getStringObj("__str__", this.internedStrings);
 
+    // set the callback handler for OP_POP instruction
+    this.setPopCallback(repl);  // todo
     // push 'environment' function on the value stack
     this.pushStack(createFunctionVal(func));
     // push 'environment' frame
@@ -157,15 +159,6 @@ VM.prototype.initFrom = function (fnObj) {
     rcore.initInternedStrings(this, null);
 };
 
-VM.prototype.setPopCallback = function (repl) {
-    // set the callback used in handling an OP_POP instruction; this
-    // allows the VM to overload the pop instruction depending
-    // on the environment the VM is being invoked in.
-    this.popCallback = repl
-        ? (val) => print(val.stringify(true, this))
-        : () => {};
-};
-
 VM.prototype.iOK = function () {
     return INTERPRET_RESULT_OK;
 };
@@ -174,7 +167,7 @@ VM.prototype.iERR = function () {
     return INTERPRET_RESULT_ERROR;
 };
 
-VM.prototype.atFault = function () {
+VM.prototype.hasError = function () {
     return this.atError;
 };
 
@@ -245,6 +238,23 @@ VM.prototype.popFrame = function () {
 VM.prototype.currentFrame = function () {
     return this.frames[this.frames.length - 1];
 };
+
+VM.prototype.setPopCallback = function (repl) {
+    // set the callback used in handling an OP_POP instruction; this
+    // allows the VM to overload the pop instruction depending
+    // on the environment the VM is being invoked in.
+    this.popCallback = repl
+        ? (val) => print(val.stringify(true, this))
+        : (_) => {};
+};
+
+VM.prototype.execNow = function (value, arity) {
+    this.execFnNow = true;
+    this.callValue(arity, value);
+    this.execFnNow = false;
+    return !this.hasError();
+};
+
 
 /*
  *   x  | int   | float | bool
@@ -804,6 +814,9 @@ VM.prototype.callFn = function (fnVal, callArity) {
     } else {
         // if not, just push the frame
         this.pushFrame(fnObj);
+        if (this.execFnNow) {
+            return this.run(fnVal);
+        }
     }
 };
 
@@ -849,8 +862,8 @@ VM.prototype.callBoundMethod = function (val, arity) {
     this.callFn(bm.method, arity);
 };
 
-VM.prototype.callValue = function (arity) {
-    let val = this.peekStack(arity);
+VM.prototype.callValue = function (arity, value = null) {
+    let val = value || this.peekStack(arity);
     if (val.isFunction()) {
         this.callFn(val, arity);
     } else if (val.isDef()) {
@@ -900,7 +913,7 @@ VM.prototype.invokeValue = function (prop, arity) {
         const inst = val.asInstance();
         if ((propVal = inst.getProperty(prop))) {
             /*
-             * simulate `OP_GET_PROPERTY idx` by placing the property
+             * simulate `OP_GET_PROPERTY index` by placing the property
              * on the stack at the instance's position, and allowing
              * callValue() handle the call
              */

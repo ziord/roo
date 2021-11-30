@@ -1,7 +1,7 @@
 "use strict";
 
-const mod = require("../constant/value");
-const register = require("../rcore/register");
+const mod = require("../../constant/value");
+const register = require("../register");
 
 /* * *Dict* * */
 
@@ -92,7 +92,7 @@ function dict__iter(rvm, arity) {
     // invoke and run the DictKeyIterator's init() method - init() is run
     // immediately because the DictKeyIterator's init method is a builtin method
     rvm.callDef(itrVal, 1);
-    if (rvm.atFault()) return rvm.dummyVal();
+    if (rvm.hasError()) return rvm.dummyVal();
     // the result would be the value on the stack
     return rvm.peekStack();
 }

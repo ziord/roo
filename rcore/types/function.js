@@ -1,6 +1,6 @@
 "use strict";
 
-const mod = require("../constant/value");
+const mod = require("../../constant/value");
 
 /* * *Function* * */
 

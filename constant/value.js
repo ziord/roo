@@ -284,6 +284,15 @@ Value.prototype.isBuiltinObject = function () {
     return builtin_obj_types.includes(this.type);
 };
 
+Value.prototype.isCallable = function () {
+    return (
+        this.isFunction() ||
+        this.isDef() ||
+        this.isBoundMethod() ||
+        this.isBFunction()
+    );
+};
+
 Value.prototype.getBuiltinDef = function () {
     assert(
         this.value.def !== undefined,
@@ -429,18 +438,14 @@ Value.prototype.stringify = function (includeQuotes = false, rvm = null) {
             ) {
                 // push instance
                 rvm.pushStack(this);
-                // push the method's frame
-                rvm.callFn(strMethod, 0);
-                // did an error occur when we tried to push the frame?
-                if (rvm.atFault()) return "";
-                // execute the method
-                const status = rvm.run(strMethod);
-                // obtain the result - this would have replaced the instance
-                // pushed on the stack, hence popping this off balances the
-                // stack effect.
-                const val = rvm.popStack(); // returns a Value()
-                if (status !== rvm.iOK()) return "";
-                return val.stringify(includeQuotes, rvm);
+                // execute the method now
+                if (rvm.execNow(strMethod, 0)) {
+                    // obtain the result - this would have replaced the instance
+                    // pushed on the stack, hence popping this off balances the
+                    // stack effect.
+                    return rvm.popStack().stringify(includeQuotes, rvm);
+                }
+                return "";
             }
             return `{ref ${this.asInstance().def.dname.raw}}`;
         }

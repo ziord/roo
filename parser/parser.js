@@ -123,7 +123,6 @@ BPTable[tokens.TOKEN_DEREF] = bp(POWER_NONE, derefExpr, null);
 BPTable[tokens.TOKEN_BREAK] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_CONTINUE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_LOOP] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_MATCH] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_CASE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_STATIC] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_STRUCT] = bp(POWER_NONE, null, null);

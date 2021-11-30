@@ -93,7 +93,6 @@ module.exports = {
     TOKEN_BREAK: 'TOKEN_BREAK',            // break
     TOKEN_CONTINUE: 'TOKEN_CONTINUE',         // continue
     TOKEN_LOOP: 'TOKEN_LOOP',             // loop
-    TOKEN_MATCH: 'TOKEN_MATCH',           // match
     TOKEN_CASE: 'TOKEN_CASE',             // case
     TOKEN_STATIC: 'TOKEN_STATIC',           // static
     TOKEN_STRUCT: 'TOKEN_STRUCT',           // struct

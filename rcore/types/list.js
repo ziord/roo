@@ -1,7 +1,7 @@
 "use strict";
 
-const mod = require("../constant/value");
-const register = require("../rcore/register");
+const mod = require("../../constant/value");
+const register = require("../register");
 
 /* * *List* * */
 
@@ -31,13 +31,12 @@ function list__length(rvm, arity) {
 function list__map(rvm, arity) {
     // list.map(callback)
     const callback = rvm.peekStack();
-    if (!callback.isFunction()) {
+    if (!callback.isCallable()) {
         list_fnError(rvm, callback);
         return rvm.dummyVal();
     }
     const listObj = rvm.peekStack(arity).asList(); // or rvm.peekStack(1)
     const arr = [];
-    let status;
     for (let i = 0; i < listObj.elements.length; ++i) {
         // *1* place the function on the stack again
         rvm.pushStack(callback);
@@ -46,12 +45,8 @@ function list__map(rvm, arity) {
         rvm.pushStack(listObj.elements[i]);
         // call the function:
         // 'map' expects a function accepting only 1 positional argument
-        rvm.callFn(callback, 1);
-        // did an error occur when we tried to push the frame?
-        if (rvm.atFault()) return rvm.dummyVal();
-        status = rvm.run(callback);
         // bail if we run into an error:
-        if (status !== rvm.iOK()) return rvm.dummyVal();
+        if (!rvm.execNow(callback, 1)) return rvm.dummyVal();
         // the result would have replaced the function initially pushed on the
         // stack at *1*, so we only need to pop once to obtain the result,
         // which balances the stack effect.
@@ -63,7 +58,7 @@ function list__map(rvm, arity) {
 function list__filter(rvm, arity) {
     // list.filter(callback)
     const callback = rvm.peekStack();
-    if (!callback.isFunction()) {
+    if (!callback.isCallable()) {
         list_fnError(rvm, callback);
         return rvm.dummyVal();
     }
@@ -77,11 +72,8 @@ function list__filter(rvm, arity) {
         rvm.pushStack(elem);
         // call the function:
         // 'filter' expects a function accepting only 1 positional argument
-        rvm.callFn(callback, 1);
-        // did an error occur when we tried to push the frame?
-        if (rvm.atFault()) return rvm.dummyVal();
         // bail if we run into an error:
-        if (rvm.run(callback) !== rvm.iOK()) return rvm.dummyVal();
+        if (!rvm.execNow(callback, 1)) return rvm.dummyVal();
         // the result would have replaced the function initially pushed on the
         // stack at *1*, so we only need to pop once to obtain the result,
         // which balances the stack effect.
@@ -95,7 +87,7 @@ function list__filter(rvm, arity) {
 function list__reduce(rvm, arity) {
     // list.reduce(callback, start?)
     const callback = rvm.peekStack(1);
-    if (!callback.isFunction()) {
+    if (!callback.isCallable()) {
         list_fnError(rvm, callback);
         return rvm.dummyVal();
     }
@@ -123,11 +115,8 @@ function list__reduce(rvm, arity) {
         rvm.pushStack(listObj.elements[index]);
         // call the function:
         // 'reduce' expects a function accepting 2 positional arguments
-        rvm.callFn(callback, 2);
-        // did an error occur when we tried to push the frame?
-        if (rvm.atFault()) return rvm.dummyVal();
         // bail if we run into an error:
-        if (rvm.run(callback) !== rvm.iOK()) return rvm.dummyVal();
+        if (!rvm.execNow(callback, 2)) return rvm.dummyVal();
         // result would already be on the stack, now push the callback
         rvm.pushStack(callback);
         // swap the position of the callback and the result on the stack,
@@ -145,7 +134,7 @@ function list__reduce(rvm, arity) {
 function list__each(rvm, arity) {
     // list.each(callback)
     const callback = rvm.peekStack();
-    if (!callback.isFunction()) {
+    if (!callback.isCallable()) {
         list_fnError(rvm, callback);
         return rvm.dummyVal();
     }
@@ -158,11 +147,8 @@ function list__each(rvm, arity) {
         rvm.pushStack(listObj.elements[i]);
         // call the function:
         // 'each' expects a function accepting only 1 positional argument
-        rvm.callFn(callback, 1); // TODO: allow index ?
-        // did an error occur when we tried to push the frame?
-        if (rvm.atFault()) return rvm.dummyVal();
-        // bail if we run into an error:
-        if (rvm.run(callback) !== rvm.iOK()) return rvm.dummyVal();
+        // bail if we run into an error: TODO: allow index ?
+        if (!rvm.execNow(callback, 1)) return rvm.dummyVal();
         // the result would have replaced the function initially pushed on the
         // stack at *1*, so we only need to pop once to obtain the result,
         // which balances the stack effect.
@@ -174,7 +160,7 @@ function list__each(rvm, arity) {
 function list__any(rvm, arity) {
     // list.any(callback)
     const callback = rvm.peekStack();
-    if (!callback.isFunction()) {
+    if (!callback.isCallable()) {
         list_fnError(rvm, callback);
         return rvm.dummyVal();
     }
@@ -183,10 +169,8 @@ function list__any(rvm, arity) {
         rvm.pushStack(callback);
         rvm.pushStack(listObj.elements[i]);
         // 'any' expects a function accepting only 1 positional argument
-        rvm.callFn(callback, 1);
         // bail fast if an error occurred after calling the function
-        if (rvm.atFault()) return rvm.dummyVal();
-        if (rvm.run(callback) !== rvm.iOK()) return rvm.dummyVal();
+        if (!rvm.execNow(callback, 1)) return rvm.dummyVal();
         // get the result [rvm.popStack()] - .any() returns once we have a true result
         // check if the result is falsy, if not return immediately
         if (!rvm.isFalsy(rvm.popStack())) return mod.createTrueVal();
@@ -209,7 +193,7 @@ function list__index(rvm, arity) {
 function list__all(rvm, arity) {
     // list.all(callback)
     const callback = rvm.peekStack();
-    if (!callback.isFunction()) {
+    if (!callback.isCallable()) {
         list_fnError(rvm, callback);
         return rvm.dummyVal();
     }
@@ -218,10 +202,8 @@ function list__all(rvm, arity) {
         rvm.pushStack(callback);
         rvm.pushStack(listObj.elements[i]);
         // 'all' expects a function accepting only 1 positional argument
-        rvm.callFn(callback, 1);
         // bail fast if an error occurred after calling the function
-        if (rvm.atFault()) return rvm.dummyVal();
-        if (rvm.run(callback) !== rvm.iOK()) return rvm.dummyVal();
+        if (!rvm.execNow(callback, 1)) return rvm.dummyVal();
         // get the result [rvm.popStack()] - .all() returns once we have a false result
         // check if the result is falsy, if so return immediately
         if (rvm.isFalsy(rvm.popStack())) return mod.createFalseVal();
