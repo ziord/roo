@@ -13,6 +13,7 @@ const EL0000 = 'EL0000',  // no error
     EL0004 = 'EL0004',  // (lexer) invalid number token
     EL0005 = 'EL0005',  // (lexer) invalid escape sequence
     EL0006 = 'EL0006',  // (lexer) backslash in interpolation {string}
+    EL0007 = 'EL0007',  // (lexer) invalid interpolation string
     EP0001 = 'EP0001',
     EP0002 = 'EP0002',
     EP0003 = 'EP0003',
@@ -106,6 +107,16 @@ RError[EL0005] = createError(EL0005,
     "The escape sequence used isn't recognized. " +
     "Some valid escape sequences are `\\n`, `\\b`, etc.");
 
+RError[EL0006] = createError(EL0006,
+    "Interpolation string expression part cannot include a backslash.",
+    "Consider eliminating the backslash within '{}'.");
+
+RError[EL0007] = createError(EL0007,
+    "Invalid interpolation string.",
+    `'$' is a marker for the beginning of an interpolation string.${SEP}` +
+    `Consider using a valid interpolation string.${SEP}` +
+    `Here's an example: $"this is a string"`);
+
 RError[EP0001] = createError(EP0001,
     "Found at unexpected position",
     "The token was found at a position it should never have been.");
@@ -125,10 +136,6 @@ RError[EP0004] = createError(EP0004,
 RError[EP0005] = createError(EP0005,
     "continue outside loop.",
     "Cannot use the 'continue' keyword outside a loop.");
-
-RError[EL0006] = createError(EL0006,
-    "Interpolation string expression part cannot include a backslash.",
-    "Consider eliminating the backslash within '{}'.");
 
 RError[EP0006] = createError(EP0006,
     "Too many items in list.",
@@ -333,6 +340,7 @@ module.exports = {
     EL0004,  // (lexer) invalid number token
     EL0005,  // (lexer) invalid escape sequence
     EL0006,  // (lexer) backslash in interpolation {string}
+    EL0007,  // (lexer) invalid interpolation string
     EP0001,
     EP0002,
     EP0003,

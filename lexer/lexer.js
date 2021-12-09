@@ -456,44 +456,42 @@ Lexer.prototype.check = function (char){
     return false;
 };
 
-Lexer.prototype.lexNumber = function(){
+Lexer.prototype.lexNumber = function () {
     function determine(totalStr, _this) {
         if (isInteger(totalStr)) {
             return _this.newToken(tokens.TOKEN_INT_NUMBER);
-        }
-        else if (isFloat(totalStr)){
+        } else if (isFloat(totalStr)) {
             return _this.newToken(tokens.TOKEN_FLOAT_NUMBER);
         }
         return _this.errorToken(errors.EL0004); // invalid number
     }
     // hex
-    if (this.peek(-1) === '0' &&
-        this.peek().toLowerCase() === 'x')
-    {
+    if (this.peek(-1) === "0" && this.peek().toLowerCase() === "x") {
         this.move();
-        if (isDigit(this.peek()) || isXDigit(this.peek()))
-        {
-            while (isDigit(this.peek())  || isXDigit(this.peek()))
-            {
+        if (isDigit(this.peek()) || isXDigit(this.peek())) {
+            while (isDigit(this.peek()) || isXDigit(this.peek())) {
                 this.move();
             }
             return this.newToken(tokens.TOKEN_HEXINT_NUMBER);
         }
     }
-    while (isDigit(this.peek())){
+    while (isDigit(this.peek())) {
         this.move();
     }
-    if ((this.peek() === "." && this.peek(1) !== ".")
-        || this.peek().toLowerCase() === "e")
-    {
+    if (
+        (this.peek() === "." && this.peek(1) !== ".") ||
+        this.peek().toLowerCase() === "e"
+    ) {
         this.move();
         if (this.peek(-1) !== ".") {
             this.move();
             while (isDigit(this.peek())) {
                 this.move();
             }
-            return determine(this.src.slice(
-                this.startIndex, this.currentIndex), this);
+            return determine(
+                this.src.slice(this.startIndex, this.currentIndex),
+                this
+            );
         }
         if (this.peek().toLowerCase() === "e") {
             this.moveN(2); // +2 cos we expect the sign
@@ -501,54 +499,54 @@ Lexer.prototype.lexNumber = function(){
         while (isDigit(this.peek())) {
             this.move();
             if (this.peek().toLowerCase() === "e") {
-                this.moveN(2);  // +2 cos we expect the sign
+                this.moveN(2); // +2 cos we expect the sign
             }
         }
     }
     // check:
-    return determine(this.src.slice(
-        this.startIndex, this.currentIndex), this);
+    return determine(this.src.slice(this.startIndex, this.currentIndex), this);
 };
 
-Lexer.prototype.lexIdentifier = function (){
-    while (isAlpha(this.peek()) || isDigit(this.peek())){
+Lexer.prototype.lexIdentifier = function () {
+    while (isAlpha(this.peek()) || isDigit(this.peek())) {
         this.move();
     }
     return this.isKeyword();
 };
 
-Lexer.prototype.lexString = function (start, isIString){
-    let str = '', tmp;
+Lexer.prototype.lexString = function (start, isIString) {
+    if (start !== '"' && start !== "'") return this.errorToken(errors.EL0007);
+    let tmp,
+        str = "";
     // depth of {} encountered
     let interpCount = 0;
-    while (!this.atEnd()){
+    while (!this.atEnd()) {
         tmp = this.move();
-        if (isIString){
-            if (tmp === '{') interpCount++;
-            else if (tmp === '}') interpCount--;
+        if (isIString) {
+            if (tmp === "{") interpCount++;
+            else if (tmp === "}") interpCount--;
         }
-        if (tmp === '\\'){
-            if (isIString && interpCount){
+        if (tmp === "\\") {
+            if (isIString && interpCount) {
                 this.move();
                 return this.errorToken(errors.EL0006);
             }
-            switch(this.peek()){
-                case '\\': str += '\\';  break;
-                case "'": str += "'";  break;
-                case '"': str += '"';  break;
-                case 'a': str += '\a';  break;
-                case 'b': str += '\b';  break;
-                case 'f': str += '\f';  break;
-                case 'n': str += '\n';  break;
-                case 'r': str += '\r';  break;
-                case 't': str += '\t';  break;
-                default:
-                    return this.errorToken(errors.EL0005);
+            switch (this.peek()) {
+                case "\\": str += "\\";  break;
+                case "'":  str += "'";   break;
+                case '"':  str += '"';   break;
+                case "a":  str += "a";   break;
+                case "b":  str += "\b";  break;
+                case "f":  str += "\f";  break;
+                case "n":  str += "\n";  break;
+                case "r":  str += "\r";  break;
+                case "t":  str += "\t";  break;
+                default: return this.errorToken(errors.EL0005);
             }
             this.move();
             continue;
         }
-        if (tmp === start){
+        if (tmp === start) {
             return this.newToken(tokens.TOKEN_STRING, str);
         }
         str += tmp;
