@@ -44,8 +44,8 @@ const OPS = {
     [ast.OpType.OPTR_POW_ASSIGN]: opcode.OP_POW,
 };
 
-class Local{
-    constructor(name, scope){
+class Local {
+    constructor(name, scope) {
         this.isInitialized = false;
         this.scope = scope;
         this.name = name;
@@ -53,8 +53,8 @@ class Local{
     }
 }
 
-class Upvalue{
-    constructor(index, isLocal){
+class Upvalue {
+    constructor(index, isLocal) {
         this.index = index;
         this.isLocal = isLocal;
     }
@@ -65,7 +65,8 @@ class Compiler extends ast.NodeVisitor {
         super();
         this.parser = parser;
         this.fn = vmod.createFunctionObj(
-            "", 0,
+            "",
+            0,
             new Code(parser ? parser.lexer : null),
             false
         );
@@ -74,7 +75,7 @@ class Compiler extends ast.NodeVisitor {
         this.fnType = fnType;
         // reserve slot 0:
         this.locals = [this.getCompilerLocal()];
-        this.currentLoop = {loopScope: -1};
+        this.currentLoop = { loopScope: -1 };
         this.loopControls = [];
         // Compiler:
         this.enclosingCompiler = null;
@@ -83,9 +84,11 @@ class Compiler extends ast.NodeVisitor {
         this.upvalues = [];
         // interned strings
         this.strings = null;
+        // has error?
+        this.hasError = false;
     }
 
-    getCompilerLocal(){
+    getCompilerLocal() {
         /*for the reservation of slot 0 of the compiler's `locals` Array*/
         if (this.fnType === ast.FnTypes.TYPE_METHOD) {
             /*
@@ -108,16 +111,17 @@ class Compiler extends ast.NodeVisitor {
         return `$var_${name}${this.freeVars++}`;
     }
 
-    compilationError(msg, node){
+    compilationError(msg, node) {
         // todo
+        this.hasError = true;
         const padding = "|".padStart(6, " ");
         console.error(padding + "[Compilation Error]");
-        if (this.func.code.lineGen){
-            const lineNum = `${node.line.toString().padStart(4, ' ')} | `;
+        if (this.func.code.lineGen) {
+            const lineNum = `${node.line.toString().padStart(4, " ")} | `;
             const src = this.fn.code.lineGen.getSrcAtLine(node.line).trim();
             console.error(lineNum + src);
             console.error(padding + " " + msg);
-        }else{
+        } else {
             msg = `[Line ${node.line}] ` + msg;
             console.error(padding + " " + msg);
         }
@@ -135,7 +139,7 @@ class Compiler extends ast.NodeVisitor {
     visitBooleanNode(node) {
         gen.emitByte(
             this.fn.code,
-            (node.value ? opcode.OP_LOAD_TRUE : opcode.OP_LOAD_FALSE),
+            node.value ? opcode.OP_LOAD_TRUE : opcode.OP_LOAD_FALSE,
             node.line
         );
     }
@@ -153,13 +157,20 @@ class Compiler extends ast.NodeVisitor {
     }
 
     visitShowNode(node) {
-        node.nodes.forEach(expr => this.visit(expr));
-        gen.emitBytes(this.fn.code, opcode.OP_SHOW, node.nodes.length, node.line);
+        node.nodes.forEach((expr) => this.visit(expr));
+        gen.emitBytes(
+            this.fn.code,
+            opcode.OP_SHOW,
+            node.nodes.length,
+            node.line
+        );
     }
 
     visitUnaryNode(node) {
-        if ((node.op === ast.OpType.OPTR_PLUS_PLUS) ||
-            (node.op === ast.OpType.OPTR_MINUS_MINUS)) {
+        if (
+            node.op === ast.OpType.OPTR_PLUS_PLUS ||
+            node.op === ast.OpType.OPTR_MINUS_MINUS
+        ) {
             this.compilePreOp(node);
             return;
         }
@@ -186,34 +197,42 @@ class Compiler extends ast.NodeVisitor {
         // ++x -> x = x + 1;
         // ++x[0] -> x[0] = x[0] + 1;
         const node = unaryNode.node;
-        const op = unaryNode.op === ast.OpType.OPTR_PLUS_PLUS ?
-            ast.OpType.OPTR_PLUS_ASSIGN : ast.OpType.OPTR_MINUS_ASSIGN;
+        const op =
+            unaryNode.op === ast.OpType.OPTR_PLUS_PLUS
+                ? ast.OpType.OPTR_PLUS_ASSIGN
+                : ast.OpType.OPTR_MINUS_ASSIGN;
         // rewrite the ast node
         const assignNode = new ast.AssignNode(
-            node, new ast.NumberNode(1, true, node.line),
-            op, unaryNode.line);
+            node,
+            new ast.NumberNode(1, true, node.line),
+            op,
+            unaryNode.line
+        );
         this.visit(assignNode);
     }
 
-    compilePostOp(postfixNode){
+    compilePostOp(postfixNode) {
         // x++ -> x += 1; (x - 1)
         const node = postfixNode.node;
         let code, op;
-        if (postfixNode.op === ast.OpType.OPTR_PLUS_PLUS){
+        if (postfixNode.op === ast.OpType.OPTR_PLUS_PLUS) {
             code = opcode.OP_DEC;
             op = ast.OpType.OPTR_PLUS;
-        }else{
+        } else {
             code = opcode.OP_INC;
             op = ast.OpType.OPTR_MINUS;
         }
         const assignNode = new ast.AssignNode(
-            node, new ast.NumberNode(1, true, postfixNode.line),
-            op, postfixNode.line);
+            node,
+            new ast.NumberNode(1, true, postfixNode.line),
+            op,
+            postfixNode.line
+        );
         this.visit(assignNode);
         gen.emitByte(this.fn.code, code, postfixNode.line);
     }
 
-    visitPostfixNode(node){
+    visitPostfixNode(node) {
         this.compilePostOp(node);
     }
 
@@ -225,7 +244,7 @@ class Compiler extends ast.NodeVisitor {
     }
 
     visitListNode(node) {
-        node.nodes.forEach(item => this.visit(item));
+        node.nodes.forEach((item) => this.visit(item));
         gen.emit2BytesOperand(
             this.fn.code,
             opcode.OP_BUILD_LIST,
@@ -234,30 +253,30 @@ class Compiler extends ast.NodeVisitor {
         );
     }
 
-    visitRangeNode(node){
+    visitRangeNode(node) {
         this.visit(node.startNode);
         this.visit(node.endNode);
         this.visit(node.stepNode);
         gen.emitByte(this.fn.code, opcode.OP_BUILD_RANGE, node.line);
     }
 
-    visitIndexExprNode(node){
+    visitIndexExprNode(node) {
         this.visit(node.leftExpr);
         this.visit(node.indexExpr);
         gen.emitByte(this.fn.code, opcode.OP_SUBSCRIPT, node.line);
     }
 
-    visitExprStatementNode(node){
+    visitExprStatementNode(node) {
         this.visit(node.expr);
         gen.emitByte(this.fn.code, opcode.OP_POP, node.line);
     }
 
-    storeString(string){
+    storeString(string) {
         const value = new vmod.createStringVal(string, this.strings);
         return this.fn.code.cp.writeConstant(value);
     }
 
-    findLocal(node /*: VarNode*/){
+    findLocal(node /*: VarNode*/) {
         /*
          *  {
          *    let x = 'fox'; ---------------> local 0 (scope 1)
@@ -271,17 +290,16 @@ class Compiler extends ast.NodeVisitor {
         // check if there exists a local variable with the same name.
         // search is done from the end of the array to capture the latest
         // defined local variable first - for proper name shadowing
-        for (let index = this.locals.length - 1; index >= 0; index--){
+        for (let index = this.locals.length - 1; index >= 0; index--) {
             let local = this.locals[index];
             // return index if found
-            if (local.scope <= this.currentScope &&
-                local.name === node.name)
+            if (local.scope <= this.currentScope && local.name === node.name)
                 return index;
         }
         return -1;
     }
 
-    findUpvalue(node /*: VarNode*/){
+    findUpvalue(node /*: VarNode*/) {
         // here, `enclosingCompiler` is symbolic to an enclosing function.
         // If there's no `enclosingCompiler`, then the variable (`name`) is
         // definitely not an upvalue.
@@ -290,7 +308,7 @@ class Compiler extends ast.NodeVisitor {
         // check if the variable was captured from an immediate
         // enclosing function
         let index = this.enclosingCompiler.findLocal(node);
-        if (index !== -1){
+        if (index !== -1) {
             // the variable/upvalue was captured in the immediate
             // enclosing function - so it's a direct local variable
             // indicate capture:
@@ -303,7 +321,7 @@ class Compiler extends ast.NodeVisitor {
         // search wider - (the enclosing function's enclosing function,
         // and so on, until there's no more enclosing function to search)
         index = this.enclosingCompiler.findUpvalue(node);
-        if (index !== -1){
+        if (index !== -1) {
             // the variable/upvalue was captured in a further
             // enclosing function - so it's not a direct local variable
             return this.addUpvalue(node, index, false);
@@ -313,56 +331,60 @@ class Compiler extends ast.NodeVisitor {
         return index;
     }
 
-    addLocal(name /*: string*/){
+    addLocal(name /*: string*/) {
         const index = this.locals.length;
         this.locals.push(new Local(name, this.currentScope));
         return index;
     }
 
-    initLocal(name /*: string*/){
+    initLocal(name /*: string*/) {
         const index = this.addLocal(name);
         this.locals[index].isInitialized = true;
         return index;
     }
 
-    addUpvalue(node /*: VarNode*/, index, isLocal){
+    addUpvalue(node /*: VarNode*/, index, isLocal) {
         // avoid adding an duplicate upvalues
         const len = this.upvalues.length;
-        for (let i = 0; i < len; i++){
-            if (this.upvalues[i].index === index
-                && this.upvalues[i].isLocal === isLocal) {
+        for (let i = 0; i < len; i++) {
+            if (
+                this.upvalues[i].index === index &&
+                this.upvalues[i].isLocal === isLocal
+            ) {
                 // reuse the upvalue if it already exists
                 return i;
             }
         }
-        if (len > utils.MAX_UPVALUE_COUNT){
+        if (len > utils.MAX_UPVALUE_COUNT) {
             this.compilationError("Too many closures", node);
+            return -1;
         }
         // store the upvalue
         this.upvalues.push(new Upvalue(index, isLocal));
         this.fn.upvalueCount++;
-        return len;  // the exact index which points to the new upvalue
+        return len; // the exact index which points to the new upvalue
     }
 
-    popLocals(popLine){
+    popLocals(popLine) {
         let pops = 0;
-        for (let index = this.locals.length - 1; index >= 0; index--){
+        for (let index = this.locals.length - 1; index >= 0; index--) {
             let local = this.locals[index];
-            if (this.currentScope < local.scope){
+            if (this.currentScope < local.scope) {
                 pops++;
             }
         }
         // are there any locals to be popped off?
-        if (pops){
+        if (pops) {
             gen.emit2BytesOperand(this.fn.code, opcode.OP_POP_N, pops, popLine);
             this.locals.length -= pops;
         }
     }
 
-    compileAssignment(node){
+    compileAssignment(node) {
         // a += 2 -> a = a + 2;
         const byte = OPS[node.op];
-        if (byte === undefined){ // op EQ '='
+        if (byte === undefined) {
+            // op EQ '='
             this.visit(node.rightNode);
             return;
         }
@@ -371,13 +393,13 @@ class Compiler extends ast.NodeVisitor {
         gen.emitByte(this.fn.code, byte);
     }
 
-    compileIndexExprAssign(node){
+    compileIndexExprAssign(node) {
         this.compileAssignment(node);
         this.visit(node.leftNode);
-        this.fn.code.bytes[this.fn.code.length  - 1] = opcode.OP_SET_SUBSCRIPT;
+        this.fn.code.bytes[this.fn.code.length - 1] = opcode.OP_SET_SUBSCRIPT;
     }
 
-    compileDotExprAssign(node){
+    compileDotExprAssign(node) {
         this.compileAssignment(node);
         this.visit(node.leftNode);
         /*
@@ -387,24 +409,24 @@ class Compiler extends ast.NodeVisitor {
          * thus, we reset it at this index, to reflect the correct instruction
          * for this expression
          */
-        this.fn.code.bytes[this.fn.code.length  - 3] = opcode.OP_SET_PROPERTY;
+        this.fn.code.bytes[this.fn.code.length - 3] = opcode.OP_SET_PROPERTY;
     }
 
-    compileVarAssign(node){
+    compileVarAssign(node) {
         let index, code, fn;
         // check if it's a local
-        if ((index = this.findLocal(node.leftNode)) !== -1){
+        if ((index = this.findLocal(node.leftNode)) !== -1) {
             code = opcode.OP_SET_LOCAL;
             fn = gen.emit2BytesOperand;
         }
         // check if it's an upvalue
-        else if ((index = this.findUpvalue(node.leftNode)) !== -1){
+        else if ((index = this.findUpvalue(node.leftNode)) !== -1) {
             // only 1 byte (256) upvalues allowable for now
             code = opcode.OP_SET_UPVALUE;
             fn = gen.emitBytes;
         }
         // might be a global
-        else{
+        else {
             code = opcode.OP_SET_GLOBAL;
             index = this.storeString(node.leftNode.name);
             fn = gen.emit2BytesOperand;
@@ -413,7 +435,7 @@ class Compiler extends ast.NodeVisitor {
         fn(this.fn.code, code, index, node.line);
     }
 
-    visitAssignNode(node){
+    visitAssignNode(node) {
         if (node.leftNode.type === ast.ASTType.AST_NODE_VAR) {
             this.compileVarAssign(node);
         } else if (node.leftNode.type === ast.ASTType.AST_NODE_INDEX_EXPR) {
@@ -425,84 +447,107 @@ class Compiler extends ast.NodeVisitor {
         }
     }
 
-    visitVarDeclNode(node){
-        if (this.currentScope > 0){
+    visitVarDeclNode(node) {
+        if (this.currentScope > 0) {
             const index = this.addLocal(node.name);
             this.visit(node.value);
             this.locals[index].isInitialized = true;
             gen.emit2BytesOperand(
                 this.fn.code,
                 opcode.OP_DEFINE_LOCAL,
-                index, node.line);
-        }else{
+                index,
+                node.line
+            );
+        } else {
             // store the variable name
             const index = this.storeString(node.name);
             this.visit(node.value);
             gen.emit2BytesOperand(
                 this.fn.code,
                 opcode.OP_DEFINE_GLOBAL,
-                index, node.line);
+                index,
+                node.line
+            );
         }
     }
 
-    visitVarDeclListNode(node){
-        node.decls.forEach(item => this.visit(item));
+    visitVarDeclListNode(node) {
+        node.decls.forEach((item) => this.visit(item));
     }
 
-    visitVarNode(node){
+    visitVarNode(node) {
         let index;
         // check if it's a local
-        if ((index = this.findLocal(node)) !== -1){
+        if ((index = this.findLocal(node)) !== -1) {
             const local = this.locals[index];
-            if (!local.isInitialized){
+            if (!local.isInitialized) {
                 this.compilationError(
                     `cannot utilize uninitialized variable '${node.name}'`,
-                    node);
+                    node
+                );
+                return;
             }
             gen.emit2BytesOperand(
-                this.fn.code, opcode.OP_GET_LOCAL,
-                index, node.line);
+                this.fn.code,
+                opcode.OP_GET_LOCAL,
+                index,
+                node.line
+            );
         }
         // check if it's an upvalue
-        else if ((index = this.findUpvalue(node)) !== -1){
+        else if ((index = this.findUpvalue(node)) !== -1) {
             // only 1 byte (256) upvalues allowable for now
             gen.emitBytes(
-                this.fn.code, opcode.OP_GET_UPVALUE,
-                index, node.line
+                this.fn.code,
+                opcode.OP_GET_UPVALUE,
+                index,
+                node.line
             );
         }
         // might be a global
-        else{
+        else {
             index = this.storeString(node.name);
             gen.emit2BytesOperand(
-                this.fn.code, opcode.OP_GET_GLOBAL,
-                index, node.line);
+                this.fn.code,
+                opcode.OP_GET_GLOBAL,
+                index,
+                node.line
+            );
         }
     }
 
-    visitIStringNode(node){
-        node.exprs.forEach(expr => this.visit(expr));
+    visitIStringNode(node) {
+        node.exprs.forEach((expr) => this.visit(expr));
         gen.emit2BytesOperand(
-            this.fn.code, opcode.OP_FORMAT,
-            node.exprs.length, node.line);
+            this.fn.code,
+            opcode.OP_FORMAT,
+            node.exprs.length,
+            node.line
+        );
     }
 
-    visitAndExprNode(node){
+    visitAndExprNode(node) {
         this.visit(node.leftNode);
         const conditionEnd = gen.emitJump(
-            this.fn.code, opcode.OP_JUMP_IF_FALSE_OR_POP, node.line
+            this.fn.code,
+            opcode.OP_JUMP_IF_FALSE_OR_POP,
+            node.line
         );
         this.visit(node.rightNode);
         gen.patchJump(this.fn.code, conditionEnd);
     }
 
-    visitOrExprNode(node){
+    visitOrExprNode(node) {
         this.visit(node.leftNode);
         const absJumpExit = gen.emitJump(
-            this.fn.code, opcode.OP_JUMP_IF_FALSE, node.line
+            this.fn.code,
+            opcode.OP_JUMP_IF_FALSE,
+            node.line
         );
         const conditionEnd = gen.emitJump(
-            this.fn.code, opcode.OP_JUMP, node.line
+            this.fn.code,
+            opcode.OP_JUMP,
+            node.line
         );
         gen.patchJump(this.fn.code, absJumpExit);
         gen.emitByte(this.fn.code, opcode.OP_POP);
@@ -514,25 +559,28 @@ class Compiler extends ast.NodeVisitor {
         this.visit(node.conditionExpr);
         // jump to the else body if condition is false
         // or pop condition result off the stack if it evaluates to true
-        const elseJmp = gen.emitJump(this.fn.code, opcode.OP_JUMP_IF_FALSE_OR_POP);
+        const elseJmp = gen.emitJump(
+            this.fn.code,
+            opcode.OP_JUMP_IF_FALSE_OR_POP
+        );
         this.visit(node.ifBlock);
         // jump to end of if clause
         const endJmp = gen.emitJump(this.fn.code, opcode.OP_JUMP);
         gen.patchJump(this.fn.code, elseJmp);
         gen.emitByte(this.fn.code, opcode.OP_POP, node.elseLine);
-        if (node.elseBlock)  this.visit(node.elseBlock);
+        if (node.elseBlock) this.visit(node.elseBlock);
         gen.patchJump(this.fn.code, endJmp);
     }
 
-    prepareLoop(loopName){
+    prepareLoop(loopName) {
         const currLoop = this.currentLoop;
         const loopScope = this.currentScope;
-        this.currentLoop = {loopScope, loopName};
+        this.currentLoop = { loopScope, loopName };
         return currLoop;
     }
 
-    visitWhileLoopNode(node){
-        const prevLoop = this.prepareLoop('while');
+    visitWhileLoopNode(node) {
+        const prevLoop = this.prepareLoop("while");
         // we're using length directly and not offsetting it by 1
         // (i.e. length -1) since we need to jump back to exactly where the
         // condition expression bytecode begins.
@@ -540,7 +588,10 @@ class Compiler extends ast.NodeVisitor {
         this.visit(node.conditionExpr);
         // jump to the end of the loop if condition is false
         // or pop condition result off the stack if it evaluates to true
-        const exitJmp = gen.emitJump(this.fn.code, opcode.OP_JUMP_IF_FALSE_OR_POP);
+        const exitJmp = gen.emitJump(
+            this.fn.code,
+            opcode.OP_JUMP_IF_FALSE_OR_POP
+        );
         this.visit(node.block);
         gen.emitLoop(this.fn.code, loopPoint);
         gen.patchJump(this.fn.code, exitJmp);
@@ -553,14 +604,17 @@ class Compiler extends ast.NodeVisitor {
     }
 
     visitDoWhileLoopNode(node) {
-        const prevLoop = this.prepareLoop('doWhile');
+        const prevLoop = this.prepareLoop("doWhile");
 
         const beginLoop = this.fn.code.length;
         this.visit(node.block);
         const loopPoint = this.fn.code.length;
         this.visit(node.conditionExpr);
 
-        const exitJmp = gen.emitJump(this.fn.code, opcode.OP_JUMP_IF_FALSE_OR_POP);
+        const exitJmp = gen.emitJump(
+            this.fn.code,
+            opcode.OP_JUMP_IF_FALSE_OR_POP
+        );
         gen.emitLoop(this.fn.code, beginLoop);
         gen.patchJump(this.fn.code, exitJmp);
 
@@ -569,7 +623,7 @@ class Compiler extends ast.NodeVisitor {
         this.currentLoop = prevLoop;
     }
 
-    visitForLoopNode(node){
+    visitForLoopNode(node) {
         /*
          *  for (
          *       init ? ;
@@ -579,17 +633,21 @@ class Compiler extends ast.NodeVisitor {
          */
         // for init declaration needs to be in a new scope
         this.currentScope++;
-        const prevLoop = this.prepareLoop('for');
-        let bodyJmp = null, incrJmp = null;
-        if (node.initExpr){
+        const prevLoop = this.prepareLoop("for");
+        let bodyJmp = null,
+            incrJmp = null;
+        if (node.initExpr) {
             this.visit(node.initExpr);
         }
         let loopPoint = this.fn.code.length;
-        if (node.conditionExpr){
+        if (node.conditionExpr) {
             this.visit(node.conditionExpr);
-            bodyJmp = gen.emitJump(this.fn.code, opcode.OP_JUMP_IF_FALSE_OR_POP);
+            bodyJmp = gen.emitJump(
+                this.fn.code,
+                opcode.OP_JUMP_IF_FALSE_OR_POP
+            );
         }
-        if (node.incrExpr){
+        if (node.incrExpr) {
             incrJmp = gen.emitJump(this.fn.code, opcode.OP_JUMP);
             let tmp = this.fn.code.length;
             this.visit(node.incrExpr);
@@ -600,28 +658,32 @@ class Compiler extends ast.NodeVisitor {
         }
         this.visit(node.block);
         gen.emitLoop(this.fn.code, loopPoint);
-        if (bodyJmp !== null){
+        if (bodyJmp !== null) {
             gen.patchJump(this.fn.code, bodyJmp);
             gen.emitByte(this.fn.code, opcode.OP_POP);
         }
         this.processLoopControl(loopPoint);
         this.currentScope--;
         // pop initExpr locals if any
-        if (node.initExpr){
+        if (node.initExpr) {
             // this.popLocals(null);
-            if (node.initExpr.type === ast.ASTType.AST_NODE_VAR_DECL){
+            if (node.initExpr.type === ast.ASTType.AST_NODE_VAR_DECL) {
                 this.popLocals(null);
-            }else{
+            } else {
                 // todo: thoroughly confirm if this wouldn't cause a problem
                 const localsCount = node.initExpr.decls.length;
-                gen.emit2BytesOperand(this.fn.code, opcode.OP_POP_N, localsCount);
+                gen.emit2BytesOperand(
+                    this.fn.code,
+                    opcode.OP_POP_N,
+                    localsCount
+                );
                 this.locals.length -= localsCount;
             }
         }
         this.currentLoop = prevLoop;
     }
 
-    visitForInLoopNode(node){
+    visitForInLoopNode(node) {
         /*
          *  for x in stuff { ... }
          *     |
@@ -639,7 +701,9 @@ class Compiler extends ast.NodeVisitor {
 
         // *1* let $var_itr = stuff.__iter__(), $var_tmp;
         let dotExpr = new ast.DotExprNode(
-            node.iterExprNode, new ast.VarNode("__iter__", line), line
+            node.iterExprNode,
+            new ast.VarNode("__iter__", line),
+            line
         );
         let callNode = new ast.CallNode(dotExpr, line);
         const nullNode = new ast.NullNode(line);
@@ -651,7 +715,9 @@ class Compiler extends ast.NodeVisitor {
 
         // *2* while (($var_tmp = $var_itr.__next__()) && !$var_tmp["done"])
         dotExpr = new ast.DotExprNode(
-            itrVar,  new ast.VarNode("__next__", line), line
+            itrVar,
+            new ast.VarNode("__next__", line),
+            line
         );
         callNode = new ast.CallNode(dotExpr, line);
         let assignNode = new ast.AssignNode(
@@ -694,8 +760,8 @@ class Compiler extends ast.NodeVisitor {
         this.visit(whileLoopNode);
     }
 
-    visitUnboundedLoopNode(node){
-        const prevLoop = this.prepareLoop('unbounded');
+    visitUnboundedLoopNode(node) {
+        const prevLoop = this.prepareLoop("unbounded");
         const loopPoint = this.fn.code.length;
         this.visit(node.block);
         gen.emitLoop(this.fn.code, loopPoint);
@@ -703,8 +769,8 @@ class Compiler extends ast.NodeVisitor {
         this.currentLoop = prevLoop;
     }
 
-    assertJumpOffset(offset, controlNode){
-        if (offset > utils.UINT16_MAX){
+    assertJumpOffset(offset, controlNode) {
+        if (offset > utils.UINT16_MAX) {
             this.compilationError(
                 "code body too large to jump over",
                 controlNode
@@ -712,54 +778,57 @@ class Compiler extends ast.NodeVisitor {
         }
     }
 
-    compileLoopControl(control, continuePoint, breakEnd){
+    compileLoopControl(control, continuePoint, breakEnd) {
         const slot = control.patchSlot;
-        if (control.isBreak){
+        if (control.isBreak) {
             // slot + 1 + 1 + beginning of next instruction
             const breakOffset = breakEnd - (slot + 3);
             this.assertJumpOffset(breakOffset, control);
             // 3 bytes long -> slot + 1 + 1
             this.fn.code.bytes[slot] = opcode.OP_JUMP;
             this.fn.code.bytes[slot + 1] = (breakOffset >> 8) & 0xff;
-            this.fn.code.bytes[slot + 2] = breakOffset  & 0xff;
-        }else{ // continue
+            this.fn.code.bytes[slot + 2] = breakOffset & 0xff;
+        } else {
+            // continue
             // before the 'continue' instruction
             // slot + 1 + 1 + beginning of next instruction
             let continueOffset, bytecode;
-            if (control.loopName !== 'doWhile'){
-                continueOffset = (slot + 3) - continuePoint;
+            if (control.loopName !== "doWhile") {
+                continueOffset = slot + 3 - continuePoint;
                 bytecode = opcode.OP_LOOP;
-            }else{
+            } else {
                 continueOffset = continuePoint - (slot + 3);
                 bytecode = opcode.OP_JUMP;
             }
             this.assertJumpOffset(continueOffset, control);
             this.fn.code.bytes[slot] = bytecode;
             this.fn.code.bytes[slot + 1] = (continueOffset >> 8) & 0xff;
-            this.fn.code.bytes[slot + 2] = continueOffset  & 0xff;
+            this.fn.code.bytes[slot + 2] = continueOffset & 0xff;
         }
     }
 
-    processLoopControl(continuePoint){
+    processLoopControl(continuePoint) {
         let breakEnd = this.fn.code.length;
-        this.loopControls.forEach(control => {
-            this.compileLoopControl(
-                control, continuePoint, breakEnd
-            );
+        this.loopControls.forEach((control) => {
+            this.compileLoopControl(control, continuePoint, breakEnd);
         });
         this.loopControls = [];
     }
 
-    visitControlNode(node){
+    visitControlNode(node) {
         const localsLength = this.locals.filter(
-            local => local.scope > this.currentLoop.loopScope).length;
+            (local) => local.scope > this.currentLoop.loopScope
+        ).length;
         node.loopName = this.currentLoop.loopName;
         node.localsCount = localsLength;
         // we need to pop the locals created in the loop up to the point the
         // control was added
-        if (localsLength){
+        if (localsLength) {
             gen.emit2BytesOperand(
-                this.fn.code, opcode.OP_POP_N, localsLength, node.line
+                this.fn.code,
+                opcode.OP_POP_N,
+                localsLength,
+                node.line
             );
         }
         // store the current slot (the beginning of where the break/continue
@@ -771,26 +840,26 @@ class Compiler extends ast.NodeVisitor {
         this.loopControls.push(node);
     }
 
-    visitBlockNode(node){
+    visitBlockNode(node) {
         this.currentScope++;
-        node.decls.forEach(item => this.visit(item));
+        node.decls.forEach((item) => this.visit(item));
         this.currentScope--;
         this.popLocals(node.blockEnd);
     }
 
-    transformConditionedOfNode(arm, name){
+    transformConditionedOfNode(arm, name) {
         // arm: OfNode
         const ifNode = new ast.IfElseNode();
-        const varNode  = new ast.VarNode(name, arm.line);
+        const varNode = new ast.VarNode(name, arm.line);
         ifNode.conditionExpr = arm.conditions.reduce((left, right) => {
-            if (left === null){
-                return new ast.BinaryNode(
-                    varNode, right, ast.OpType.OPTR_EQEQ
-                );
+            if (left === null) {
+                return new ast.BinaryNode(varNode, right, ast.OpType.OPTR_EQEQ);
             }
             const nodeLeft = left;
             const nodeRight = new ast.BinaryNode(
-                varNode, right,  ast.OpType.OPTR_EQEQ
+                varNode,
+                right,
+                ast.OpType.OPTR_EQEQ
             );
             return new ast.OrExprNode(nodeLeft, nodeRight);
         }, null);
@@ -798,7 +867,7 @@ class Compiler extends ast.NodeVisitor {
         return ifNode;
     }
 
-    transformConditionedCaseNode(caseNode){
+    transformConditionedCaseNode(caseNode) {
         /*
          * todo: move this transformation to the parser
          * case x {
@@ -813,19 +882,23 @@ class Compiler extends ast.NodeVisitor {
          * }
          * |_> if (x % 5 > 3) {5}
          */
-        if (!caseNode.conditionExpr){
+        if (!caseNode.conditionExpr) {
             return this.transformRegularCaseNode(caseNode);
         }
         const declNode = new ast.VarDeclNode(
             this.getFreeVar("case"),
-            caseNode.conditionExpr, caseNode.line
+            caseNode.conditionExpr,
+            caseNode.line
         );
         const ifElseNode = new ast.IfElseNode();
         // we know that there would always be a star arm, because the parser
         // ensures this.
         const starArm = caseNode.arms.pop();
         const lastIfNode = caseNode.arms.reduce((node, rightArm) => {
-            node.elseBlock = this.transformConditionedOfNode(rightArm, declNode.name);
+            node.elseBlock = this.transformConditionedOfNode(
+                rightArm,
+                declNode.name
+            );
             return node.elseBlock;
         }, ifElseNode);
         // set the 'else' of the last IfElseNode to the block of the star arm:
@@ -835,7 +908,7 @@ class Compiler extends ast.NodeVisitor {
         // - which was the first IfElseNode node passed to arms.reduce.
         // see reduce() above.
         const actualIfElseNode = ifElseNode.elseBlock;
-        return {declNode, ifElseNode: actualIfElseNode};
+        return { declNode, ifElseNode: actualIfElseNode };
     }
 
     transformRegularOfNode(ofNode) {
@@ -867,37 +940,39 @@ class Compiler extends ast.NodeVisitor {
         }, ifElseNode);
         lastIfNode.elseBlock = starArm.block;
         const actualIfElseNode = ifElseNode.elseBlock;
-        return {declNode: null, ifElseNode: actualIfElseNode};
+        return { declNode: null, ifElseNode: actualIfElseNode };
     }
 
-    visitCaseNode(node){
-        const {declNode, ifElseNode} = this.transformConditionedCaseNode(node);
+    visitCaseNode(node) {
+        const { declNode, ifElseNode } =
+            this.transformConditionedCaseNode(node);
         declNode ? this.visit(declNode) : void 0;
         this.visit(ifElseNode);
     }
 
-    visitDictNode(node){
+    visitDictNode(node) {
         node.entries.forEach(([keyNode, valueNode]) => {
             this.visit(keyNode);
             this.visit(valueNode);
         });
         gen.emit2BytesOperand(
-            this.fn.code, opcode.OP_BUILD_DICT,
+            this.fn.code,
+            opcode.OP_BUILD_DICT,
             node.entries.length,
             node.line
         );
     }
 
-    storeVariable(nameStr /*string*/){
+    storeVariable(nameStr /*string*/) {
         // returns: index, isLocal
-        if (this.currentScope > 0){
+        if (this.currentScope > 0) {
             return [this.initLocal(nameStr), true];
-        }else{
-            return  [this.storeString(nameStr), false];
+        } else {
+            return [this.storeString(nameStr), false];
         }
     }
 
-    defineVariable(name, index, line){
+    defineVariable(name, index, line) {
         if (this.currentScope > 0) {
             gen.emit2BytesOperand(
                 this.fn.code,
@@ -911,17 +986,18 @@ class Compiler extends ast.NodeVisitor {
             gen.emit2BytesOperand(
                 this.fn.code,
                 opcode.OP_DEFINE_GLOBAL,
-                index, line
+                index,
+                line
             );
         }
     }
 
-    visitReturnNode(node){
+    visitReturnNode(node) {
         this.visit(node.expr);
         gen.emitByte(this.fn.code, opcode.OP_RETURN, node.line);
     }
 
-    visitFunctionNode(node){
+    visitFunctionNode(node) {
         /*
          * fn foo(){
          *    show 28;
@@ -933,15 +1009,15 @@ class Compiler extends ast.NodeVisitor {
         // use the same map for interning all strings
         compiler.strings = this.strings;
         compiler.fn.isLambda = node.isLambda;
-        if (!node.isLambda){
+        if (!node.isLambda) {
             compiler.fn.fname = vmod.getStringObj(node.name, this.strings);
-        }else{
+        } else {
             compiler.fn.fname = vmod.getStringObj("<lambda>", this.strings);
         }
         //! compile params:
         //! first we compile the default parameters' values into
         // the current function - this (enclosing)
-        if (node.defaultParamsCount){
+        if (node.defaultParamsCount) {
             // param: ArgumentNode { leftNode, rightNode, line }
             node.params.forEach(({ rightNode, line }, index) => {
                 if (rightNode) {
@@ -958,15 +1034,16 @@ class Compiler extends ast.NodeVisitor {
             });
         }
         //! next we compile the actual parameters
-        compiler.currentScope++;  // params are always local
+        compiler.currentScope++; // params are always local
         node.params.forEach((param) => {
             // ArgumentNode: { leftNode, rightNode, isSpreadArg, line }
-           const slot = compiler.initLocal(param.leftNode.name);
-           gen.emit2BytesOperand(
-               compiler.fn.code,
-               opcode.OP_DEFINE_LOCAL,
-               slot, param.line
-           );
+            const slot = compiler.initLocal(param.leftNode.name);
+            gen.emit2BytesOperand(
+                compiler.fn.code,
+                opcode.OP_DEFINE_LOCAL,
+                slot,
+                param.line
+            );
         });
         //! set some essential properties on `fn`
         compiler.fn.arity = node.params.length;
@@ -974,15 +1051,18 @@ class Compiler extends ast.NodeVisitor {
         compiler.fn.isStaticMethod = node.isStatic;
         compiler.fn.defaultParamsCount = node.defaultParamsCount;
         //! compile fn's body
-        node.block.decls.forEach(item => compiler.visit(item));
+        node.block.decls.forEach((item) => compiler.visit(item));
         //! no need to pop locals since return from the function balances
         //! the stack effect
-        gen.emitConstant(this.fn.code,
+        gen.emitConstant(
+            this.fn.code,
             new vmod.Value(vmod.VAL_FUNCTION, compiler.fn),
-            node.line, opcode.OP_CLOSURE);
+            node.line,
+            opcode.OP_CLOSURE
+        );
         //! emit instructions for processing closures captured in `compiler`
         //! during its compilation process:
-        for (let i = 0; i < compiler.upvalues.length; i++){
+        for (let i = 0; i < compiler.upvalues.length; i++) {
             //! emit: index | isLocal
             const upvalue = compiler.upvalues[i];
             gen.emitBytes(this.fn.code, upvalue.index, upvalue.isLocal);
@@ -1000,13 +1080,18 @@ class Compiler extends ast.NodeVisitor {
         }
     }
 
-    visitCallNode(node){
+    visitCallNode(node) {
         this.visit(node.leftNode);
-        node.args.forEach(arg => this.visit(arg));
-        gen.emitBytes(this.fn.code, opcode.OP_CALL, node.args.length, node.line);
+        node.args.forEach((arg) => this.visit(arg));
+        gen.emitBytes(
+            this.fn.code,
+            opcode.OP_CALL,
+            node.args.length,
+            node.line
+        );
     }
 
-    visitDotExprNode(node){
+    visitDotExprNode(node) {
         let bytecode;
         // handle property access for `deref` and other variables/nodes
         if (node.isDerefExpr) {
@@ -1027,19 +1112,15 @@ class Compiler extends ast.NodeVisitor {
             "Compiler::visitDotExprNode()"
         );
         const index = this.storeString(node.rightNode.name);
-        gen.emit2BytesOperand(
-            this.fn.code,
-            bytecode,
-            index, node.line
-        );
+        gen.emit2BytesOperand(this.fn.code, bytecode, index, node.line);
     }
 
-    visitMethodNode(node){
+    visitMethodNode(node) {
         this.visit(node.fnNode);
         gen.emitByte(this.fn.code, opcode.OP_METHOD);
     }
 
-    compileDerefMethodCall(node){
+    compileDerefMethodCall(node) {
         /*
          * place `ref` on stack for binding to base def's method
          * this is because a method requires the `ref` arg to be
@@ -1069,13 +1150,14 @@ class Compiler extends ast.NodeVisitor {
         gen.emit2BytesOperand(
             this.fn.code,
             opcode.OP_INVOKE_DEREF,
-            index, node.line
+            index,
+            node.line
         );
         gen.emitByte(this.fn.code, node.args.length);
     }
 
-    visitMethodCallNode(node){
-        if (node.isDeref){
+    visitMethodCallNode(node) {
+        if (node.isDeref) {
             // compile a super/deref method/property call differently
             this.compileDerefMethodCall(node);
             return;
@@ -1090,12 +1172,13 @@ class Compiler extends ast.NodeVisitor {
          * `OP_GET_PROPERTY/OP_GET_DEREF_PROPERTY` to obtain the index at which
          * the property/method name was stored in the constant pool (cp).
          */
-        const index = ((code.bytes[code.length - 2] << 8) | code.bytes[code.length - 1]);
+        const index =
+            (code.bytes[code.length - 2] << 8) | code.bytes[code.length - 1];
         // reset the length of the Code object to erase the emitted code.
         // it's 3 bytes long (OP_GET_PROPERTY index).
         code.resetBy(3);
         // push the arguments on the stack by visiting.
-        node.args.forEach(arg => this.visit(arg));
+        node.args.forEach((arg) => this.visit(arg));
         /*
          * now emit fresh instructions for handling the method call:
          * OP_INVOKE[1 byte] index[2 bytes] argCount[1 byte]
@@ -1110,7 +1193,7 @@ class Compiler extends ast.NodeVisitor {
         gen.emitByte(this.fn.code, node.args.length, node.line);
     }
 
-    visitDefNode(node){
+    visitDefNode(node) {
         // emit: OP_DEF | index (to definition name)
         // base def -> def whose props is to be derived
         // child def -> def which is being deriving from another def
@@ -1234,17 +1317,22 @@ class Compiler extends ast.NodeVisitor {
         gen.emitByte(this.fn.code, opcode.OP_PANIC, node.line);
     }
 
-    visitProgramNode(node){
-        node.decls.forEach(decl => this.visit(decl));
+    visitProgramNode(node) {
+        node.decls.forEach((decl) => this.visit(decl));
     }
 
     compile(node, interned = null) {
-        // todo: optimization 
+        // todo: optimization
         // let optimizer = new opt.ConstantFolder(node, this.parser);
         // node = optimizer.fold();
         // console.log(node);
         this.strings = interned || new Map();
         this.visit(node);
+        if (this.hasError || this.fn.code.hasError()) {
+            this.fn = null;
+            // use an empty function object if an error occurred
+            this.fn = vmod.createFunctionObj("", 0, new Code(), false);
+        }
         gen.emitByte(this.fn.code, opcode.OP_RETURN);
         return this.fn;
     }

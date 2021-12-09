@@ -156,7 +156,7 @@ DictObject.prototype.getVal = function (key) {
 /**
  *
  * @param {Value} key
- * @returns {[Value, Value] | null} key-value pair if available, else null
+ * @returns {([Value, Value] | null)} key-value pair if available, else null
  */
 DictObject.prototype.getKeyValPair = function (key) {
     const v = this.htable.get(key);

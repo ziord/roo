@@ -36,6 +36,10 @@ function inspectLine(line, mlStrStart, inMLString, inMLComment, depth) {
             depth++;
         } else if (ch === "}" && !inMLComment) {
             depth--;
+        } else if (ch === "(" && !inMLComment) {
+            depth++;
+        } else if (ch === ")" && !inMLComment) {
+            depth--;
         } else if (ch === "/" && line[i + 1] === "*") {
             inMLComment = true;
             i += 1;

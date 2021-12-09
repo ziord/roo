@@ -20,6 +20,7 @@ function Code(lineGen = null) {
     this.bytes = null;
     this.srcLines = [];
     this.lineGen = lineGen;
+    this.error = false;
     this.cp = new ConstantPool();
 }
 
@@ -68,6 +69,14 @@ Code.prototype.resetBy = function (count) {
 
 Code.prototype.getCode = function () {
     return this.bytes;
+};
+
+Code.prototype.setError = function () {
+    this.error = true;
+};
+
+Code.prototype.hasError = function () {
+    return this.error;
 };
 
 module.exports = { Code };

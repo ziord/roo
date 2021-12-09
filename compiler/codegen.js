@@ -7,6 +7,16 @@
 const opcode = require("../code/opcode");
 const { UINT16_MAX, error } = require("../utils");
 
+/**
+ * @param {Code} codeObj
+ * @param {string} errorMsg
+ */
+function emitError(codeObj, errorMsg) {
+    // todo: good error reporting
+    error(errorMsg);
+    codeObj.setError();
+}
+
 function getLineNumber(codeObj) {
     if (codeObj.lines.length) {
         return codeObj.lines[codeObj.lines.length - 1];
@@ -47,22 +57,22 @@ function patchJump(codeObj, jumpOffsetSlot) {
     // a b [c] [d] e f g.  |-> (codeObj.length - 1) - (jumpOffsetSlot + 1)
     const actualJumpOffset = codeObj.length - (jumpOffsetSlot + 2);
     if (actualJumpOffset > UINT16_MAX) {
-        // todo: good error reporting
-        error("code body too large to jump over");
+        emitError(codeObj, "code body too large to jump over");
+        return;
     }
     codeObj.bytes[jumpOffsetSlot] = (actualJumpOffset >> 8) & 0xff;
     codeObj.bytes[jumpOffsetSlot + 1] = actualJumpOffset & 0xff;
 }
 
-function emitExcept(codeObj, byte, lineNum = null){
+function emitExcept(codeObj, byte, lineNum = null) {
     return emitJump(codeObj, byte, lineNum);
 }
 
 function patchExcept(codeObj, jumpOffsetSlot) {
     const offset = codeObj.length;
     if (offset > UINT16_MAX) {
-        // todo: good error reporting
-        error("code body too large to jump over");
+        emitError(codeObj, "code body too large to jump over");
+        return;
     }
     codeObj.bytes[jumpOffsetSlot] = (offset >> 8) & 0xff;
     codeObj.bytes[jumpOffsetSlot + 1] = offset & 0xff;
@@ -72,8 +82,8 @@ function emitLoop(codeObj, loopPoint, lineNum = null) {
     // +3 for the opcode and its 2 bytes operand
     const actualJumpOffset = codeObj.length - loopPoint + 3;
     if (actualJumpOffset > UINT16_MAX) {
-        // todo: good error reporting
-        error("code body too large to loop over");
+        emitError(codeObj, "code body too large to loop over");
+        return;
     }
     emit2BytesOperand(codeObj, opcode.OP_LOOP, actualJumpOffset, lineNum);
 }
@@ -87,5 +97,5 @@ module.exports = {
     patchJump,
     emitExcept,
     patchExcept,
-    emitLoop,
+    emitLoop
 };
