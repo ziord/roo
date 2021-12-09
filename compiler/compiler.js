@@ -109,6 +109,7 @@ class Compiler extends ast.NodeVisitor {
     }
 
     compilationError(msg, node){
+        // todo
         const padding = "|".padStart(6, " ");
         console.error(padding + "[Compilation Error]");
         if (this.func.code.lineGen){
@@ -120,7 +121,6 @@ class Compiler extends ast.NodeVisitor {
             msg = `[Line ${node.line}] ` + msg;
             console.error(padding + " " + msg);
         }
-        process.exit(-1);
     }
 
     visitNumberNode(node) {
@@ -883,7 +883,8 @@ class Compiler extends ast.NodeVisitor {
         });
         gen.emit2BytesOperand(
             this.fn.code, opcode.OP_BUILD_DICT,
-            node.entries.length
+            node.entries.length,
+            node.line
         );
     }
 
@@ -1117,7 +1118,7 @@ class Compiler extends ast.NodeVisitor {
         gen.emit2BytesOperand(this.fn.code, opcode.OP_DEF, index, node.line);
         // define the `def`
         this.defineVariable(node.defVar.name, index, node.line);
-        if (node.derivingNode){
+        if (node.derivingNode) {
             // derivingNode is a VarNode()
             utils.assert(
                 node.derivingNode instanceof ast.VarNode,
@@ -1150,14 +1151,18 @@ class Compiler extends ast.NodeVisitor {
             // (that is, inheritance).
             this.visit(node.defVar);
             // emit derivation/inheritance instructions
-            gen.emitByte(this.fn.code, opcode.OP_DERIVE, node.derivingNode.line);
+            gen.emitByte(
+                this.fn.code,
+                opcode.OP_DERIVE,
+                node.derivingNode.line
+            );
         }
         // push the `def` again on the stack, since it could've been popped
-        // off during variable definition above
+        // off during variable definition above or during derivation above
         this.visit(node.defVar);
         // compile its methods
-        node.methods.forEach(method => this.visit(method));
-        // pop off the `def` after methods are compiled
+        node.methods.forEach((method) => this.visit(method));
+        // pop off the child `def` after its methods are processed
         gen.emitByte(this.fn.code, opcode.OP_POP);
         if (node.derivingNode) {
             // Exit the local scope.
@@ -1166,6 +1171,67 @@ class Compiler extends ast.NodeVisitor {
             // stack. popLocals() causes this to be popped off.
             this.popLocals();
         }
+    }
+
+    visitTryNode(node) {
+        // dump placeholder bytes for the operand of OP_SETUP_EXCEPT
+        // instruction, since we don't know where the offset of the
+        // except block is yet.
+        const trySetup = gen.emitExcept(
+            this.fn.code,
+            opcode.OP_SETUP_EXCEPT,
+            node.line
+        );
+        this.visit(node.tryBlock);
+        // at this point, no error occurred, so pop off the except handler
+        gen.emitByte(this.fn.code, opcode.OP_POP_EXCEPT);
+        // skip the except {} block
+        const jmpExcept = gen.emitJump(this.fn.code, opcode.OP_JUMP);
+        // now patch the OP_SETUP_EXCEPT instruction's operands since
+        // the except block offset is now know here.
+        gen.patchExcept(this.fn.code, trySetup);
+        // create a local scope for the except handler variable
+        // - if available, if not use a free var. This implies that the handler
+        // variable is always defined.
+        // - todo: improve, eliminate redundant instruction generation
+        let handlerName, handlerLine;
+        if (node.exceptHandlerVar) {
+            handlerName = node.exceptHandlerVar.name;
+            handlerLine = node.exceptHandlerVar.line;
+        } else {
+            handlerName = this.getFreeVar("exc");
+            handlerLine = null;
+        }
+        this.currentScope++;
+        this.defineVariable(handlerName, null, handlerLine);
+        this.currentScope--;
+        // same scope (except handler variable scope) will be reused here
+        // since blocks create a new local scope
+        this.visit(node.exceptBlock);
+        if (node.elseBlock) {
+            // we need to jump the else block if control comes from
+            // the except block
+            const elseJmp = gen.emitJump(
+                this.fn.code,
+                opcode.OP_JUMP,
+                node.line
+            );
+            // we jump into the else block (if available) after skipping the
+            // except block since the exception didn't occur block
+            gen.patchJump(this.fn.code, jmpExcept);
+            this.visit(node.elseBlock);
+            // skip the else block if except block was executed
+            gen.patchJump(this.fn.code, elseJmp);
+        } else {
+            // if the else block isn't available, we jump into the next
+            // instruction - skipping the else block.
+            gen.patchJump(this.fn.code, jmpExcept);
+        }
+    }
+
+    visitPanicNode(node) {
+        this.visit(node.msgNode);
+        gen.emitByte(this.fn.code, opcode.OP_PANIC, node.line);
     }
 
     visitProgramNode(node){

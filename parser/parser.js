@@ -50,7 +50,7 @@ BPTable[tokens.TOKEN_LEFT_BRACKET] = bp(POWER_CALL, grouping, callExpr);
 BPTable[tokens.TOKEN_RIGHT_BRACKET] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_LEFT_SQR_BRACKET] = bp(POWER_POSTFIX, listLiteral, indexExpression);
 BPTable[tokens.TOKEN_RIGHT_SQR_BRACKET] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_LEFT_CURLY] = bp(POWER_NONE, dictLiteral, null);
+BPTable[tokens.TOKEN_LEFT_CURLY] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_RIGHT_CURLY] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_STAR] = bp(POWER_FACTOR, null, binary);  // d
 BPTable[tokens.TOKEN_MINUS] = bp(POWER_TERM, unary, binary);  // d
@@ -70,7 +70,7 @@ BPTable[tokens.TOKEN_BITWISE_INVERT] = bp(POWER_UNARY, unary, null);  // d
 BPTable[tokens.TOKEN_LESS_THAN_EQUAL] = bp(POWER_COMPARISON, null, binary);  // d
 BPTable[tokens.TOKEN_GREATER_THAN_EQUAL] = bp(POWER_COMPARISON, null, binary);  // d
 BPTable[tokens.TOKEN_EQUAL_EQUAL] = bp(POWER_EQUALITY, null, binary);  // d
-BPTable[tokens.TOKEN_NOT] = bp(POWER_UNARY, unary, null);   // d
+BPTable[tokens.TOKEN_EXC_MARK] = bp(POWER_NONE, dictLiteral, null);
 BPTable[tokens.TOKEN_NOT_EQUAL] = bp(POWER_EQUALITY, null, binary);  // d
 BPTable[tokens.TOKEN_BITWISE_LSHIFT] = bp(POWER_BITWISE_SHIFT, null, binary);  // d
 BPTable[tokens.TOKEN_BITWISE_RSHIFT] = bp(POWER_BITWISE_SHIFT, null, binary);  // d
@@ -105,6 +105,7 @@ BPTable[tokens.TOKEN_OR] = bp(POWER_OR, null, OrExprNode);
 BPTable[tokens.TOKEN_IN] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_OF] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_AND] = bp(POWER_AND, null, AndExprNode);
+BPTable[tokens.TOKEN_NOT] = bp(POWER_UNARY, unary, null);   // d
 BPTable[tokens.TOKEN_DO] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_IF] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_ELSE] = bp(POWER_NONE, null, null);
@@ -125,9 +126,12 @@ BPTable[tokens.TOKEN_CONTINUE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_LOOP] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_CASE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_STATIC] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_TRY] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_EXCEPT] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_STRUCT] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_DEFINE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_DERIVE] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_PANIC] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_ERROR] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_EOF] = bp(POWER_NONE, null, null);
 
@@ -621,17 +625,10 @@ function listLiteral() {
     this.push(list);
 }
 
-function dictLiteral(fromBlock) {
-    let node = new ast.DictNode(this.currentToken.line);
-    if (fromBlock) {
-        this.consume(tokens.TOKEN_COLON);
-        const key = this.pop();
-        this.expression();
-        node.entries.push([key, this.pop()]); // key, value pair
-        this.match(tokens.TOKEN_COMMA);
-    } else {
-        this.consume(tokens.TOKEN_LEFT_CURLY);
-    }
+function dictLiteral() {
+    const node = new ast.DictNode(this.currentToken.line);
+    this.advance();
+    this.consume(tokens.TOKEN_LEFT_CURLY);
     while (this.isNotMatching(tokens.TOKEN_RIGHT_CURLY)) {
         this.expression();
         const key = this.pop();
@@ -640,6 +637,14 @@ function dictLiteral(fromBlock) {
         const value = this.pop();
         node.entries.push([key, value]);
         this.match(tokens.TOKEN_COMMA);
+    }
+    if (
+        this.previousToken.type === tokens.TOKEN_COMMA &&
+        this.check(tokens.TOKEN_RIGHT_CURLY)
+    ) {
+        // error if trailing comma is found in the parameter list
+        this.pError(errors.EP0034, { token: this.previousToken });
+        return;
     }
     this.consume(tokens.TOKEN_RIGHT_CURLY);
     if (node.entries.length > utils.UINT16_MAX) {
@@ -860,41 +865,6 @@ function callExpr() {
  * methods
  */
 
-Parser.prototype.exprStatement = function() {
-    const line = this.currentToken.line;
-    this.expression();
-    if (this.check(tokens.TOKEN_COLON) && this.blockSet) {
-        this.backtrack = true;
-        dictLiteral.call(this, true);
-    }
-    // todo: hook here
-    const node = new ast.ExprStatementNode(this.pop(), line);
-    this.push(node);
-};
-
-Parser.prototype.caseStatement = function () {
-    // "case"  expression? "{" (of ("*" | expression)
-    // ("," ("*" | expression))* "->" statement)+ "}"
-    this.consume(tokens.TOKEN_CASE);
-    const caseNode = new ast.CaseNode(this.previousToken.line);
-    if (!this.check(tokens.TOKEN_LEFT_CURLY)){
-        this.expression();
-        caseNode.conditionExpr = this.pop();
-    }
-    this.consume(tokens.TOKEN_LEFT_CURLY);
-    while (this.isNotMatching(tokens.TOKEN_RIGHT_CURLY)) {
-        const node = ofStmt.call(this);
-        caseNode.arms.push(node);
-    }
-    this.consume(tokens.TOKEN_RIGHT_CURLY);
-    const curlyToken = this.previousToken;
-    if (!caseNode.arms.length) {
-        // empty case expression
-        this.pError(errors.EP0011, { token: curlyToken });
-    }
-    this.push(caseNode);
-};
-
 Parser.prototype.parseName = function() {
     this.consume(tokens.TOKEN_IDENTIFIER);
     return this.previousToken.value;
@@ -1094,9 +1064,7 @@ Parser.prototype.purgeReturn = function(blockNode, token){
     }
     // implicitly inject a return value of `ref`.
     const line = this.previousToken.line;
-    decls.push(new ast.ReturnNode(
-        new ast.VarNode("ref", line),
-        line));
+    decls.push(new ast.ReturnNode(new ast.VarNode("ref", line), line));
 };
 
 Parser.prototype.synchronize = function () {
@@ -1104,7 +1072,6 @@ Parser.prototype.synchronize = function () {
     this.panicking = false;
     // skip tokens until we hit a new statement boundary.
     while (this.currentToken.type !== tokens.TOKEN_EOF) {
-        // if (this.previousToken.type === tokens.TOKEN_SEMI_COLON) return;
         switch (this.currentToken.type) {
             case tokens.TOKEN_FOR:
             case tokens.TOKEN_SHOW:
@@ -1122,11 +1089,42 @@ Parser.prototype.synchronize = function () {
             case tokens.TOKEN_DEFINE:
             case tokens.TOKEN_AT:
             case tokens.TOKEN_DERIVE:
+            case tokens.TOKEN_PANIC:
                 return;
             default: // pass
         }
         this.advance();
     }
+};
+
+Parser.prototype.exprStatement = function () {
+    const line = this.currentToken.line;
+    this.expression();
+    const node = new ast.ExprStatementNode(this.pop(), line);
+    this.push(node);
+};
+
+Parser.prototype.caseStatement = function () {
+    // "case"  expression? "{" (of ("*" | expression)
+    // ("," ("*" | expression))* "->" statement)+ "}"
+    this.consume(tokens.TOKEN_CASE);
+    const caseNode = new ast.CaseNode(this.previousToken.line);
+    if (!this.check(tokens.TOKEN_LEFT_CURLY)){
+        this.expression();
+        caseNode.conditionExpr = this.pop();
+    }
+    this.consume(tokens.TOKEN_LEFT_CURLY);
+    while (this.isNotMatching(tokens.TOKEN_RIGHT_CURLY)) {
+        const node = ofStmt.call(this);
+        caseNode.arms.push(node);
+    }
+    this.consume(tokens.TOKEN_RIGHT_CURLY);
+    const curlyToken = this.previousToken;
+    if (!caseNode.arms.length) {
+        // empty case expression
+        this.pError(errors.EP0011, { token: curlyToken });
+    }
+    this.push(caseNode);
 };
 
 Parser.prototype.returnStatement = function() {
@@ -1148,41 +1146,6 @@ Parser.prototype.returnStatement = function() {
     }
 
     this.push(new ast.ReturnNode(node, line));
-};
-
-Parser.prototype.funDecl = function() {
-    // fn name() {}
-    const line = this.currentToken.line;
-    let isStatic = false;
-    let token = this.currentToken;
-    // handle 'static' keyword
-    if (this.check(tokens.TOKEN_STATIC)){
-        (!this.inDefinition)
-            ? this.pError(errors.EP0036)
-            : this.advance();
-        isStatic = true;
-    }
-    this.consume(tokens.TOKEN_FN);
-    this.inFunction++;
-    const fn = new ast.FunctionNode(this.pop(), false, line);
-    fn.isStatic = isStatic;  // a static member?
-    fn.name = this.parseName();
-    // handle invalid use of 'static' and other method symbols
-    this.handleMethodSymbols(fn, token);
-    this.consume(tokens.TOKEN_LEFT_BRACKET);
-    this.parseFunctionParams(fn);
-    this.consume(tokens.TOKEN_RIGHT_BRACKET);
-    this.isInitializerFn(fn) ? this.inInitFn++ : void 0;
-    this.block();
-    fn.block = this.pop();
-    if (this.inInitFn) {
-        this.purgeReturn(fn.block, token);
-    } else {
-        this.injectReturn(fn.block);
-    }
-    this.push(fn);
-    this.isInitializerFn(fn) ? this.inInitFn-- : void 0;
-    this.inFunction--;
 };
 
 Parser.prototype.continueStatement = function() {
@@ -1262,7 +1225,7 @@ Parser.prototype.forInStatement = function() {
     this.push(new ast.ForInLoopNode(varNode, exprNode, blockNode));
 };
 
-Parser.prototype.doWhileStatement = function() {
+Parser.prototype.doWhileStatement = function () {
     this.inLoop++;
     this.advance();
     this.block();
@@ -1275,7 +1238,7 @@ Parser.prototype.doWhileStatement = function() {
     this.inLoop--;
 };
 
-Parser.prototype.whileStatement = function() {
+Parser.prototype.whileStatement = function () {
     this.inLoop++;
     this.advance();
     this.expression();
@@ -1286,21 +1249,20 @@ Parser.prototype.whileStatement = function() {
     this.inLoop--;
 };
 
-Parser.prototype.ifStatement = function() {
+Parser.prototype.ifStatement = function () {
     this.advance();
     this.expression();
     const conditionExpr = this.pop();
     this.statement();
     const ifBlock = this.pop();
-    let elseBlock, elseLine = null;
+    let elseBlock,
+        elseLine = null;
     if (this.match(tokens.TOKEN_ELSE)) {
         elseLine = this.previousToken.line;
         this.statement();
         elseBlock = this.pop();
     }
-    this.push(new ast.IfElseNode(
-        conditionExpr, ifBlock, elseBlock, elseLine
-    ));
+    this.push(new ast.IfElseNode(conditionExpr, ifBlock, elseBlock, elseLine));
 };
 
 Parser.prototype.showStatement = function() {
@@ -1316,6 +1278,80 @@ Parser.prototype.showStatement = function() {
         this.pError(errors.EP0007);
     }
     this.push(node);
+};
+
+Parser.prototype.tryStatement = function () {
+    const line = this.currentToken.line;
+    this.advance();
+    this.block();
+    const tryBlock = this.pop();
+    if (tryBlock.type !== ast.ASTType.AST_NODE_BLOCK) {
+        this.pError(errors.EP0046);
+    }
+    this.consume(tokens.TOKEN_EXCEPT);
+    let handler = null;
+    if (this.match(tokens.TOKEN_LEFT_BRACKET)) {
+        variable.call(this);
+        handler = this.pop();
+        this.consume(tokens.TOKEN_RIGHT_BRACKET);
+    }
+    this.block();
+    const exceptBlock = this.pop();
+    if (exceptBlock.type !== ast.ASTType.AST_NODE_BLOCK) {
+        this.pError(errors.EP0046);
+    }
+    let elseBlock = null;
+    if (this.match(tokens.TOKEN_ELSE)) {
+        this.block();
+        elseBlock = this.pop();
+        if (elseBlock.type !== ast.ASTType.AST_NODE_BLOCK) {
+            this.pError(errors.EP0046);
+        }
+    }
+    this.push(new ast.TryNode(tryBlock, handler, exceptBlock, elseBlock, line));
+};
+
+Parser.prototype.panicStatement = function () {
+    const line = this.currentToken.line;
+    this.advance();
+    this.expression();
+    this.push(new ast.PanicNode(this.pop(), line));
+};
+
+Parser.prototype.funDecl = function() {
+    // fn name() {}
+    const line = this.currentToken.line;
+    let isStatic = false;
+    let token = this.currentToken;
+    // handle 'static' keyword
+    if (this.check(tokens.TOKEN_STATIC)) {
+        this.advance();
+        if (!this.inDefinition) {
+            this.pError(errors.EP0036, { token: this.previousToken });
+        }
+        isStatic = true;
+    }
+    this.consume(tokens.TOKEN_FN);
+    this.inFunction++;
+    const fn = new ast.FunctionNode(this.pop(), false, line);
+    fn.isStatic = isStatic;  // a static member?
+    fn.name = this.parseName();
+    // handle invalid use of 'static' and other method symbols
+    this.handleMethodSymbols(fn, token);
+    this.consume(tokens.TOKEN_LEFT_BRACKET);
+    this.parseFunctionParams(fn);
+    this.consume(tokens.TOKEN_RIGHT_BRACKET);
+    this.isInitializerFn(fn) ? this.inInitFn++ : void 0;
+    this.block();
+    fn.block = this.pop();
+    if (this.inInitFn) {
+        this.purgeReturn(fn.block, token);
+    } else {
+        this.injectReturn(fn.block);
+    }
+    this.push(fn);
+    this.isInitializerFn(fn) ? this.inInitFn-- : void 0;
+    this.inFunction--;
 };
 
 Parser.prototype.decoratorDecl = function () {
@@ -1440,6 +1476,13 @@ Parser.prototype.statement = function() {
             this.showStatement();
             consumeSemicolon = true;
             break;
+        case tokens.TOKEN_TRY:
+            this.tryStatement();
+            break;
+        case tokens.TOKEN_PANIC:
+            this.panicStatement();
+            consumeSemicolon = true;
+            break;
         case tokens.TOKEN_LEFT_CURLY:
             this.block();
             break;
@@ -1510,25 +1553,12 @@ Parser.prototype.block = function () {
     this.enterScope();
     const lineStart = this.currentToken.line;
     this.consume(tokens.TOKEN_LEFT_CURLY);
-    // set a flag indicating that the left curly token was consumed,
-    // useful when this block is actually a dict and not a block.
-    this.blockSet = true;
-    let decls = [];
+    const decls = [];
     while (this.isNotMatching(tokens.TOKEN_RIGHT_CURLY)) {
         this.declaration();
-        // are we really in a block? we're not if for example,
-        // the declaration found was a dict {'k': v} expression
-        if (this.backtrack) {
-            this.leaveScope();
-            // clear the backtrack flag to indicate we're no
-            // longer in a backtracking state
-            this.backtrack = false;
-            return;
-        }
         decls.push(this.pop());
     }
     this.consume(tokens.TOKEN_RIGHT_CURLY);
-    this.blockSet = false;
     this.leaveScope();
     this.push(new ast.BlockNode(decls, lineStart, this.previousToken.line));
 };

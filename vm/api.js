@@ -20,7 +20,7 @@ exports.compileSourceCodeFromRepl = function(src, interned) {
 exports.runSourceCode = function(src) {
     const [fnObj, compiler] = exports.compileSourceCode(src);
     const vm = new VM(fnObj, false, compiler.strings);
-    return vm.run();
+    return vm.interpret();
 };
 
 exports.disSourceCode = function(src) {

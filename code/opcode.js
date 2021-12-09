@@ -62,4 +62,7 @@ module.exports = {
     OP_DERIVE: 56,
     OP_INVOKE_DEREF: 57,
     OP_GET_DEREF_PROPERTY: 58,
+    OP_SETUP_EXCEPT: 59,
+    OP_POP_EXCEPT: 60,
+    OP_PANIC: 61,
 };

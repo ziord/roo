@@ -92,6 +92,18 @@ function roo__typeOf(rvm, arity) {
     return mod.createVMStringVal(obj.typeToString(), rvm);
 }
 
+function roo__exit(rvm, arity) {
+    // takes 1 arg
+    const obj = rvm.peekStack();
+    if (!obj.isInt()) {
+        rvm.runtimeError("arg must be int");
+        return rvm.dummyVal();
+    }
+    // todo: vm teardown here
+    process.exit(obj.asInt());
+}
+
+
 function roo__isInstance(rvm, arity) {
     const obj1 = rvm.peekStack(1);
     const obj2 = rvm.peekStack();
@@ -157,5 +169,6 @@ exports.init = function (rvm) {
     register.registerFunc(rvm, "hasProperty", roo__hasProperty, 2);
     register.registerFunc(rvm, "typeOf", roo__typeOf, 1);
     register.registerFunc(rvm, "isInstance", roo__isInstance, 2);
+    register.registerFunc(rvm, "exit", roo__exit, 1);
     // register.registerFunc(rvm, "dir", roo__dir, 1); todo
 };

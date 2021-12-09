@@ -81,14 +81,19 @@ const {
     OP_DERIVE,
     OP_INVOKE_DEREF,
     OP_GET_DEREF_PROPERTY,
+    OP_SETUP_EXCEPT,
+    OP_POP_EXCEPT,
+    OP_PANIC,
 } = require("../code/opcode");
+const rcore = require("../rcore/core");
+const exceptMod = require("../rcore/types/except");
 const { Disassembler } = require("../debug/disassembler");
 const { assert, out, print, unreachable, exit } = require("../utils");
-const rcore = require("../rcore/core");
-const INTERPRET_RESULT_OK = 0, INTERPRET_RESULT_ERROR = -1;
-const FRAME_STACK_SIZE = 0x1000;
 const MAX_FRAMES_SIZE = 80;
-const MAX_RANGE_LENGTH = 10000000;  // todo
+const FRAME_STACK_SIZE = 0x1000;
+const MAX_RANGE_LENGTH = 10000000; // todo
+const MAX_HANDLER_STACK_SIZE = 0x200;
+const INTERPRET_RESULT_OK = 0, INTERPRET_RESULT_ERROR = -1;
 
 /**
  * @param {FunctionObject} func
@@ -101,13 +106,14 @@ function VM(func, debug = true, strings = null, repl = false) {
     // inits
     this.debug = debug;
     this.atError = false;
+    this.errorHandled = 0x01;
     this.stack = new Array(FRAME_STACK_SIZE * MAX_FRAMES_SIZE);
     this.frames = [];
     this.fp = null; // frame pointer; current frame
     this.sp = 0; // stack pointer
     this.envName = repl ? "repl" : "script";
     this.execFnNow = false;
-    this.popCallback = null;  // todo
+    this.popCallback = null; // todo
     this.builtins = new Map();
     this.globals = new Map();
     this.internedStrings = strings || new Map();
@@ -115,11 +121,13 @@ function VM(func, debug = true, strings = null, repl = false) {
     this.stringMethodName = getStringObj("__str__", this.internedStrings);
 
     // set the callback handler for OP_POP instruction
-    this.setPopCallback(repl);  // todo
+    this.setPopCallback(repl); // todo
     // push 'environment' function on the value stack
     this.pushStack(createFunctionVal(func));
     // push 'environment' frame
     this.pushFrame(func);
+    // set disassembler
+    this.dis = new Disassembler(this.fp.func, this.debug);
     // register all builtin/core functions
     rcore.initAll(this);
 }
@@ -135,6 +143,8 @@ function CallFrame(func, retPoint, stack) {
     this.func = func;
     // instruction pointer
     this.ip = 0;
+    // error handler pointer
+    this.hp = null;
     // location/point where the function returns to, i.e.
     // where the function's return value is stored.
     this.returnIndex = retPoint;
@@ -142,9 +152,28 @@ function CallFrame(func, retPoint, stack) {
     // same as returnIndex, but with a more appropriate name for properly
     // indexing into the stack.
     this.stackStart = retPoint;
+    // the error handler stack
+    this.handlerStack = [];
     // the stack; yes, that 'stack'.
     this.stack = stack;
 }
+
+CallFrame.prototype.pushHandler = function (handlerIndex, currentStackTop) {
+    if (this.handlerStack.length >= MAX_HANDLER_STACK_SIZE) {
+        this.fatalError("Stack Overflow: too many try-except blocks");
+        return;
+    }
+    // we need to have a snapshot of where the stack pointer currently
+    // is before the try-except handler was setup i.e. `currentStackTop`.
+    // `handlerIndex` is where the ip jumps to if an exception occurs.
+    this.hp = [handlerIndex, currentStackTop];
+    this.handlerStack.push(this.hp);
+};
+
+CallFrame.prototype.popHandler = function () {
+    this.handlerStack.pop();
+    this.hp = this.handlerStack[this.handlerStack.length - 1] || null;
+};
 
 /**
  * Re-initialize the VM with a new FunctionObject, after it
@@ -156,6 +185,8 @@ VM.prototype.initFrom = function (fnObj) {
     this.pushStack(createFunctionVal(fnObj));
     // push 'environment' frame
     this.pushFrame(fnObj);
+    // reset the disassembler for the new function
+    this.dis.reset(this.fp.func, this.debug);
     rcore.initInternedStrings(this, null);
 };
 
@@ -171,8 +202,13 @@ VM.prototype.hasError = function () {
     return this.atError;
 };
 
+VM.prototype.errorIsHandled = function () {
+    return this.errorHandled & (1 << 1);
+};
+
 VM.prototype.clearError = function () {
     this.atError = false;
+    this.errorHandled = 1;
 };
 
 VM.prototype.readByte = function () {
@@ -221,7 +257,8 @@ VM.prototype.stackSize = function () {
 
 VM.prototype.pushFrame = function (func) {
     if (this.frames.length >= MAX_FRAMES_SIZE) {
-        this.runtimeError("Stack overflow");
+        this.fatalError("Stack overflow");
+        return;
     }
     const retIndex = this.sp - 1 - func.arity;
     const frame = new CallFrame(func, retIndex, this.stack);
@@ -233,6 +270,11 @@ VM.prototype.popFrame = function () {
     const frame = this.frames.pop();
     this.fp = this.frames[this.frames.length - 1];
     return frame;
+};
+
+VM.prototype.addFrame = function (frame) {
+    this.frames.push(frame);
+    this.fp = frame;
 };
 
 VM.prototype.currentFrame = function () {
@@ -255,21 +297,32 @@ VM.prototype.execNow = function (value, arity) {
     return !this.hasError();
 };
 
-
-/*
- *   x  | int   | float | bool
- * ---------------------------
- * int  | int   | float | int
- * ----------------------------
- * float| float | float | float
- * ----------------------------
- * bool | int   | float | int
- * ----------------------------
- */
+VM.prototype.handleException = function (msgStr, msgVal) {
+    // set ip to the exception handler point
+    this.fp.ip = this.fp.hp[0];
+    // reset the stack to the last known valid point using the
+    // stack snapshot. see pushHandler() for more info
+    this.sp = this.fp.hp[1];
+    // pop the handler off the handler stack
+    this.fp.popHandler();
+    this.errorHandled = (this.errorHandled << 0x1) | 0x1;
+    // push an exception instance (with the error msg) on the stack
+    this.pushStack(exceptMod.getErrorValue(this, msgStr, msgVal));
+};
 
 // todo: rework this method
 VM.prototype.computeNumType = function (leftType, rightType, opcode) {
-    // int -> 0 | float -> 1 | bool -> 2 (see value.js)
+    /*
+     *   x  | int   | float | bool
+     * ---------------------------
+     * int  | int   | float | int
+     * ----------------------------
+     * float| float | float | float
+     * ----------------------------
+     * bool | int   | float | int
+     * ----------------------------
+     * int -> 0 | float -> 1 | bool -> 2 (see value.js)
+     */
     assert(
         leftType <= 2 && rightType <= 2,
         "VM::computeNumType() - num types changed"
@@ -296,32 +349,66 @@ VM.prototype.getLineSrcCode = function (ip) {
 /*
  * Errors
  */
-VM.prototype.runtimeError = function (...msg) {
+/**
+ * @param {string} msgStr: the message as a JS string if available
+ * @param {Value} msgVal: the message as a Value object if available
+ * @param isFatal: flag indicating if the error is recoverable or not
+ */
+VM.prototype.runtimeError = function (msgStr, msgVal = null, isFatal = false) {
     this.atError = true;
     let repeatingFrameCount = 0;
     let prevFrame = null;
+    let stackTrace = "";
+    let srcAtLine;
     while (this.fp !== undefined) {
+        // check for exception handlers
+        if (!isFatal && this.fp.hp !== null) {
+            this.handleException(msgStr, msgVal);
+            stackTrace = null;
+            return;
+        }
+        // handle consecutive repeating frames
         if (prevFrame && prevFrame.func.fname === this.fp.func.fname) {
-            // todo
             repeatingFrameCount++;
             if (repeatingFrameCount >= 4) {
                 prevFrame = this.popFrame();
                 continue;
             }
         }
-        const srcAtLine = this.getLineSrcCode(this.fp.ip);
+        // gather the stack trace
+        srcAtLine = this.getLineSrcCode(this.fp.ip);
         if (srcAtLine && srcAtLine !== 0xff) {
             const fnName = this.fp.func.fname
                 ? this.fp.func.fname.raw + "()"
                 : this.envName;
             const lineNum = this.fp.func.code.lines[this.fp.ip];
-            console.error(`<Line ${lineNum}: [${fnName}]>`); // todo: decide best strategy
-            console.error(`  ${srcAtLine.trim()}`);
+            stackTrace += `<Line ${lineNum}: in ${fnName}>\n`;
+            stackTrace += `  ${srcAtLine.trim()}\n`;
         }
         prevFrame = this.popFrame();
     }
-    console.error(`RuntimeError: ${msg.join(" ")}`);
-    // we cannot exit in order to allow roo to be embeddable
+
+    // if a Value() object is provided as the message, obtain the
+    // stringified form of the object.
+    if (msgVal) {
+        // reuse the last frame
+        this.addFrame(prevFrame);
+        // temporarily clear the error state
+        this.atError = false;
+        // obtain the string value of `msgVal` - this might invoke a function,
+        // which is why the error state had to be cleared above
+        msgStr = msgVal.stringify(false, this);
+        // reset error state to its previous value
+        this.atError = true;
+        // pop off the reused frame
+        this.popFrame();
+    }
+    console.error(stackTrace.trimEnd());
+    console.error(`RuntimeError: ${msgStr}`);
+};
+
+VM.prototype.fatalError = function (msgStr) {
+    this.runtimeError(msgStr, null, true);
 };
 
 VM.prototype.argumentError = function (fnObj, got) {
@@ -329,7 +416,8 @@ VM.prototype.argumentError = function (fnObj, got) {
     const arity = fnObj.arity - fnObj.isVariadic - fnObj.defaultParamsCount;
     const argsWord = arity > 1 ? "arguments" : "argument";
     const gotWord = got >= 1 ? got : "none.";
-    let diagnosis = `${fnObj.fname.raw}() takes ${arity} positional ${argsWord}`;
+    const arityWord = arity || "no";
+    let diagnosis = `${fnObj.fname.raw}() takes ${arityWord} positional ${argsWord}`;
     let stress =
         fnObj.defaultParamsCount || fnObj.isVariadic ? " at least " : " ";
     if (fnObj.defaultParamsCount) {
@@ -340,7 +428,7 @@ VM.prototype.argumentError = function (fnObj, got) {
     if (fnObj.isVariadic) {
         diagnosis += `, and an (optional) variadic/spread argument`;
     }
-    diagnosis += `.\n${fnObj.fname.raw}() expected${stress}${arity} ${argsWord} but got ${gotWord}`;
+    diagnosis += `.\n${fnObj.fname.raw}() expected${stress}${arityWord} ${argsWord} but got ${gotWord}`;
     return diagnosis;
 };
 
@@ -351,19 +439,16 @@ VM.prototype.propertyAccessError = function (val, prop, defName) {
         // but the instance isn't available to be passed to this method.
         // so, we handle it as if the instance was passed.
         error = `ref of '${defName.raw}' has no property '${prop.raw}'`;
-        this.runtimeError(error);
     } else if (val.isInstance()) {
-        error = `ref of '${
-            val.asInstance().def.dname.raw
-        }' has no property '${prop.raw}'`;
-        this.runtimeError(error);
+        error = `ref of '${val.asInstance().def.dname.raw}' has no property '${
+            prop.raw
+        }'`;
     } else if (val.isDef()) {
         error = `'${val.asDef().dname.raw}' has no property '${prop.raw}'`;
-        this.runtimeError(error);
     } else {
         error = `'${val.typeToString()}' has no property '${prop.raw}'`;
-        this.runtimeError(error);
     }
+    this.runtimeError(error);
     // todo: handle other val types
 };
 
@@ -478,10 +563,6 @@ VM.prototype[OP_MOD] = function (leftVal, rightVal) {
 
 VM.prototype[OP_POW] = function (leftVal, rightVal) {
     // todo: handle infinity on all number operations
-    // if (val === Infinity) {
-    //     this.runtimeError("Value too large");
-    //     return this.dummyVal();
-    // }
     return leftVal.value ** rightVal.value;
 };
 
@@ -780,9 +861,11 @@ VM.prototype.defaultCall = function (fnObj, arity) {
         if (newArity !== fnObj.arity) {
             this.variadicCall(fnObj, newArity);
         }
-    } else {
+    } else if (fnObj.isVariadic) {
         // arity > fnObj.arity
         this.variadicCall(fnObj, arity);
+    } else {
+        this.runtimeError(this.argumentError(fnObj, arity));
     }
 };
 
@@ -822,7 +905,9 @@ VM.prototype.callFn = function (fnVal, callArity) {
 
 VM.prototype.callBuiltinMethod = function (fnObj, arity) {
     // call and set the return value directly
-    this.stack[this.sp - 1 - arity] = fnObj.builtinMethod(this, arity);
+    const result = fnObj.builtinMethod(this, arity);
+    if (this.atError) return;
+    this.stack[this.sp - 1 - arity] = result;
     // trim the stack pointer - to reflect the return of the builtinMethod
     this.sp -= arity;
 };
@@ -837,7 +922,9 @@ VM.prototype.callBuiltinFn = function (val, arity) {
         this.runtimeError(error);
     } else {
         // `bFn.builtinFn` returns a Value() obj
-        this.stack[this.sp - 1 - arity] = bFn.builtinFn(this);
+        const result = bFn.builtinFn(this, arity);
+        if (this.atError) return;
+        this.stack[this.sp - 1 - arity] = result;
         this.sp -= arity;
     }
 };
@@ -948,16 +1035,27 @@ VM.prototype.invokeValue = function (prop, arity) {
     return !this.atError;
 };
 
-VM.prototype.isBuiltinDef = function (defVal) {
-    return rcore.builtinDefs.includes(defVal.asDef().dname.raw);
+VM.prototype.isCoreDef = function (defVal) {
+    return rcore.coreDefs.includes(defVal.asDef().dname.raw);
+};
+
+VM.prototype.interpret = function () {
+    let res;
+    while (1) {
+        res = this.run();
+        if (this.hasError() && this.errorIsHandled()) {
+            this.clearError();
+        } else {
+            return res;
+        }
+    }
 };
 
 VM.prototype.run = function (externCaller) {
-    let dis = new Disassembler(this.fp.func, this.debug);
     for (;;) {
         if (this.debug) {
             this.printStack();
-            dis.disassembleInstruction(this.fp.ip, this.fp.func.code);
+            this.dis.disassembleInstruction(this.fp.ip, this.fp.func.code);
         }
         const bytecode = this.readByte();
         switch (bytecode) {
@@ -1077,12 +1175,17 @@ VM.prototype.run = function (externCaller) {
                         "Range expression sequences only with integers"
                     );
                     return this.iERR();
+                } else {
+                    const valObj = createListVal(
+                        this.buildListFromRange(
+                            start.value,
+                            end.value,
+                            step.value
+                        ),
+                        this
+                    );
+                    this.pushStack(valObj);
                 }
-                let valObj = createListVal(
-                    this.buildListFromRange(start.value, end.value, step.value),
-                    this
-                );
-                this.pushStack(valObj);
                 break;
             }
             case OP_BUILD_DICT: {
@@ -1316,27 +1419,39 @@ VM.prototype.run = function (externCaller) {
                 // [ base Def ][ child Def ]
                 const child = this.popStack().asDef();
                 const baseVal = this.peekStack();
-                // todo: ensure builtin defs are sealed i.e. they can't be derived
                 if (!baseVal.isDef()) {
                     this.runtimeError(
                         `'${baseVal.typeToString()}' can't be interpreted as a definition`
                     );
                     return this.iERR();
-                } else if (this.isBuiltinDef(baseVal)) {
+                } else if (this.isCoreDef(baseVal)) {
                     // todo: okay?
                     this.runtimeError(
-                        `Can't derive from built-in type '${
+                        `Can't derive from core type '${
                             baseVal.asDef().dname.raw
                         }'`
                     );
                     return this.iERR();
+                } else {
+                    baseVal
+                        .asDef()
+                        .dmethods.forEach((v, k) => child.setMethod(k, v));
+                    // create a link to the base def in the child def.
+                    child.baseDef = baseVal.asDef();
                 }
-                baseVal
-                    .asDef()
-                    .dmethods.forEach((v, k) => child.setMethod(k, v));
-                // create a link to the base def in the child def.
-                child.baseDef = baseVal.asDef();
                 break;
+            }
+            case OP_SETUP_EXCEPT: {
+                this.fp.pushHandler(this.readShort(), this.sp);
+                break;
+            }
+            case OP_POP_EXCEPT: {
+                this.fp.popHandler();
+                break;
+            }
+            case OP_PANIC: {
+                this.runtimeError(null, this.popStack());
+                return this.iERR();
             }
             case OP_RETURN: {
                 const frame = this.popFrame();

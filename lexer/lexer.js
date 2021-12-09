@@ -52,7 +52,7 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_LESS_THAN_EQUAL:      return "<=";
         case tokens.TOKEN_GREATER_THAN_EQUAL:   return ">=";
         case tokens.TOKEN_EQUAL_EQUAL:          return "==";
-        case tokens.TOKEN_NOT:                  return "!";
+        case tokens.TOKEN_EXC_MARK:             return "!";
         case tokens.TOKEN_NOT_EQUAL:            return "!=";
         case tokens.TOKEN_BITWISE_LSHIFT:       return "<<";
         case tokens.TOKEN_BITWISE_RSHIFT:       return ">>";
@@ -85,6 +85,7 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_OR:                   return "or";
         case tokens.TOKEN_OF:                   return "of";
         case tokens.TOKEN_AND:                  return "and";
+        case tokens.TOKEN_NOT:                  return "not";
         case tokens.TOKEN_DO:                   return "do";
         case tokens.TOKEN_IF:                   return "if";
         case tokens.TOKEN_IN:                   return "in";
@@ -106,11 +107,14 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_LOOP:                 return "loop";
         case tokens.TOKEN_CASE:                 return "case";
         case tokens.TOKEN_STATIC:               return "static";
+        case tokens.TOKEN_TRY:                  return "try";
+        case tokens.TOKEN_EXCEPT:               return "except";
         case tokens.TOKEN_STRUCT:               return "struct";
         case tokens.TOKEN_ISTRING_START:        return "$";
         case tokens.TOKEN_ISTRING_END:          return "end of $";
         case tokens.TOKEN_DEFINE:               return "define";
         case tokens.TOKEN_DERIVE:               return "derive";
+        case tokens.TOKEN_PANIC:                return "panic";
         case tokens.TOKEN_ERROR:                return "ERROR";
         case tokens.TOKEN_EOF:                  return "EOF";
     }
@@ -157,6 +161,7 @@ Lexer.keywords = function() {
         ["or", tokens.TOKEN_OR],
         ["of", tokens.TOKEN_OF],
         ["and", tokens.TOKEN_AND],
+        ["not", tokens.TOKEN_NOT],
         ["break", tokens.TOKEN_BREAK],
         ["if", tokens.TOKEN_IF],
         ["else", tokens.TOKEN_ELSE],
@@ -172,6 +177,8 @@ Lexer.keywords = function() {
         ["for", tokens.TOKEN_FOR],
         ["fn", tokens.TOKEN_FN],
         ["static", tokens.TOKEN_STATIC],
+        ["try", tokens.TOKEN_TRY],
+        ["except", tokens.TOKEN_EXCEPT],
         ["deref", tokens.TOKEN_DEREF],
         ["ref", tokens.TOKEN_REF],
         ["show", tokens.TOKEN_SHOW],
@@ -182,6 +189,7 @@ Lexer.keywords = function() {
         ["case", tokens.TOKEN_CASE],
         ["define", tokens.TOKEN_DEFINE],
         ["derive", tokens.TOKEN_DERIVE],
+        ["panic", tokens.TOKEN_PANIC],
     ];
 };
 
@@ -642,7 +650,7 @@ Lexer.prototype.getToken = function() {
                 tokens.TOKEN_AND_EQUAL : tokens.TOKEN_BITWISE_AND);
         case "!":
             return this.newToken(this.check("=") ?
-                tokens.TOKEN_NOT_EQUAL : tokens.TOKEN_NOT);
+                tokens.TOKEN_NOT_EQUAL : tokens.TOKEN_EXC_MARK);
         case "|":
             return this.newToken(this.check("=") ?
                 tokens.TOKEN_OR_EQUAL : this.check(">") ?

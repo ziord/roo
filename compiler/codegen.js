@@ -54,6 +54,20 @@ function patchJump(codeObj, jumpOffsetSlot) {
     codeObj.bytes[jumpOffsetSlot + 1] = actualJumpOffset & 0xff;
 }
 
+function emitExcept(codeObj, byte, lineNum = null){
+    return emitJump(codeObj, byte, lineNum);
+}
+
+function patchExcept(codeObj, jumpOffsetSlot) {
+    const offset = codeObj.length;
+    if (offset > UINT16_MAX) {
+        // todo: good error reporting
+        error("code body too large to jump over");
+    }
+    codeObj.bytes[jumpOffsetSlot] = (offset >> 8) & 0xff;
+    codeObj.bytes[jumpOffsetSlot + 1] = offset & 0xff;
+}
+
 function emitLoop(codeObj, loopPoint, lineNum = null) {
     // +3 for the opcode and its 2 bytes operand
     const actualJumpOffset = codeObj.length - loopPoint + 3;
@@ -71,5 +85,7 @@ module.exports = {
     emitConstant,
     emitJump,
     patchJump,
+    emitExcept,
+    patchExcept,
     emitLoop,
 };

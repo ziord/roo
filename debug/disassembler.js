@@ -18,6 +18,14 @@ function Disassembler(func, showSrcLines = false, repl = false) {
     this.hasSrcLines = Boolean(this.code.srcLines.length);
 }
 
+Disassembler.prototype.reset = function (func, showSrcLines = false) {
+    this.func = func;
+    this.code = func.code;
+    this.name = func.fname;
+    this.showSrcLines = showSrcLines;
+    this.hasSrcLines = Boolean(this.code.srcLines.length);
+};
+
 Disassembler.prototype.readShort = function (index) {
     const first = this.code.bytes[++index];
     const second = this.code.bytes[++index];
@@ -196,6 +204,10 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
             return this.plainInstruction("OP_METHOD", index);
         case opcode.OP_DERIVE:
             return this.plainInstruction("OP_DERIVE", index);
+        case opcode.OP_POP_EXCEPT:
+            return this.plainInstruction("OP_POP_EXCEPT", index);
+        case opcode.OP_PANIC:
+            return this.plainInstruction("OP_PANIC", index);
         case opcode.OP_SHOW:
             return this.byteInstruction("OP_SHOW", index);
         case opcode.OP_CALL:
@@ -228,6 +240,8 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
             return this.shortInstruction("OP_POP_N", index);
         case opcode.OP_DEF:
             return this.shortInstruction("OP_DEF", index);
+        case opcode.OP_SETUP_EXCEPT:
+            return this.shortInstruction("OP_SETUP_EXCEPT", index);
         case opcode.OP_LOAD_CONST:
             return this.constantInstruction("OP_LOAD_CONST", index);
         case opcode.OP_DEFINE_GLOBAL:
@@ -289,6 +303,8 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.OP_INC:
         case opcode.OP_METHOD:
         case opcode.OP_DERIVE:
+        case opcode.OP_POP_EXCEPT:
+        case opcode.OP_PANIC:
             return index + 1;
         case opcode.OP_SHOW:
         case opcode.OP_CALL:
@@ -314,6 +330,7 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.OP_GET_PROPERTY:
         case opcode.OP_SET_PROPERTY:
         case opcode.OP_GET_DEREF_PROPERTY:
+        case opcode.OP_SETUP_EXCEPT:
             return index + 3;
         case opcode.OP_CLOSURE:
             // 2 bytes per 'upvalue'

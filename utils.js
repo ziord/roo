@@ -22,7 +22,6 @@ function unreachable (msg){
 
 function error(msg){
    console.error(msg);
-   process.exit(-1);
 }
 
 function exit(code){

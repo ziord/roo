@@ -18,20 +18,17 @@ function showPrompt(cons, depth) {
     cons.prompt();
 }
 
-function inspectLine(line, inMLString, inMLComment, depth) {
-    let strStart = null,
-        ch = null;
+function inspectLine(line, mlStrStart, inMLString, inMLComment, depth) {
+    let ch = null;
     for (let i = 0; i < line.length; ++i) {
         ch = line[i];
         if ((ch === '"' || ch === "'") && !inMLComment) {
-            if (strStart) {
-                if (strStart === ch) {
-                    inMLString = !inMLString;
-                    strStart = null;
-                }
-            } else {
-                strStart = ch;
+            if (!mlStrStart) {
+                mlStrStart = ch;
                 inMLString = !inMLString;
+            } else if (mlStrStart === ch) {
+                inMLString = !inMLString;
+                mlStrStart = null;
             }
         } else if (inMLString) {
             void 0;
@@ -47,7 +44,7 @@ function inspectLine(line, inMLString, inMLComment, depth) {
             i += 1;
         }
     }
-    return [inMLString, inMLComment, (depth < 0 ? 0 : depth)];
+    return [inMLString, inMLComment, mlStrStart, (depth < 0 ? 0 : depth)];
 }
 
 function execute(src, interned, vm) {
@@ -58,7 +55,7 @@ function execute(src, interned, vm) {
     } else {
         vm = new VM(fnObj, false, interned, true); // todo
     }
-    if (vm.run() !== vm.iOK()) {
+    if (vm.interpret() !== vm.iOK()) {
         // clear the error state, as this will prevent the VM from being
         // re-used (newer instructions will not be executed) if not cleared.
         vm.clearError();
@@ -75,14 +72,16 @@ function repl() {
         depth = 0,
         inMLComment = false,
         inMLString = false,
+        mlStrStart = null,
         interned = null,
         vm = null;
 
     showPrompt(cons, depth);
 
     cons.on("line", (line) => {
-        [inMLString, inMLComment, depth] = inspectLine(
+        [inMLString, inMLComment, mlStrStart, depth] = inspectLine(
             line,
+            mlStrStart,
             inMLString,
             inMLComment,
             depth

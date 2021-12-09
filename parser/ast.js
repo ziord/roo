@@ -46,6 +46,8 @@ const ASTType = {
     AST_NODE_DEFN:              'AST_NODE_DEFN',
     AST_NODE_DOT_EXPR:          'AST_NODE_DOT_EXPR',
     AST_NODE_METHOD_CALL:       'AST_NODE_METHOD_CALL',
+    AST_NODE_TRY:               'AST_NODE_TRY',
+    AST_NODE_PANIC:             'AST_NODE_PANIC',
 };
 
 const OpType = {
@@ -133,7 +135,6 @@ function getOperator(tokenType){
         case tokens.TOKEN_STAR_STAR_EQUAL:     return OpType.OPTR_POW_ASSIGN;
         case tokens.TOKEN_OR:                  return OpType.OPTR_OR;
         case tokens.TOKEN_AND:                 return OpType.OPTR_AND;
-        // case tokens.TOKEN_DOT_DOT_DOT:         return OpType.OPTR_SPREAD;
         default:                               return undefined;
     }
 }
@@ -537,7 +538,7 @@ class DefNode extends AST {
 }
 
 class DotExprNode extends AST {
-    constructor(left, right, line){
+    constructor(left, right, line) {
         super();
         this.type = ASTType.AST_NODE_DOT_EXPR;
         this.line = line;
@@ -547,19 +548,40 @@ class DotExprNode extends AST {
     }
 }
 
-class MethodCallNode extends AST{
-    constructor(left, isDeref, line){
+class MethodCallNode extends AST {
+    constructor(left, isDeref, line) {
         super();
         this.type = ASTType.AST_NODE_METHOD_CALL;
-        this.leftNode = left;  // DotExprNode
+        this.leftNode = left; // DotExprNode
         this.isDeref = isDeref;
         this.args = [];
         this.line = line;
     }
 }
 
-class ProgramNode extends AST{
-    constructor(){
+class TryNode extends AST {
+    constructor(tryBlock, exceptHandlerVar, exceptBlock, elseBlock, line) {
+        super();
+        this.type = ASTType.AST_NODE_TRY;
+        this.tryBlock = tryBlock;
+        this.exceptHandlerVar = exceptHandlerVar;
+        this.exceptBlock = exceptBlock;
+        this.elseBlock = elseBlock;
+        this.line = line;
+    }
+}
+
+class PanicNode extends AST {
+    constructor(msgNode, line) {
+        super();
+        this.type = ASTType.AST_NODE_PANIC;
+        this.msgNode = msgNode;
+        this.line = line;
+    }
+}
+
+class ProgramNode extends AST {
+    constructor() {
         super();
         this.type = ASTType.AST_NODE_PROGRAM;
         this.decls = [];
@@ -567,14 +589,52 @@ class ProgramNode extends AST{
 }
 
 module.exports = {
-    AST, ASTType, NumberNode, StringNode, BinaryNode, UnaryNode,
-    BooleanNode, NullNode, ShowNode, ListNode, RangeNode,
-    IndexExprNode, VarDeclNode, VarNode, ExprStatementNode,
-    ProgramNode, AssignNode, MethodCallNode,
-    PostfixNode, VarDeclListNode, BlockNode, IStringNode,
-    AndExprNode, OrExprNode, IfElseNode, MethodNode, DotExprNode,
-    ForLoopNode, WhileLoopNode, DoWhileLoopNode, UnboundedLoopNode,
-    ControlNode, CaseNode, OfNode, DictNode, FunctionNode,
-    CallNode, ReturnNode, ArgumentNode, DefNode, ForInLoopNode,
-    OpType, getOperator, NodeVisitor, getAssignmentOp, FnTypes
+    AST,
+    ASTType,
+    NumberNode,
+    StringNode,
+    BinaryNode,
+    UnaryNode,
+    BooleanNode,
+    NullNode,
+    ShowNode,
+    ListNode,
+    RangeNode,
+    IndexExprNode,
+    VarDeclNode,
+    VarNode,
+    ExprStatementNode,
+    ProgramNode,
+    AssignNode,
+    MethodCallNode,
+    PostfixNode,
+    VarDeclListNode,
+    BlockNode,
+    IStringNode,
+    AndExprNode,
+    OrExprNode,
+    IfElseNode,
+    MethodNode,
+    DotExprNode,
+    ForLoopNode,
+    WhileLoopNode,
+    DoWhileLoopNode,
+    UnboundedLoopNode,
+    ControlNode,
+    CaseNode,
+    OfNode,
+    DictNode,
+    FunctionNode,
+    CallNode,
+    ReturnNode,
+    ArgumentNode,
+    DefNode,
+    ForInLoopNode,
+    TryNode,
+    PanicNode,
+    OpType,
+    getOperator,
+    NodeVisitor,
+    getAssignmentOp,
+    FnTypes,
 };

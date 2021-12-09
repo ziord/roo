@@ -318,6 +318,11 @@ RError[EP0045] = createError(EP0045,
     `The parameter defined in the function is illegal.${SEP}` +
     `Consider declaring valid parameter(s).`);
 
+RError[EP0046] = createError(EP0046,
+    "Illegal block .",
+    `Expected a block of code.${SEP}` +
+    `Consider creating a valid block of code.`);
+
 
 module.exports = {
     RError,

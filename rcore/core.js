@@ -11,6 +11,7 @@ const rlist = require("./types/list");
 const rstring = require("./types/string");
 const rnum = require("./types/num");
 const rresult = require("./types/result");
+const rexcept = require("./types/except");
 
 
 /******************
@@ -38,6 +39,7 @@ exports.initAll = function(rvm) {
     rlist.init(rvm);
     rdict.init(rvm);
     rresult.init(rvm);
+    rexcept.init(rvm);
     const strDef = rvm.builtins.get(strObj).asDef();
     // associate the builtin String def with all string objects
     for (let [_, value] of rvm.internedStrings) {
@@ -46,7 +48,7 @@ exports.initAll = function(rvm) {
     }
 };
 
-exports.builtinDefs = [
+exports.coreDefs = [
     "Bool",
     "Int",
     "Float",
@@ -56,4 +58,7 @@ exports.builtinDefs = [
     "ListIterator",
     "Dict",
     "DictKeyIterator",
+    "Result",
 ];
+
+exports.builtinDefs = [...exports.coreDefs, "Exception"];

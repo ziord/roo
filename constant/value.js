@@ -363,7 +363,7 @@ Value.prototype.typeToString = function () {
 
 Value.prototype.dictToString = function () {
     // uses Map() internally
-    let start = "{";
+    let start = "!{";
     let i = 0;
     const dict = this.asDict().htable;
     for (let [key, value] of dict) {

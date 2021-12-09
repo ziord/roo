@@ -36,7 +36,7 @@ module.exports = {
     TOKEN_LESS_THAN_EQUAL: "TOKEN_LESS_THAN_EQUAL",      // <=
     TOKEN_GREATER_THAN_EQUAL: "TOKEN_GREATER_THAN_EQUAL",   // >=
     TOKEN_EQUAL_EQUAL: "TOKEN_EQUAL_EQUAL",          // ==
-    TOKEN_NOT: "TOKEN_NOT",                  // !
+    TOKEN_EXC_MARK: "TOKEN_EXC_MARK",                  // !
     TOKEN_NOT_EQUAL: "TOKEN_NOT_EQUAL",            // !=
     TOKEN_BITWISE_LSHIFT: "TOKEN_BITWISE_LSHIFT",        // <<
     TOKEN_BITWISE_RSHIFT: "TOKEN_BITWISE_RSHIFT",       // >>
@@ -75,6 +75,7 @@ module.exports = {
     TOKEN_IN: 'TOKEN_IN',               // or
     TOKEN_OF: 'TOKEN_OF',               // of
     TOKEN_AND: 'TOKEN_AND',              // and
+    TOKEN_NOT: "TOKEN_NOT",              // not
     TOKEN_DO: 'TOKEN_DO',               // do
     TOKEN_IF: 'TOKEN_IF',               // if
     TOKEN_ELSE: 'TOKEN_ELSE',             // else
@@ -95,9 +96,12 @@ module.exports = {
     TOKEN_LOOP: 'TOKEN_LOOP',             // loop
     TOKEN_CASE: 'TOKEN_CASE',             // case
     TOKEN_STATIC: 'TOKEN_STATIC',           // static
+    TOKEN_TRY: 'TOKEN_TRY',                 // try
+    TOKEN_EXCEPT: 'TOKEN_EXCEPT',             // except
     TOKEN_STRUCT: 'TOKEN_STRUCT',           // struct
     TOKEN_DEFINE: 'TOKEN_DEFINE',           // define
     TOKEN_DERIVE: 'TOKEN_DERIVE',           // derive
+    TOKEN_PANIC: 'TOKEN_PANIC',           // panic
 
     // others
     TOKEN_ERROR: 'TOKEN_ERROR',
