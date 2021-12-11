@@ -12,7 +12,7 @@
   "bin": {
     "roo": "./bin/cli.js"
   },
-  "keywords": ["cli"],
+  "keywords": ["cli", "programming language", "parser", "compiler", "VM"],
   "author": "ziord",
   "license": "MIT"
 }
