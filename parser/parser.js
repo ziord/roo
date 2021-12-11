@@ -18,19 +18,19 @@ const utils = require("../utils");
 const POWER_NONE = 0,
     POWER_ASSIGNMENT = 1,         // = | *= | += | /= | &= ...
     POWER_CONDITIONAL_EXPR = 2,   // cond ? expr : expr
-    POWER_OR = 3,               // or
-    POWER_AND = 4,              // and
-    POWER_BITWISE_OR = 5,       // |
-    POWER_BITWISE_XOR = 6,      // ^
-    POWER_BITWISE_AND = 7,      // &
-    POWER_EQUALITY = 8,         // == | !=
-    POWER_COMPARISON = 9,       // >= | <= | > | <
-    POWER_BITWISE_SHIFT = 10,   // >> | <<
-    POWER_TERM = 11,            // + | -
-    POWER_FACTOR = 12,          // * | / | ** | %
-    POWER_UNARY = 13,           // - | + | ~ | ! | ++ | --
-    POWER_POSTFIX = 14,         // ++ | -- | [..]
-    POWER_CALL = 15;            // . | ( )
+    POWER_OR = 3,                 // or
+    POWER_AND = 4,                // and
+    POWER_BITWISE_OR = 5,         // |
+    POWER_BITWISE_XOR = 6,        // ^
+    POWER_BITWISE_AND = 7,        // &
+    POWER_EQUALITY = 8,           // == | !=
+    POWER_COMPARISON = 9,         // >= | <= | > | <
+    POWER_BITWISE_SHIFT = 10,     // >> | <<
+    POWER_TERM = 11,              // + | -
+    POWER_FACTOR = 12,            // * | / | ** | %
+    POWER_UNARY = 13,             // - | + | ~ | ! | ++ | --
+    POWER_POSTFIX = 14,           // ++ | -- | [..]
+    POWER_CALL = 15;              // . | ( )
 
 function bp(power, prefix, infix) {
     return { power, prefix, infix };
@@ -39,41 +39,40 @@ function bp(power, prefix, infix) {
 /*
  * Binding Power Table
  */
-function BPTable() {
-}
+function BPTable() {}
 
 BPTable[tokens.TOKEN_SEMI_COLON] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_AT] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_LESS_THAN] = bp(POWER_COMPARISON, null, binary); // d
-BPTable[tokens.TOKEN_GREATER_THAN] = bp(POWER_COMPARISON, null, binary);  // d
+BPTable[tokens.TOKEN_LESS_THAN] = bp(POWER_COMPARISON, null, binary);
+BPTable[tokens.TOKEN_GREATER_THAN] = bp(POWER_COMPARISON, null, binary);
 BPTable[tokens.TOKEN_LEFT_BRACKET] = bp(POWER_CALL, grouping, callExpr);
 BPTable[tokens.TOKEN_RIGHT_BRACKET] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_LEFT_SQR_BRACKET] = bp(POWER_POSTFIX, listLiteral, indexExpression);
 BPTable[tokens.TOKEN_RIGHT_SQR_BRACKET] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_LEFT_CURLY] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_RIGHT_CURLY] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_STAR] = bp(POWER_FACTOR, null, binary);  // d
-BPTable[tokens.TOKEN_MINUS] = bp(POWER_TERM, unary, binary);  // d
-BPTable[tokens.TOKEN_PLUS] = bp(POWER_TERM, unary, binary);  // d
-BPTable[tokens.TOKEN_F_SLASH] = bp(POWER_FACTOR, null, binary);  // d
+BPTable[tokens.TOKEN_STAR] = bp(POWER_FACTOR, null, binary);
+BPTable[tokens.TOKEN_MINUS] = bp(POWER_TERM, unary, binary);
+BPTable[tokens.TOKEN_PLUS] = bp(POWER_TERM, unary, binary);
+BPTable[tokens.TOKEN_F_SLASH] = bp(POWER_FACTOR, null, binary);
 BPTable[tokens.TOKEN_B_SLASH] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_COMMA] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_DOT] = bp(POWER_CALL, null, dotExpr);
-BPTable[tokens.TOKEN_MOD] = bp(POWER_FACTOR, null, binary);  // d
+BPTable[tokens.TOKEN_MOD] = bp(POWER_FACTOR, null, binary);
 BPTable[tokens.TOKEN_EQUAL] = bp(POWER_ASSIGNMENT, null, null);
 BPTable[tokens.TOKEN_QMARK] = bp(POWER_CONDITIONAL_EXPR, null, conditionalExpr);
 BPTable[tokens.TOKEN_COLON] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_BITWISE_AND] = bp(POWER_BITWISE_AND, null, binary);  // d
-BPTable[tokens.TOKEN_BITWISE_XOR] = bp(POWER_BITWISE_XOR, null, binary);  // d
-BPTable[tokens.TOKEN_BITWISE_OR] = bp(POWER_BITWISE_OR, null, binary);   // d
-BPTable[tokens.TOKEN_BITWISE_INVERT] = bp(POWER_UNARY, unary, null);  // d
-BPTable[tokens.TOKEN_LESS_THAN_EQUAL] = bp(POWER_COMPARISON, null, binary);  // d
-BPTable[tokens.TOKEN_GREATER_THAN_EQUAL] = bp(POWER_COMPARISON, null, binary);  // d
-BPTable[tokens.TOKEN_EQUAL_EQUAL] = bp(POWER_EQUALITY, null, binary);  // d
+BPTable[tokens.TOKEN_BITWISE_AND] = bp(POWER_BITWISE_AND, null, binary);
+BPTable[tokens.TOKEN_BITWISE_XOR] = bp(POWER_BITWISE_XOR, null, binary);
+BPTable[tokens.TOKEN_BITWISE_OR] = bp(POWER_BITWISE_OR, null, binary);
+BPTable[tokens.TOKEN_BITWISE_INVERT] = bp(POWER_UNARY, unary, null);
+BPTable[tokens.TOKEN_LESS_THAN_EQUAL] = bp(POWER_COMPARISON, null, binary);
+BPTable[tokens.TOKEN_GREATER_THAN_EQUAL] = bp(POWER_COMPARISON, null, binary);
+BPTable[tokens.TOKEN_EQUAL_EQUAL] = bp(POWER_EQUALITY, null, binary);
 BPTable[tokens.TOKEN_EXC_MARK] = bp(POWER_NONE, dictLiteral, null);
-BPTable[tokens.TOKEN_NOT_EQUAL] = bp(POWER_EQUALITY, null, binary);  // d
-BPTable[tokens.TOKEN_BITWISE_LSHIFT] = bp(POWER_BITWISE_SHIFT, null, binary);  // d
-BPTable[tokens.TOKEN_BITWISE_RSHIFT] = bp(POWER_BITWISE_SHIFT, null, binary);  // d
+BPTable[tokens.TOKEN_NOT_EQUAL] = bp(POWER_EQUALITY, null, binary);
+BPTable[tokens.TOKEN_BITWISE_LSHIFT] = bp(POWER_BITWISE_SHIFT, null, binary);
+BPTable[tokens.TOKEN_BITWISE_RSHIFT] = bp(POWER_BITWISE_SHIFT, null, binary);
 BPTable[tokens.TOKEN_MINUS_EQUAL] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_PLUS_EQUAL] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_DIV_EQUAL] = bp(POWER_NONE, null, null);
@@ -84,28 +83,28 @@ BPTable[tokens.TOKEN_RSHIFT_EQUAL] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_AND_EQUAL] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_OR_EQUAL] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_XOR_EQUAL] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_STAR_STAR] = bp(POWER_FACTOR, null, binary);  // d
+BPTable[tokens.TOKEN_STAR_STAR] = bp(POWER_FACTOR, null, binary);
 BPTable[tokens.TOKEN_STAR_STAR_EQUAL] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_ARROW] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_FAT_ARROW] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_PLUS_PLUS] = bp(POWER_POSTFIX, unary, postfix);
 BPTable[tokens.TOKEN_MINUS_MINUS] = bp(POWER_POSTFIX, unary, postfix);
-BPTable[tokens.TOKEN_DOT_DOT] = bp(POWER_CALL, null, rangeLiteral);  // d
-BPTable[tokens.TOKEN_PIPE] = bp(POWER_FACTOR, null, pipeExpr);  // d
-BPTable[tokens.TOKEN_DOT_DOT_DOT] = bp(POWER_NONE, null, null);  // d
-BPTable[tokens.TOKEN_HEXINT_NUMBER] = bp(POWER_NONE, number, null);  // d
-BPTable[tokens.TOKEN_INT_NUMBER] = bp(POWER_NONE, number, null);  // d
-BPTable[tokens.TOKEN_FLOAT_NUMBER] = bp(POWER_NONE, number, null);  // d
+BPTable[tokens.TOKEN_DOT_DOT] = bp(POWER_CALL, null, rangeLiteral);
+BPTable[tokens.TOKEN_PIPE] = bp(POWER_FACTOR, null, pipeExpr);
+BPTable[tokens.TOKEN_DOT_DOT_DOT] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_HEXINT_NUMBER] = bp(POWER_NONE, number, null);
+BPTable[tokens.TOKEN_INT_NUMBER] = bp(POWER_NONE, number, null);
+BPTable[tokens.TOKEN_FLOAT_NUMBER] = bp(POWER_NONE, number, null);
 BPTable[tokens.TOKEN_IDENTIFIER] = bp(POWER_NONE, variable, null);
-BPTable[tokens.TOKEN_ISTRING_START] = bp(POWER_NONE, iStringLiteral, null);  // d
-BPTable[tokens.TOKEN_ISTRING_END] = bp(POWER_NONE, null, null);  // d
-BPTable[tokens.TOKEN_STRING] = bp(POWER_NONE, stringLiteral, null);  // d
+BPTable[tokens.TOKEN_ISTRING_START] = bp(POWER_NONE, iStringLiteral, null);
+BPTable[tokens.TOKEN_ISTRING_END] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_STRING] = bp(POWER_NONE, stringLiteral, null);
 BPTable[tokens.TOKEN_FOR] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_OR] = bp(POWER_OR, null, OrExprNode);
 BPTable[tokens.TOKEN_IN] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_OF] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_AND] = bp(POWER_AND, null, AndExprNode);
-BPTable[tokens.TOKEN_NOT] = bp(POWER_UNARY, unary, null);   // d
+BPTable[tokens.TOKEN_NOT] = bp(POWER_UNARY, unary, null);
 BPTable[tokens.TOKEN_DO] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_IF] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_ELSE] = bp(POWER_NONE, null, null);
@@ -113,11 +112,11 @@ BPTable[tokens.TOKEN_WHILE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_FN] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_NULL] = bp(POWER_NONE, literal, null);
 BPTable[tokens.TOKEN_LET] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_TRUE] = bp(POWER_NONE, literal, null);    // d
-BPTable[tokens.TOKEN_FALSE] = bp(POWER_NONE, literal, null);    // d
+BPTable[tokens.TOKEN_TRUE] = bp(POWER_NONE, literal, null);
+BPTable[tokens.TOKEN_FALSE] = bp(POWER_NONE, literal, null);
 BPTable[tokens.TOKEN_REF] = bp(POWER_NONE, refExpr, null);
 BPTable[tokens.TOKEN_CONST] = bp(POWER_NONE, null, null);
-BPTable[tokens.TOKEN_SHOW] = bp(POWER_NONE, null, null);  // d
+BPTable[tokens.TOKEN_SHOW] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_RETURN] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_CLASS] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_DEREF] = bp(POWER_NONE, derefExpr, null);
@@ -166,23 +165,23 @@ function Parser(src) {
     this.freeVars = 0;
 }
 
-Parser.prototype.push = function(val) {
+Parser.prototype.push = function (val) {
     this.pstack.push(val);
 };
 
-Parser.prototype.pop = function() {
+Parser.prototype.pop = function () {
     return this.pstack.pop();
 };
 
-Parser.prototype.peek = function() {
+Parser.prototype.peek = function () {
     return this.pstack[this.pstack.length - 1];
 };
 
-Parser.prototype.advance = function() {
+Parser.prototype.advance = function () {
     this.previousToken = this.currentToken;
     this.currentToken = this.lexer.getToken();
     if (this.currentToken.type === tokens.TOKEN_ERROR) {
-        this.pError(this.currentToken.errorCode);  // todo:
+        this.pError(this.currentToken.errorCode); // todo:
     }
 };
 
@@ -202,12 +201,7 @@ Parser.prototype.getFreeVar = function (name) {
     return `$var_${name}${this.freeVars++}`;
 };
 
-// todo: remove
-Parser.prototype.lookAhead = function (tokenLen){
-    return this.lexer.lookAhead(tokenLen);
-};
-
-Parser.prototype.lookup = function(name, currentScopeOnly = false) {
+Parser.prototype.lookup = function (name, currentScopeOnly = false) {
     let currentScope = this.currentScope;
     while (currentScope && !(name in currentScope)) {
         if (currentScopeOnly) break;
@@ -216,17 +210,17 @@ Parser.prototype.lookup = function(name, currentScopeOnly = false) {
     return currentScope && currentScope[name];
 };
 
-Parser.prototype.insert = function(name, isConst) {
+Parser.prototype.insert = function (name, isConst) {
     this.currentScope[name] = { name, isConst };
 };
 
-Parser.prototype.enterScope = function() {
+Parser.prototype.enterScope = function () {
     const newScope = { name: `local-${++this.scopeCount}` };
     newScope.enclosingScope = this.currentScope;
     this.currentScope = newScope;
 };
 
-Parser.prototype.leaveScope = function() {
+Parser.prototype.leaveScope = function () {
     this.scopeCount--;
     this.currentScope = this.currentScope.enclosingScope;
 };
@@ -239,7 +233,7 @@ Parser.prototype.leaveDerivation = function () {
     this.currentBaseDef = this.currentBaseDef.prev;
 };
 
-Parser.prototype.pError = function(errorCode, args) {
+Parser.prototype.pError = function (errorCode, args) {
     /*
        2 |[EP0002] 'let' keyword used in an indirect assignment context.
          | let x += 5;
@@ -269,26 +263,27 @@ Parser.prototype.pError = function(errorCode, args) {
         + "^".padStart(token.length, "^")
         + "\n";
     errSrc += squiggles;
-    if (helpMsg){
-        helpInfo += (padding + "Help:" + "\n"); // todo: remove?
-        if (helpMsg.includes(errors.SEP)){
-            helpMsg.split(errors.SEP).forEach(msg => {
-                helpInfo += (padding + msg + "\n");
+    if (helpMsg) {
+        helpInfo += padding + "Help:" + "\n"; // todo: remove?
+        if (helpMsg.includes(errors.SEP)) {
+            helpMsg.split(errors.SEP).forEach((msg) => {
+                helpInfo += padding + msg + "\n";
             });
-        }else{
-            helpInfo += (padding + helpMsg + "\n");
+        } else {
+            helpInfo += padding + helpMsg + "\n";
         }
     }
     console.error(lineNum + errMsg + errSrc + helpInfo);
 };
 
-Parser.prototype.consume = function(tokenType, errorCode) {
+Parser.prototype.consume = function (tokenType, errorCode) {
     if (this.currentToken.type === tokenType) {
         this.advance();
     } else {
         if (!errorCode) {
-            const helpMsg = `Expected token '${Token.typeToString(tokenType)}'`
-                + `, got '${Token.typeToString(this.currentToken.type)}'`;
+            const helpMsg =
+                `Expected token '${Token.typeToString(tokenType)}'` +
+                `, got '${Token.typeToString(this.currentToken.type)}'`;
             this.pError(errors.EP0001, { helpMsg });
         } else {
             this.pError(errorCode);
@@ -296,7 +291,7 @@ Parser.prototype.consume = function(tokenType, errorCode) {
     }
 };
 
-Parser.prototype.parsePrefix = function() {
+Parser.prototype.parsePrefix = function () {
     const prefix = BPTable[this.currentToken.type].prefix;
     if (prefix) {
         prefix.call(this);
@@ -306,7 +301,7 @@ Parser.prototype.parsePrefix = function() {
     }
 };
 
-Parser.prototype.parseInfix = function() {
+Parser.prototype.parseInfix = function () {
     const infix = BPTable[this.currentToken.type].infix;
     if (infix) {
         infix.call(this);
@@ -316,7 +311,7 @@ Parser.prototype.parseInfix = function() {
     }
 };
 
-Parser.prototype.parse = function(bp) {
+Parser.prototype.parse = function (bp) {
     this.currentBp = { bp, prev: this.currentBp };
     this.parsePrefix();
     while (bp < BPTable[this.currentToken.type].power) {
@@ -325,7 +320,7 @@ Parser.prototype.parse = function(bp) {
     this.currentBp = this.currentBp.prev;
 };
 
-Parser.prototype.check = function(tokenType) {
+Parser.prototype.check = function (tokenType) {
     return this.currentToken.type === tokenType;
 };
 
@@ -338,7 +333,7 @@ Parser.prototype.isNotMatching = function (tokenType) {
     );
 };
 
-Parser.prototype.match = function(tokenType) {
+Parser.prototype.match = function (tokenType) {
     if (this.check(tokenType)) {
         this.advance();
         return true;
@@ -346,14 +341,16 @@ Parser.prototype.match = function(tokenType) {
     return false;
 };
 
-Parser.prototype.expression = function() {
+Parser.prototype.expression = function () {
     this.parse(POWER_NONE);
 };
 
 function grouping() {
     this.consume(tokens.TOKEN_LEFT_BRACKET);
-    if (this.check(tokens.TOKEN_RIGHT_BRACKET) ||
-        this.check(tokens.TOKEN_DOT_DOT_DOT)) {
+    if (
+        this.check(tokens.TOKEN_RIGHT_BRACKET) ||
+        this.check(tokens.TOKEN_DOT_DOT_DOT)
+    ) {
         lambdaExpr.call(this);
         return;
     }
@@ -422,8 +419,10 @@ function iStringLiteral() {
     // object for effective tracking of variables during assignment
     // (const, etc.), and correct error reporting.
     let parser = new IStringParser(
-        this.lexer, this.previousToken,
-        this.currentToken, this.currentScope
+        this.lexer,
+        this.previousToken,
+        this.currentToken,
+        this.currentScope
     );
     // parse the istring
     parser.iStringExpression();
@@ -464,9 +463,11 @@ function unary() {
 
     if (isPreOp) {
         // check if the pre-operation target is valid
-        if (!(right instanceof ast.VarNode) &&
+        if (
+            !(right instanceof ast.VarNode) &&
             !(right instanceof ast.IndexExprNode) &&
-            !(right instanceof ast.DotExprNode)) {
+            !(right instanceof ast.DotExprNode)
+        ) {
             this.pError(code, { token });
         }
         // check for const modification attempts on VarNode (e.g. ++a)
@@ -525,14 +526,17 @@ function OrExprNode() {
 }
 
 function postfix() {
-    const errCode = (this.currentToken.type === tokens.TOKEN_PLUS_PLUS)
-        ? errors.EP0025
-        : errors.EP0026;
+    const errCode =
+        this.currentToken.type === tokens.TOKEN_PLUS_PLUS
+            ? errors.EP0025
+            : errors.EP0026;
     const left = this.pop();
 
-    if (!(left instanceof ast.VarNode) &&
+    if (
+        !(left instanceof ast.VarNode) &&
         !(left instanceof ast.IndexExprNode) &&
-        !(left instanceof ast.DotExprNode)) {
+        !(left instanceof ast.DotExprNode)
+    ) {
         this.pError(errCode);
     }
 
@@ -540,9 +544,11 @@ function postfix() {
     if (left instanceof ast.VarNode) {
         this.inspectConstAssignment(left.name);
     }
-    let node = new ast.PostfixNode(left,
+    let node = new ast.PostfixNode(
+        left,
         ast.getOperator(this.currentToken.type),
-        this.currentToken.line);
+        this.currentToken.line
+    );
     this.push(node);
     this.advance();
 }
@@ -557,8 +563,7 @@ function conditionalExpr() {
     const elseExpr = this.pop();
     // reusing the IfElseNode ast object, since conditional
     // expressions are if-else statements producing values
-    this.push(new ast.IfElseNode(
-        conditionExpr, ifExpr, elseExpr));
+    this.push(new ast.IfElseNode(conditionExpr, ifExpr, elseExpr));
 }
 
 function ofStmt() {
@@ -697,7 +702,7 @@ function indexExpression() {
     }
 }
 
-function refExpr(){
+function refExpr() {
     // ref.x | ref.foo()
     // treat a `ref` as a regular variable and forward
     // the rest of the expression to dotExpr()
@@ -719,7 +724,7 @@ function derefExpr() {
     }
     const line = this.currentToken.line;
     this.push(new ast.VarNode(this.currentToken.value, line));
-    this.advance();  // skip `deref`
+    this.advance(); // skip `deref`
     // handle the rest of the expression by shelling out to dotExpr()
     dotExpr.call(this);
 }
@@ -757,15 +762,15 @@ function argsList(args) {
     return hasSpread;
 }
 
-function dotExpr(){
+function dotExpr() {
     const left = this.pop();
     const line = this.currentToken.line;
     const isDeref = this.previousToken.type === tokens.TOKEN_DEREF;
-    isDeref
-        ? this.consume(tokens.TOKEN_ARROW)
-        : this.consume(tokens.TOKEN_DOT);
+    isDeref ? this.consume(tokens.TOKEN_ARROW) : this.consume(tokens.TOKEN_DOT);
     const node = new ast.DotExprNode(
-        left, new ast.VarNode(this.parseName(), line), line
+        left,
+        new ast.VarNode(this.parseName(), line),
+        line
     );
     node.isDerefExpr = isDeref;
     let op;
@@ -778,7 +783,7 @@ function dotExpr(){
     }
 }
 
-function methodCall(node, isDeref){
+function methodCall(node, isDeref) {
     /*
      * isDeref indicates that `node` (DotExprNode) is
      * a dot/arrow expression involving a `deref`.
@@ -807,8 +812,7 @@ function assignmentExpr(indexNode, op) {
         this.advance();
         this.expression();
         let rightNode = this.pop();
-        this.push(new ast.AssignNode(
-            indexNode, rightNode, op, indexNode.line));
+        this.push(new ast.AssignNode(indexNode, rightNode, op, indexNode.line));
     } else {
         // error:
         // the binding power wasn't sufficient for the assignment
@@ -818,13 +822,12 @@ function assignmentExpr(indexNode, op) {
 }
 
 function variable() {
-    const node = new ast.VarNode(
-        this.parseName(),
-        this.previousToken.line);
+    const node = new ast.VarNode(this.parseName(), this.previousToken.line);
     let op;
-    if ((op = ast.getAssignmentOp(this.currentToken.type)) &&
-        (this.currentBp.bp <= POWER_ASSIGNMENT))
-    {
+    if (
+        (op = ast.getAssignmentOp(this.currentToken.type)) &&
+        this.currentBp.bp <= POWER_ASSIGNMENT
+    ) {
         this.inspectConstAssignment(node.name);
         this.advance();
         this.expression();
@@ -842,13 +845,10 @@ function variable() {
     }
 }
 
-
 function lambdaExpr(firstParam, skipRightBracket) {
     // (x, y) => expr; | (x, y) => {}
     this.inFunction++;
-    const fn = new ast.FunctionNode(
-        null, true, this.currentToken.line
-    );
+    const fn = new ast.FunctionNode(null, true, this.currentToken.line);
     // parse parameters if `skipRightBracket` flag is false. This holds only
     // when there are multiple parameters in the lambda function declaration.
     if (!skipRightBracket) {
@@ -895,9 +895,7 @@ function lambdaExpr(firstParam, skipRightBracket) {
 }
 
 function callExpr() {
-    const node = new ast.CallNode(
-        this.pop(), this.currentToken.line
-    );
+    const node = new ast.CallNode(this.pop(), this.currentToken.line);
     this.advance(); // skip '('
     node.hasSpread = argsList.apply(this, [node.args]);
     this.consume(tokens.TOKEN_RIGHT_BRACKET);
@@ -908,12 +906,12 @@ function callExpr() {
  * methods
  */
 
-Parser.prototype.parseName = function() {
+Parser.prototype.parseName = function () {
     this.consume(tokens.TOKEN_IDENTIFIER);
     return this.previousToken.value;
 };
 
-Parser.prototype.inspectConstAssignment = function(name, args) {
+Parser.prototype.inspectConstAssignment = function (name, args) {
     // check if var is a const todo: fine-tune implementation
     const var_ = this.lookup(name);
     if (var_ && var_.isConst) {
@@ -921,17 +919,17 @@ Parser.prototype.inspectConstAssignment = function(name, args) {
     }
 };
 
-Parser.prototype.inspectConstRedefinition = function(name, isConst) {
+Parser.prototype.inspectConstRedefinition = function (name, isConst) {
     // check if var is a const todo: fine-tune implementation
     const var_ = this.lookup(name, true);
-    if (var_ && isConst){
+    if (var_ && isConst) {
         this.pError(errors.EP0013);
-    }else if (var_ && var_.isConst) {
+    } else if (var_ && var_.isConst) {
         this.pError(errors.EP0027);
     }
 };
 
-Parser.prototype.injectReturn = function(blockNode) {
+Parser.prototype.injectReturn = function (blockNode) {
     const decls = blockNode.decls;
     const lastNode = decls[decls.length - 1];
     const insertNullNode = () => {
@@ -939,18 +937,21 @@ Parser.prototype.injectReturn = function(blockNode) {
         decls.push(new ast.ReturnNode(node, this.previousToken.line));
     };
     // handle implicit return
-    if (!lastNode){
+    if (!lastNode) {
         insertNullNode();
     } else if (lastNode.type === ast.ASTType.AST_NODE_EXPR) {
         // replace ExprStatementNode with ReturnNode
-        decls[decls.length - 1] = new ast.ReturnNode(lastNode.expr, lastNode.line);
+        decls[decls.length - 1] = new ast.ReturnNode(
+            lastNode.expr,
+            lastNode.line
+        );
     } else {
         // (lastNode.type !== ast.ASTType.AST_NODE_RETURN)
         insertNullNode();
     }
 };
 
-Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
+Parser.prototype.parseFunctionParams = function (fn, firstParam, atSpread) {
     // f(a, b='a', c=x(), ...d)
     const params = fn.params;
     let hasSpreadParameter = false,
@@ -958,8 +959,8 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
         isSpread = false,
         right = null,
         left = null,
-        line, token
-        ;
+        line,
+        token;
     // todo: improve this code, it's too gnarly atm.
     if (!this.check(tokens.TOKEN_RIGHT_BRACKET) || firstParam || atSpread) {
         do {
@@ -1049,7 +1050,7 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
     }
 };
 
-Parser.prototype.handleMethodSymbols = function(fn, token){
+Parser.prototype.handleMethodSymbols = function (fn, token) {
     fn.isSpecial = this.isSpecialMethod(fn.name);
     const isDunder = this.isDunderFunction(fn.name);
     // handle invalid use of 'static'
@@ -1075,13 +1076,13 @@ Parser.prototype.handleMethodSymbols = function(fn, token){
     }
 };
 
-Parser.prototype.isInitializerFn = function(fn){
-    return this.inDefinition
-        && fn.isSpecial
-        && fn.name === this.initializerFnName;
+Parser.prototype.isInitializerFn = function (fn) {
+    return (
+        this.inDefinition && fn.isSpecial && fn.name === this.initializerFnName
+    );
 };
 
-Parser.prototype.purgeReturn = function(blockNode, token){
+Parser.prototype.purgeReturn = function (blockNode, token) {
     const decls = blockNode.decls;
     const lastNode = decls[decls.length - 1];
     if (lastNode) {
@@ -1138,7 +1139,7 @@ Parser.prototype.caseStatement = function () {
     // ("," ("*" | expression))* "->" statement)+ "}"
     this.consume(tokens.TOKEN_CASE);
     const caseNode = new ast.CaseNode(this.previousToken.line);
-    if (!this.check(tokens.TOKEN_LEFT_CURLY)){
+    if (!this.check(tokens.TOKEN_LEFT_CURLY)) {
         this.expression();
         caseNode.conditionExpr = this.pop();
     }
@@ -1156,7 +1157,7 @@ Parser.prototype.caseStatement = function () {
     this.push(caseNode);
 };
 
-Parser.prototype.returnStatement = function() {
+Parser.prototype.returnStatement = function () {
     if (!this.inFunction) {
         // can't return in top level script
         this.pError(errors.EP0019);
@@ -1177,27 +1178,23 @@ Parser.prototype.returnStatement = function() {
     this.push(new ast.ReturnNode(node, line));
 };
 
-Parser.prototype.continueStatement = function() {
+Parser.prototype.continueStatement = function () {
     if (!this.inLoop) {
         this.pError(errors.EP0005);
     }
-    this.push(new ast.ControlNode(
-        this.currentToken.line, false
-    ));
+    this.push(new ast.ControlNode(this.currentToken.line, false));
     this.advance();
 };
 
-Parser.prototype.breakStatement = function() {
+Parser.prototype.breakStatement = function () {
     if (!this.inLoop) {
         this.pError(errors.EP0003);
     }
-    this.push(new ast.ControlNode(
-        this.currentToken.line, true
-    ));
+    this.push(new ast.ControlNode(this.currentToken.line, true));
     this.advance();
 };
 
-Parser.prototype.unbLoopStatement = function() {
+Parser.prototype.unbLoopStatement = function () {
     // loop 0xaceface; loop {forever}
     this.inLoop++;
     this.advance();
@@ -1207,7 +1204,7 @@ Parser.prototype.unbLoopStatement = function() {
     this.inLoop--;
 };
 
-Parser.prototype.forStatement = function() {
+Parser.prototype.forStatement = function () {
     this.inLoop++;
     this.advance();
     if (!this.check(tokens.TOKEN_LEFT_BRACKET)) {
@@ -1234,13 +1231,11 @@ Parser.prototype.forStatement = function() {
     }
     this.statement();
     const block = this.pop();
-    this.push(new ast.ForLoopNode(
-        initExpr, conditionExpr, incExpr, block
-    ));
+    this.push(new ast.ForLoopNode(initExpr, conditionExpr, incExpr, block));
     this.inLoop--;
 };
 
-Parser.prototype.forInStatement = function() {
+Parser.prototype.forInStatement = function () {
     variable.call(this);
     const varNode = this.pop();
     this.consume(tokens.TOKEN_IN);
@@ -1294,7 +1289,7 @@ Parser.prototype.ifStatement = function () {
     this.push(new ast.IfElseNode(conditionExpr, ifBlock, elseBlock, elseLine));
 };
 
-Parser.prototype.showStatement = function() {
+Parser.prototype.showStatement = function () {
     let node = new ast.ShowNode(this.currentToken.line);
     this.advance();
     this.expression();
@@ -1347,7 +1342,7 @@ Parser.prototype.panicStatement = function () {
     this.push(new ast.PanicNode(this.pop(), line));
 };
 
-Parser.prototype.funDecl = function() {
+Parser.prototype.funDecl = function () {
     // fn name() {}
     const line = this.currentToken.line;
     let isStatic = false;
@@ -1363,7 +1358,7 @@ Parser.prototype.funDecl = function() {
     this.consume(tokens.TOKEN_FN);
     this.inFunction++;
     const fn = new ast.FunctionNode(this.pop(), false, line);
-    fn.isStatic = isStatic;  // a static member?
+    fn.isStatic = isStatic; // a static member?
     fn.name = this.parseName();
     // handle invalid use of 'static' and other method symbols
     this.handleMethodSymbols(fn, token);
@@ -1464,7 +1459,7 @@ Parser.prototype.defDecl = function (consumeArrow) {
     }
 };
 
-Parser.prototype.varDecl = function() {
+Parser.prototype.varDecl = function () {
     // let const? var.. (= expr)? (, var.. (= expr)?)* ;
     let line = this.currentToken.line;
     this.advance();
@@ -1498,7 +1493,7 @@ Parser.prototype.varDecl = function() {
     }
 };
 
-Parser.prototype.statement = function() {
+Parser.prototype.statement = function () {
     let consumeSemicolon = false;
     switch (this.currentToken.type) {
         case tokens.TOKEN_SHOW:
@@ -1604,7 +1599,7 @@ Parser.prototype.program = function program() {
 function IStringParser(lexer, previousToken, currentToken, currentScope) {
     // call parser's constructor with a bogus string, then replace `lexer`
     Parser.call(this, "");
-    this.lexer = null;  // intentional
+    this.lexer = null; // intentional
     this.lexer = lexer;
     this.previousToken = previousToken;
     this.currentToken = currentToken;
@@ -1613,20 +1608,19 @@ function IStringParser(lexer, previousToken, currentToken, currentScope) {
 
 IStringParser.prototype = Object.create(Parser.prototype);
 
-Object.defineProperty(
-    IStringParser.prototype,
-    "constructor", {
-        value: IStringParser, writable: true, enumerable: false
-    }
-);
+Object.defineProperty(IStringParser.prototype, "constructor", {
+    value: IStringParser,
+    writable: true,
+    enumerable: false,
+});
 
-IStringParser.prototype.replacementExpr = function() {
+IStringParser.prototype.replacementExpr = function () {
     this.consume(tokens.TOKEN_LEFT_CURLY);
     this.expression();
     this.consume(tokens.TOKEN_RIGHT_CURLY);
 };
 
-IStringParser.prototype.iStringExpression = function() {
+IStringParser.prototype.iStringExpression = function () {
     this.advance();
     const node = new ast.IStringNode(this.currentToken.line);
     while (!this.match(tokens.TOKEN_ISTRING_END)) {
@@ -1641,9 +1635,8 @@ IStringParser.prototype.iStringExpression = function() {
     this.push(node);
 };
 
-
 function parseSourceInternal(src) {
-    let parser = new Parser(src);
+    const parser = new Parser(src);
     parser.advance();
     parser.program();
     return [parser.hadError ? new ast.ProgramNode() : parser.pop(), parser];

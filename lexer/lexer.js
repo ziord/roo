@@ -288,15 +288,6 @@ Lexer.prototype.peek = function(n=0){
     return this.src.charAt(this.currentIndex + n);
 };
 
-Lexer.prototype.lookAhead = function(len){
-    let i = 0;
-    while ((this.peek(i).trim() === "" || i < len) && i < this.src.length){
-        ++i;
-    }
-    const start = this.currentIndex + i;
-    return this.src.slice(start, start + len);
-};
-
 Lexer.prototype.skipLineComment = function(){
     this.moveN(2);
     while (this.move() !== '\n' && !this.atEnd()) {}
