@@ -6,7 +6,13 @@ const vmApi = require("../vm/api");
 const utils = require("../utils");
 
 function showWelcome(version) {
-    const msg = `Welcome to Roo v${version}.`;
+    let msg = `Welcome to Roo v${version}.\n`;
+    msg += "Type \":?help\" for more information.";
+    console.log(msg);
+}
+
+function showHelp() {
+    const msg = "Press Ctrl+C to exit the REPL";
     console.log(msg);
 }
 
@@ -21,6 +27,16 @@ function showPrompt(cons, depth) {
     }
     cons.setPrompt(prompt);
     cons.prompt();
+}
+
+function isReplCommand(src) {
+    src = src.trim();
+    const predefineCommands = { ":?help": showHelp };
+    if (!(src in predefineCommands)) {
+        return false;
+    }
+    predefineCommands[src]();
+    return true;
 }
 
 function inspectLine(line, mlStrStart, inMLString, inMLComment, depth) {
@@ -115,7 +131,9 @@ function repl(roo_version) {
             showPrompt(cons, depth);
             return;
         }
-        [vm, interned] = execute(src, interned, vm);
+        if (!isReplCommand(src)) {
+            [vm, interned] = execute(src, interned, vm);
+        }
         showPrompt(cons, depth);
         src = "";
     });
