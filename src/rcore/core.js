@@ -5,7 +5,7 @@
 "use strict";
 
 const mod = require("../constant/value");
-const functions = require("../rcore/functions");
+const functions = require("./functions");
 const rdict = require("./types/dict");
 const rlist = require("./types/list");
 const rstring = require("./types/string");

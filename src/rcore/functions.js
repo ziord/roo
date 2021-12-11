@@ -2,7 +2,7 @@
 
 const mod = require("../constant/value");
 const utils = require("../utils");
-const register = require("../rcore/register");
+const register = require("./register");
 
 /*
  ****************************************
@@ -102,7 +102,6 @@ function roo__exit(rvm, arity) {
     // todo: vm teardown here
     process.exit(obj.asInt());
 }
-
 
 function roo__isInstance(rvm, arity) {
     const obj1 = rvm.peekStack(1);

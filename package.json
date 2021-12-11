@@ -2,17 +2,24 @@
   "name": "roo",
   "version": "0.1.0",
   "description": "The Roo Programming Language",
-  "main": "bin/cli.js",
+  "main": "src/bin/cli.js",
   "directories": {
-    "test": "tests"
+    "test": "src/tests"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
-    "roo": "./bin/cli.js"
+    "roo": "src/bin/cli.js"
   },
-  "keywords": ["cli", "programming language", "parser", "compiler", "VM"],
+  "keywords": [
+    "cli",
+    "programming language",
+    "parser",
+    "compiler",
+    "VM"
+  ],
   "author": "ziord",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {}
 }

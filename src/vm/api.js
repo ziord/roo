@@ -1,6 +1,6 @@
 "use strict";
 
-const { VM } = require("../vm/vm");
+const { VM } = require("./vm");
 const { Disassembler } = require("../debug/disassembler");
 const { parseSourceInternal } = require("../parser/parser");
 const { Compiler } = require("../compiler/compiler");

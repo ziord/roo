@@ -1,8 +1,8 @@
 .idea
 grammars
-tests
+src/tests
 tmp
-stdlib
+src/stdlib
 *.roo
 *.txt
 test.js
