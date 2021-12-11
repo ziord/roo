@@ -559,6 +559,34 @@ function getVMStringObj(str, rvm) {
     return getStringObj(str, rvm.internedStrings, defObj);
 }
 
+/**
+ * @param {boolean} val
+ * @returns {Value}
+ */
+function createBoolVal(val) {
+    return new Value(VAL_BOOLEAN, val | 0);
+}
+
+function createFalseVal() {
+    return new Value(VAL_BOOLEAN, 0);
+}
+
+function createTrueVal() {
+    return new Value(VAL_BOOLEAN, 1);
+}
+
+function createNullVal() {
+    return new Value(VAL_NULL);
+}
+
+function createIntVal(intVal) {
+    return new Value(VAL_INT, intVal);
+}
+
+function createFloatVal(floatVal) {
+    return new Value(VAL_FLOAT, floatVal);
+}
+
 function createStringVal(str, strings) {
     assert(strings instanceof Map, "Expected a map container of strings");
     return new Value(VAL_STRING, getStringObj(str, strings));
@@ -608,26 +636,6 @@ function createBFunctionVal(fname, fexec, arity) {
     return new Value(VAL_BFUNCTION, new BFunctionObject(fname, arity, fexec));
 }
 
-function createFalseVal() {
-    return new Value(VAL_BOOLEAN, 0);
-}
-
-function createTrueVal() {
-    return new Value(VAL_BOOLEAN, 1);
-}
-
-function createNullVal() {
-    return new Value(VAL_NULL);
-}
-
-function createIntVal(intVal) {
-    return new Value(VAL_INT, intVal);
-}
-
-function createFloatVal(floatVal) {
-    return new Value(VAL_FLOAT, floatVal);
-}
-
 module.exports = {
     assert,
     Value,
@@ -635,6 +643,7 @@ module.exports = {
     DefObject,
     getStringObj,
     getVMStringObj,
+    createBoolVal,
     createFalseVal,
     createTrueVal,
     createNullVal,

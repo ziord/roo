@@ -116,7 +116,7 @@ class Compiler extends ast.NodeVisitor {
         this.hasError = true;
         const padding = "|".padStart(6, " ");
         console.error(padding + "[Compilation Error]");
-        if (this.func.code.lineGen) {
+        if (this.fn.code.lineGen) {
             const lineNum = `${node.line.toString().padStart(4, " ")} | `;
             const src = this.fn.code.lineGen.getSrcAtLine(node.line).trim();
             console.error(lineNum + src);
@@ -124,6 +124,11 @@ class Compiler extends ast.NodeVisitor {
         } else {
             msg = `[Line ${node.line}] ` + msg;
             console.error(padding + " " + msg);
+        }
+        let tmp = this.enclosingCompiler;
+        while (tmp) {
+            tmp.hasError = true;
+            tmp = tmp.enclosingCompiler;
         }
     }
 
@@ -247,7 +252,7 @@ class Compiler extends ast.NodeVisitor {
         node.nodes.forEach((item) => this.visit(item));
         gen.emit2BytesOperand(
             this.fn.code,
-            opcode.OP_BUILD_LIST,
+            (node.hasSpread ? opcode.OP_BUILD_LIST_UNPACK : opcode.OP_BUILD_LIST),
             node.nodes.length,
             node.line
         );
@@ -1018,7 +1023,7 @@ class Compiler extends ast.NodeVisitor {
         //! first we compile the default parameters' values into
         // the current function - this (enclosing)
         if (node.defaultParamsCount) {
-            // param: ArgumentNode { leftNode, rightNode, line }
+            // param: ParameterNode { leftNode, rightNode, line }
             node.params.forEach(({ rightNode, line }, index) => {
                 if (rightNode) {
                     // emit:
@@ -1036,7 +1041,7 @@ class Compiler extends ast.NodeVisitor {
         //! next we compile the actual parameters
         compiler.currentScope++; // params are always local
         node.params.forEach((param) => {
-            // ArgumentNode: { leftNode, rightNode, isSpreadArg, line }
+            // ParameterNode: { leftNode, rightNode, isSpreadArg, line }
             const slot = compiler.initLocal(param.leftNode.name);
             gen.emit2BytesOperand(
                 compiler.fn.code,
@@ -1085,7 +1090,7 @@ class Compiler extends ast.NodeVisitor {
         node.args.forEach((arg) => this.visit(arg));
         gen.emitBytes(
             this.fn.code,
-            opcode.OP_CALL,
+            (node.hasSpread ? opcode.OP_CALL_UNPACK : opcode.OP_CALL),
             node.args.length,
             node.line
         );
@@ -1121,6 +1126,11 @@ class Compiler extends ast.NodeVisitor {
     }
 
     compileDerefMethodCall(node) {
+        // err if deref is used in a static method
+        if (this.fnType !== ast.FnTypes.TYPE_METHOD) {
+            this.compilationError("Can't use deref in a static method", node);
+            return;
+        }
         /*
          * place `ref` on stack for binding to base def's method
          * this is because a method requires the `ref` arg to be
@@ -1149,7 +1159,9 @@ class Compiler extends ast.NodeVisitor {
         // (e.g.deref->method()) i.e. invocations of a base def's methods/props
         gen.emit2BytesOperand(
             this.fn.code,
-            opcode.OP_INVOKE_DEREF,
+            node.hasSpread
+                ? opcode.OP_INVOKE_DEREF_UNPACK
+                : opcode.OP_INVOKE_DEREF,
             index,
             node.line
         );
@@ -1166,11 +1178,11 @@ class Compiler extends ast.NodeVisitor {
         this.visit(node.leftNode);
         const code = this.fn.code;
         /*
-         * `OP_GET_PROPERTY/OP_GET_DEREF_PROPERTY index` would have been
-         *  emitted when visiting DotExprNode above.
-         * -2 for the index operand (2 bytes long) of
-         * `OP_GET_PROPERTY/OP_GET_DEREF_PROPERTY` to obtain the index at which
-         * the property/method name was stored in the constant pool (cp).
+         * `OP_GET_PROPERTY index` would have been emitted when visiting
+         * DotExprNode above.
+         * -2 for the index operand of `OP_GET_PROPERTY` (2 bytes long)
+         * to obtain the index at which the property/method name was stored
+         * in the constant pool (cp).
          */
         const index =
             (code.bytes[code.length - 2] << 8) | code.bytes[code.length - 1];
@@ -1196,7 +1208,7 @@ class Compiler extends ast.NodeVisitor {
     visitDefNode(node) {
         // emit: OP_DEF | index (to definition name)
         // base def -> def whose props is to be derived
-        // child def -> def which is being deriving from another def
+        // child def -> def which is deriving from another def
         const index = this.storeString(node.defVar.name);
         gen.emit2BytesOperand(this.fn.code, opcode.OP_DEF, index, node.line);
         // define the `def`
@@ -1254,6 +1266,70 @@ class Compiler extends ast.NodeVisitor {
             // stack. popLocals() causes this to be popped off.
             this.popLocals();
         }
+    }
+
+    transformSpreadNode(node) {
+        /*  ...itr -|
+         * ((var) => {
+         *  if isInstance(var, List) return var;
+         *  let tmp = [];
+         *  for e in var
+         *      tmp.append(e);
+         *  return tmp;
+         * })(itr) -> OP_*_UNPACK
+         */
+        const itr = node.node;
+        const line = node.line;
+
+        // function parameter:
+        const param = new ast.VarNode("var", line);
+        const paramNode = new ast.ParameterNode(param, null, line);
+
+        //1. if isInstance(var, List) return itr;
+        const condition = new ast.CallNode(
+            new ast.VarNode("isInstance", line),
+            line
+        );
+        condition.args.push(param);
+        condition.args.push(new ast.VarNode("List", line));
+        const ifBlock = new ast.BlockNode(
+            [new ast.ReturnNode(param, line)],
+            line
+        );
+        const ifENode = new ast.IfElseNode(condition, ifBlock, null, null);
+
+        //2. let tmp = [];
+        const tmp = new ast.VarNode("tmp", line);
+        const tmpDecl = new ast.VarDeclNode("tmp", new ast.ListNode(line));
+
+        //3. for e in var
+        //      tmp.append(e);
+        const elem = new ast.VarNode("e", line);
+        const call = new ast.MethodCallNode(
+            new ast.DotExprNode(tmp, new ast.VarNode("append", line), line),
+            false,
+            line
+        );
+        call.args.push(elem);
+        const callExpr = new ast.ExprStatementNode(call, line);
+        const forBlock = new ast.BlockNode([callExpr], line);
+        const forNode = new ast.ForInLoopNode(elem, param, forBlock);
+
+        //4. return tmp;
+        const ret = new ast.ReturnNode(tmp, line);
+        const stmts = [ifENode, tmpDecl, forNode, ret];
+        const fnBlock = new ast.BlockNode(stmts, line);
+
+        const fn = new ast.FunctionNode(null, true, line);
+        fn.params.push(paramNode);
+        fn.block = fnBlock;
+        const spreadCall = new ast.CallNode(fn);
+        spreadCall.args.push(itr);
+        return spreadCall;
+    }
+
+    visitSpreadNode(node) {
+        this.visit(this.transformSpreadNode(node));
     }
 
     visitTryNode(node) {

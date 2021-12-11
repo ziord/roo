@@ -212,12 +212,16 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
             return this.byteInstruction("OP_SHOW", index);
         case opcode.OP_CALL:
             return this.byteInstruction("OP_CALL", index);
+        case opcode.OP_CALL_UNPACK:
+            return this.byteInstruction("OP_CALL_UNPACK", index);
         case opcode.OP_GET_UPVALUE:
             return this.byteInstruction("OP_GET_UPVALUE", index);
         case opcode.OP_SET_UPVALUE:
             return this.byteInstruction("OP_SET_UPVALUE", index);
         case opcode.OP_BUILD_LIST:
             return this.shortInstruction("OP_BUILD_LIST", index);
+        case opcode.OP_BUILD_LIST_UNPACK:
+            return this.shortInstruction("OP_BUILD_LIST_UNPACK", index);
         case opcode.OP_BUILD_DICT:
             return this.shortInstruction("OP_BUILD_DICT", index);
         case opcode.OP_GET_LOCAL:
@@ -262,6 +266,8 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
             return this.invokeInstruction("OP_INVOKE", index);
         case opcode.OP_INVOKE_DEREF:
             return this.invokeInstruction("OP_INVOKE_DEREF", index);
+        case opcode.OP_INVOKE_DEREF_UNPACK:
+            return this.invokeInstruction("OP_INVOKE_DEREF_UNPACK", index);
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
     }
@@ -308,6 +314,7 @@ Disassembler.prototype.getInstructionOffset = function (index) {
             return index + 1;
         case opcode.OP_SHOW:
         case opcode.OP_CALL:
+        case opcode.OP_CALL_UNPACK:
         case opcode.OP_GET_UPVALUE:
         case opcode.OP_SET_UPVALUE:
             return index + 2;
@@ -315,6 +322,7 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.OP_LOAD_CONST:
         case opcode.OP_GET_GLOBAL:
         case opcode.OP_BUILD_LIST:
+        case opcode.OP_BUILD_LIST_UNPACK:
         case opcode.OP_BUILD_DICT:
         case opcode.OP_SET_GLOBAL:
         case opcode.OP_GET_LOCAL:
@@ -337,6 +345,7 @@ Disassembler.prototype.getInstructionOffset = function (index) {
             return index + 3 + this.func.upvalues.length * 2;
         case opcode.OP_INVOKE:
         case opcode.OP_INVOKE_DEREF:
+        case opcode.OP_INVOKE_DEREF_UNPACK:
             return index + 4;
         default:
             return this.plainInstruction("OP_UNKNOWN", index);

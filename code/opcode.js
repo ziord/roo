@@ -65,4 +65,7 @@ module.exports = {
     OP_SETUP_EXCEPT: 59,
     OP_POP_EXCEPT: 60,
     OP_PANIC: 61,
+    OP_BUILD_LIST_UNPACK: 62,
+    OP_CALL_UNPACK: 63,
+    OP_INVOKE_DEREF_UNPACK: 64
 };

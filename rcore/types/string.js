@@ -55,9 +55,7 @@ function str__contains(rvm, arity) {
         rvm.runtimeError("contains arg must be a string");
         return rvm.dummyVal();
     }
-    return strObj.raw.includes(arg.asString().raw)
-        ? mod.createTrueVal()
-        : mod.createFalseVal();
+    return mod.createBoolVal(strObj.raw.includes(arg.asString().raw));
 }
 
 function str__startswith(rvm, arity) {
@@ -68,9 +66,7 @@ function str__startswith(rvm, arity) {
         rvm.runtimeError("startsWith arg must be a string");
         return rvm.dummyVal();
     }
-    return strObj.raw.startsWith(arg.asString().raw)
-        ? mod.createTrueVal()
-        : mod.createFalseVal();
+    return mod.createBoolVal(strObj.raw.startsWith(arg.asString().raw));
 }
 
 function str__endswith(rvm, arity) {
@@ -81,9 +77,7 @@ function str__endswith(rvm, arity) {
         rvm.runtimeError("endsWith arg must be a string");
         return rvm.dummyVal();
     }
-    return strObj.raw.endsWith(arg.asString().raw)
-        ? mod.createTrueVal()
-        : mod.createFalseVal();
+    return mod.createBoolVal(strObj.raw.endsWith(arg.asString().raw));
 }
 
 function str__trim(rvm, arity) {
@@ -205,12 +199,12 @@ function isUpper(str) {
 
 function str__isUpper(rvm, arity) {
     const str = rvm.peekStack().asString().raw;
-    return isUpper(str) ? mod.createTrueVal() : mod.createFalseVal();
+    return mod.createBoolVal(isUpper(str));
 }
 
 function str__isLower(rvm, arity) {
     const str = rvm.peekStack().asString().raw;
-    return isLower(str) ? mod.createTrueVal() : mod.createFalseVal();
+    return mod.createBoolVal(isLower(str));
 }
 
 function str__slice(rvm, arity) {

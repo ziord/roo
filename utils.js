@@ -6,8 +6,8 @@
 
 const UINT16_MAX = 0xffff;
 const UINT16_COUNT = 0x10000;
-const MAX_FUNCTION_PARAMS = 0xff;
-const MAX_UPVALUE_COUNT = 0xff;
+const MAX_FUNCTION_PARAMS = 0x100;
+const MAX_UPVALUE_COUNT = 0x100;
 
 const out = process.stdout.write.bind(process.stdout);
 const print = console.log;

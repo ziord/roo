@@ -330,6 +330,11 @@ RError[EP0046] = createError(EP0046,
     `Expected a block of code.${SEP}` +
     `Consider creating a valid block of code.`);
 
+RError[EP0047] = createError(EP0047,
+    "Invalid assignment target.",
+    "Can't assign to 'ref'."
+);
+
 
 module.exports = {
     RError,

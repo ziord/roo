@@ -48,6 +48,7 @@ const ASTType = {
     AST_NODE_METHOD_CALL:       'AST_NODE_METHOD_CALL',
     AST_NODE_TRY:               'AST_NODE_TRY',
     AST_NODE_PANIC:             'AST_NODE_PANIC',
+    AST_NODE_SPREAD:            'AST_NODE_SPREAD',
 };
 
 const OpType = {
@@ -248,6 +249,7 @@ class ListNode extends AST{
         super();
         this.type = ASTType.AST_NODE_LIST;
         this.nodes = [];
+        this.hasSpread = false;
         this.line = line;
     }
 }
@@ -322,7 +324,7 @@ class AssignNode extends AST{
 }
 
 class BlockNode extends AST{
-    constructor(decls, lineStart, lineEnd){
+    constructor(decls, lineStart, lineEnd = null){
         super();
         this.type = ASTType.AST_NODE_BLOCK;
         this.blockStart = lineStart;
@@ -503,13 +505,14 @@ class CallNode extends AST{
     constructor(node, line){
         super();
         this.type = ASTType.AST_NODE_CALL;
-        this.line = line;
         this.leftNode = node;
         this.args = [];
+        this.hasSpread = false;
+        this.line = line;
     }
 }
 
-class ArgumentNode extends AST {
+class ParameterNode extends AST {
     constructor(left, right, line){
         super();
         this.type = ASTType.AST_NODE_ARGUMENT;
@@ -555,6 +558,7 @@ class MethodCallNode extends AST {
         this.leftNode = left; // DotExprNode
         this.isDeref = isDeref;
         this.args = [];
+        this.hasSpread = false;
         this.line = line;
     }
 }
@@ -576,6 +580,15 @@ class PanicNode extends AST {
         super();
         this.type = ASTType.AST_NODE_PANIC;
         this.msgNode = msgNode;
+        this.line = line;
+    }
+}
+
+class SpreadNode extends AST {
+    constructor(right, line) {
+        super();
+        this.type = ASTType.AST_NODE_SPREAD;
+        this.node = right;
         this.line = line;
     }
 }
@@ -627,11 +640,12 @@ module.exports = {
     FunctionNode,
     CallNode,
     ReturnNode,
-    ArgumentNode,
+    ParameterNode,
     DefNode,
     ForInLoopNode,
     TryNode,
     PanicNode,
+    SpreadNode,
     OpType,
     getOperator,
     NodeVisitor,

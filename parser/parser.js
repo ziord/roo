@@ -302,6 +302,7 @@ Parser.prototype.parsePrefix = function() {
         prefix.call(this);
     } else {
         this.pError(errors.EP0001);
+        this.advance();
     }
 };
 
@@ -311,6 +312,7 @@ Parser.prototype.parseInfix = function() {
         infix.call(this);
     } else {
         this.pError(errors.EP0001);
+        this.advance();
     }
 };
 
@@ -609,17 +611,33 @@ function listLiteral() {
     let list = new ast.ListNode(this.currentToken.line);
     this.advance();
     if (!this.check(tokens.TOKEN_RIGHT_SQR_BRACKET)) {
-        this.expression();
-        list.nodes.push(this.pop());
-        while (this.match(tokens.TOKEN_COMMA)) {
-            this.expression();
-            list.nodes.push(this.pop());
-        }
+        do {
+            let line = this.currentToken.line;
+            if (this.match(tokens.TOKEN_DOT_DOT_DOT)) {
+                this.expression();
+                list.nodes.push(new ast.SpreadNode(this.pop(), line));
+                list.hasSpread = true;
+            } else {
+                this.expression();
+                list.nodes.push(this.pop());
+            }
+        } while (this.match(tokens.TOKEN_COMMA));
     }
     // we do not want the list size to exceed the 2 bytes encoding limit
     if (list.nodes.length > utils.UINT16_MAX) {
         // too many items
         this.pError(errors.EP0006);
+    }
+    if (list.hasSpread) {
+        // turn all non-spread params to lists for OP_*_UNPACK opcode
+        for (let i = 0, elem = null, tmp; i < list.nodes.length; ++i) {
+            elem = list.nodes[i];
+            if (elem.type !== ast.ASTType.AST_NODE_SPREAD) {
+                tmp = new ast.ListNode(list.line);
+                tmp.nodes.push(elem);
+                list.nodes[i] = tmp;
+            }
+        }
     }
     this.consume(tokens.TOKEN_RIGHT_SQR_BRACKET, errors.EP0012);
     this.push(list);
@@ -629,24 +647,17 @@ function dictLiteral() {
     const node = new ast.DictNode(this.currentToken.line);
     this.advance();
     this.consume(tokens.TOKEN_LEFT_CURLY);
-    while (this.isNotMatching(tokens.TOKEN_RIGHT_CURLY)) {
-        this.expression();
-        const key = this.pop();
-        this.consume(tokens.TOKEN_COLON);
-        this.expression();
-        const value = this.pop();
-        node.entries.push([key, value]);
-        this.match(tokens.TOKEN_COMMA);
+    if (!this.match(tokens.TOKEN_RIGHT_CURLY)) {
+        do {
+            this.expression();
+            const key = this.pop();
+            this.consume(tokens.TOKEN_COLON);
+            this.expression();
+            const value = this.pop();
+            node.entries.push([key, value]);
+        } while (this.match(tokens.TOKEN_COMMA));
+        this.consume(tokens.TOKEN_RIGHT_CURLY);
     }
-    if (
-        this.previousToken.type === tokens.TOKEN_COMMA &&
-        this.check(tokens.TOKEN_RIGHT_CURLY)
-    ) {
-        // error if trailing comma is found in the parameter list
-        this.pError(errors.EP0034, { token: this.previousToken });
-        return;
-    }
-    this.consume(tokens.TOKEN_RIGHT_CURLY);
     if (node.entries.length > utils.UINT16_MAX) {
         // too many items
         this.pError(errors.EP0018);
@@ -695,6 +706,9 @@ function refExpr(){
     this.advance();
     if (this.check(tokens.TOKEN_DOT)) {
         dotExpr.call(this);
+    } else if (this.currentToken.value.includes("=")) {
+        // can't assign to ref
+        this.pError(errors.EP0047);
     }
 }
 
@@ -711,14 +725,36 @@ function derefExpr() {
 }
 
 function argsList(args) {
-    while (this.isNotMatching(tokens.TOKEN_RIGHT_BRACKET)) {
-        this.expression();
-        args.push(this.pop());
-        this.match(tokens.TOKEN_COMMA);
+    let hasSpread = false,
+        line = this.currentToken.line;
+    if (!this.check(tokens.TOKEN_RIGHT_BRACKET)) {
+        do {
+            let line = this.currentToken.line;
+            if (this.match(tokens.TOKEN_DOT_DOT_DOT)) {
+                hasSpread = true;
+                this.expression();
+                args.push(new ast.SpreadNode(this.pop(), line));
+            } else {
+                this.expression();
+                args.push(this.pop());
+            }
+        } while (this.match(tokens.TOKEN_COMMA));
     }
     if (args.length > utils.MAX_FUNCTION_PARAMS) {
         this.pError(errors.EP0007);
+        return hasSpread;
     }
+    if (hasSpread) {
+        for (let i = 0, elem = null, tmp; i < args.length; ++i) {
+            elem = args[i];
+            if (elem.type !== ast.ASTType.AST_NODE_SPREAD) {
+                tmp = new ast.ListNode(line);
+                tmp.nodes.push(elem);
+                args[i] = tmp;
+            }
+        }
+    }
+    return hasSpread;
 }
 
 function dotExpr(){
@@ -749,13 +785,20 @@ function methodCall(node, isDeref){
      * e.g (deref->fx, deref->method()), i.e. dot expressions
      * involving a base def's methods/properties
      */
-    const method = new ast.MethodCallNode(
-        node, isDeref,
-        this.currentToken.line
-    );
+    const line = this.currentToken.line;
+    const args = [];
     this.consume(tokens.TOKEN_LEFT_BRACKET);
-    argsList.call(this, method.args);
+    const hasSpread = argsList.call(this, args);
     this.consume(tokens.TOKEN_RIGHT_BRACKET);
+    let method;
+    if (hasSpread && !isDeref) {
+        // use CallNode() in handling spread arg in method call
+        method = new ast.CallNode(node, line);
+    } else {
+        method = new ast.MethodCallNode(node, isDeref, this.currentToken.line);
+    }
+    method.hasSpread = hasSpread;
+    method.args = args;
     this.push(method);
 }
 
@@ -832,7 +875,7 @@ function lambdaExpr(firstParam, skipRightBracket) {
         } else {
             this.pError(errors.EP0045, { token: this.previousToken });
         }
-        fn.params.push(new ast.ArgumentNode(left, right, line));
+        fn.params.push(new ast.ParameterNode(left, right, line));
     }
     this.consume(tokens.TOKEN_FAT_ARROW);
     const beginLine = this.currentToken.line;
@@ -856,7 +899,7 @@ function callExpr() {
         this.pop(), this.currentToken.line
     );
     this.advance(); // skip '('
-    argsList.apply(this, [node.args]);
+    node.hasSpread = argsList.apply(this, [node.args]);
     this.consume(tokens.TOKEN_RIGHT_BRACKET);
     this.push(node);
 }
@@ -918,97 +961,83 @@ Parser.prototype.parseFunctionParams = function(fn, firstParam, atSpread){
         line, token
         ;
     // todo: improve this code, it's too gnarly atm.
-    while (
-        (!this.check(tokens.TOKEN_RIGHT_BRACKET) || firstParam || atSpread) &&
-        !this.check(tokens.TOKEN_EOF) &&
-        !this.check(tokens.TOKEN_ERROR)
-    ) {
-        // `atSpread` helps enter this loop, when we drop into this function
-        // due to a lambda expression having the first parameter to be
-        // a spread parameter, i.e. (...x) => {...}
-        // so we reset it here after gaining entrance, to prevent it from
-        // distorting the loop logic.
-        atSpread = false;
+    if (!this.check(tokens.TOKEN_RIGHT_BRACKET) || firstParam || atSpread) {
+        do {
+            // ensure spread param is the last param
+            if (hasSpreadParameter && this.check(tokens.TOKEN_IDENTIFIER)) {
+                // spread parameter not the last parameter
+                this.pError(errors.EP0030, { token });
+                return;
+            }
+            // `atSpread` helps enter this loop, when we drop into this function
+            // due to a lambda expression having the first parameter to be
+            // a spread parameter, i.e. (...x) => {...}
+            // so we reset it here after gaining entrance, to prevent it from
+            // distorting the loop logic.
+            atSpread = false;
 
-        // `firstParam` indicates that a lambda function was encountered,
-        // with the first parameter already parsed. We just use it directly
-        // if it's available, and also reset it to prevent distorting the
-        // loop logic.
-        if (firstParam) {
-            // handle when dropping from a lambda function
-            left = firstParam;
-            token = this.previousToken;
-            line = this.previousToken.line;
-            firstParam = null;
-        } else {
-            // handle the spread parameter
-            if (this.match(tokens.TOKEN_DOT_DOT_DOT)) {
-                if (hasSpreadParameter) {
-                    // multiple spread params
-                    this.pError(errors.EP0029, {
+            // `firstParam` indicates that a lambda function was encountered,
+            // with the first parameter already parsed. We just use it directly
+            // if it's available, and also reset it to prevent distorting the
+            // loop logic.
+            if (firstParam) {
+                // handle when dropping from a lambda function
+                left = firstParam;
+                token = this.previousToken;
+                line = this.previousToken.line;
+                firstParam = null;
+            } else {
+                // handle the spread parameter
+                if (this.match(tokens.TOKEN_DOT_DOT_DOT)) {
+                    if (hasSpreadParameter) {
+                        // multiple spread params
+                        this.pError(errors.EP0029, {
+                            token: this.previousToken,
+                        });
+                        return;
+                    }
+                    isSpread = hasSpreadParameter = true;
+                }
+                line = this.currentToken.line;
+                token = this.currentToken;
+                variable.call(this);
+                left = this.pop();
+            }
+            if (left instanceof ast.AssignNode) {
+                if (isSpread) {
+                    // spread parameter can have no default
+                    this.pError(errors.EP0033, {
                         token: this.previousToken,
                     });
                     return;
                 }
-                isSpread = hasSpreadParameter = true;
-            }
-            line = this.currentToken.line;
-            token = this.currentToken;
-            variable.call(this);
-            left = this.pop();
-        }
-        if (left instanceof ast.AssignNode) {
-            if (isSpread) {
-                // spread parameter can have no default
-                this.pError(errors.EP0033, {
-                    token: this.previousToken,
-                });
+                right = left.rightNode;
+                left = left.leftNode;
+                defaultParamsCount++;
+            } else if (defaultParamsCount && !isSpread) {
+                // positional parameter after a default parameter;
+                // only a spread parameter is allowed after a parameter
+                // with a default value
+                this.pError(errors.EP0032, { token: this.previousToken });
                 return;
             }
-            right = left.rightNode;
-            left = left.leftNode;
-            defaultParamsCount++;
-        } else if (defaultParamsCount && !isSpread) {
-            // positional parameter after a default parameter;
-            // only a spread parameter is allowed after a parameter
-            // with a default value
-            this.pError(errors.EP0032, { token: this.previousToken });
-            return;
-        }
-        const commaToken = this.currentToken;
-        this.match(tokens.TOKEN_COMMA);
-        // ensure spread param is the last param
-        if (hasSpreadParameter && this.check(tokens.TOKEN_IDENTIFIER)) {
-            // spread parameter not the last parameter
-            this.pError(errors.EP0030);
-            return;
-        }
-        utils.assert(
-            left instanceof ast.VarNode,
-            "Parser::parseFunctionParams()"
-        );
-        // check for duplicate parameter variables
-        params.forEach((param) => {
-            if (param.leftNode.name === left.name) {
-                this.pError(errors.EP0031, { token });
-            }
-        });
-        if (this.hadError) return;
-        // store param
-        params.push(new ast.ArgumentNode(left, right, line));
-        // reset variables for processing of the next parameter
-        isSpread = false;
-        right = null;
-        // `match(token-comma)` above allows a trailing comma, for now,
-        // this shouldn't be supported.
-        if (
-            this.previousToken.type === tokens.TOKEN_COMMA &&
-            this.check(tokens.TOKEN_RIGHT_BRACKET)
-        ) {
-            // error if trailing comma is found in the parameter list
-            this.pError(errors.EP0034, { token: commaToken });
-            return;
-        }
+            utils.assert(
+                left instanceof ast.VarNode,
+                "Parser::parseFunctionParams()"
+            );
+            // check for duplicate parameter variables
+            params.forEach((param) => {
+                if (param.leftNode.name === left.name) {
+                    this.pError(errors.EP0031, { token });
+                }
+            });
+            if (this.hadError) return;
+            // store param
+            params.push(new ast.ParameterNode(left, right, line));
+            // reset variables for processing of the next parameter
+            isSpread = false;
+            right = null;
+        } while (this.match(tokens.TOKEN_COMMA));
     }
     fn.isVariadic = hasSpreadParameter;
     fn.defaultParamsCount = defaultParamsCount;

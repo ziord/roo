@@ -5,6 +5,11 @@ const { VM } = require("../vm/vm");
 const vmApi = require("../vm/api");
 const utils = require("../utils");
 
+function showWelcome(version) {
+    const msg = `Welcome to Roo v${version}.`;
+    console.log(msg);
+}
+
 function showPrompt(cons, depth) {
     let prompt;
     if (depth) {
@@ -57,7 +62,7 @@ function execute(src, interned, vm) {
     if (vm) {
         vm.initFrom(fnObj);
     } else {
-        vm = new VM(fnObj, false, interned, true); // todo
+        vm = new VM(fnObj, false, interned, true);
     }
     if (vm.interpret() !== vm.iOK()) {
         // clear the error state, as this will prevent the VM from being
@@ -67,7 +72,7 @@ function execute(src, interned, vm) {
     return [vm, interned];
 }
 
-function repl() {
+function repl(roo_version) {
     const cons = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
@@ -80,6 +85,7 @@ function repl() {
         interned = null,
         vm = null;
 
+    showWelcome(roo_version);
     showPrompt(cons, depth);
 
     cons.on("line", (line) => {

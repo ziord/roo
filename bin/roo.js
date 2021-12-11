@@ -4,6 +4,8 @@ const fs = require("fs");
 const vmApi  = require("../vm/api");
 const { repl } = require("./repl");
 
+const ROO_VERSION = "0.1.0";
+
 function printHelp() {
     // todo: improve
     const help = `
@@ -33,7 +35,7 @@ usage: roo [FN] [-h] [-d] [-rs] [-ds]
 }
 
 function tryRunREPL() {
-    repl();
+    repl(ROO_VERSION);
 }
 
 function tryRunFile(cliArgs) {
@@ -47,7 +49,7 @@ function tryRunFile(cliArgs) {
         return -1;
     }
     const src = fs.readFileSync(fileName).toString();
-    vmApi.runSourceCode(src);
+    return vmApi.runSourceCode(src);
 }
 
 function tryRunSrc(cliArgs) {
@@ -70,4 +72,4 @@ function tryRunSrc(cliArgs) {
     }
 }
 
-module.exports = { printHelp, tryRunFile, tryRunREPL, tryRunSrc };
+module.exports = { printHelp, tryRunFile, tryRunREPL, tryRunSrc, ROO_VERSION };

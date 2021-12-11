@@ -84,16 +84,19 @@ const {
     OP_SETUP_EXCEPT,
     OP_POP_EXCEPT,
     OP_PANIC,
+    OP_BUILD_LIST_UNPACK,
+    OP_CALL_UNPACK,
+    OP_INVOKE_DEREF_UNPACK
 } = require("../code/opcode");
 const rcore = require("../rcore/core");
 const exceptMod = require("../rcore/types/except");
 const { Disassembler } = require("../debug/disassembler");
-const { assert, out, print, unreachable, exit } = require("../utils");
+const { assert, out, print, unreachable, MAX_FUNCTION_PARAMS } = require("../utils");
 const MAX_FRAMES_SIZE = 80;
 const FRAME_STACK_SIZE = 0x1000;
 const MAX_RANGE_LENGTH = 10000000; // todo
 const MAX_HANDLER_STACK_SIZE = 0x200;
-const INTERPRET_RESULT_OK = 0, INTERPRET_RESULT_ERROR = -1;
+const INTERPRET_RESULT_OK = 1, INTERPRET_RESULT_ERROR = 0;
 
 /**
  * @param {FunctionObject} func
@@ -1035,6 +1038,23 @@ VM.prototype.invokeValue = function (prop, arity) {
     return !this.atError;
 };
 
+VM.prototype.unpackArgs = function (arity) {
+    // all potential args are lists
+    let arr = this.peekStack(arity - 1).asList().elements;
+    for (let i = arity - 2; i >= 0; --i) {
+        arr = arr.concat(this.peekStack(i).asList().elements);
+    }
+    if (arr.length > MAX_FUNCTION_PARAMS) {
+        this.runtimeError(
+            `Too many arguments to unpack. Max number of arguments is ${MAX_FUNCTION_PARAMS}`
+        );
+        return null;
+    }
+    this.popStackN(arity);
+    for (let i = 0; i < arr.length; ++i) this.pushStack(arr[i]);
+    return arr.length;
+};
+
 VM.prototype.isCoreDef = function (defVal) {
     return rcore.coreDefs.includes(defVal.asDef().dname.raw);
 };
@@ -1161,6 +1181,17 @@ VM.prototype.run = function (externCaller) {
                 const arr = [];
                 for (let i = 0; i < size; ++i) {
                     arr.unshift(this.peekStack(i));
+                }
+                this.popStackN(size);
+                this.pushStack(createListVal(arr, this));
+                break;
+            }
+            case OP_BUILD_LIST_UNPACK: {
+                // all potential elements of the list are themselves lists
+                const size = this.readShort();
+                let arr = this.peekStack(size - 1).asList().elements;
+                for (let i = size - 2; i >= 0; --i) {
+                    arr = arr.concat(this.peekStack(i).asList().elements);
                 }
                 this.popStackN(size);
                 this.pushStack(createListVal(arr, this));
@@ -1320,6 +1351,16 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
+            case OP_CALL_UNPACK: {
+                let arity = this.readByte();
+                if ((arity = this.unpackArgs(arity)) === null) {
+                    return this.iERR();
+                }
+                if (!this.callValue(arity)) {
+                    return this.iERR();
+                }
+                break;
+            }
             case OP_CLOSURE: {
                 const val = this.readConst();
                 const fnObj = val.asFunction();
@@ -1411,6 +1452,22 @@ VM.prototype.run = function (externCaller) {
                 const argc = this.readByte();
                 const baseVal = this.popStack();
                 if (!this.invokeFromDef(baseVal.asDef(), prop, argc)) {
+                    return this.iERR();
+                }
+                break;
+            }
+            case OP_INVOKE_DEREF_UNPACK: {
+                /*
+                 * the stack would be like so:
+                 * [ ref ][ arg1 ][ arg2 ]...[ argn ][ Def ]
+                 */
+                const prop = this.readString();
+                let argc = this.readByte();
+                const baseDefVal = this.popStack();
+                if ((argc = this.unpackArgs(argc)) === null) {
+                    return this.iERR();
+                }
+                if (!this.invokeFromDef(baseDefVal.asDef(), prop, argc)) {
                     return this.iERR();
                 }
                 break;
