@@ -50,7 +50,7 @@ exports.registerDef = function (
 exports.registerFunc = function (rvm, fname, fexec, arity) {
     // obtain an interned StringObject for the string fname
     fname = mod.getStringObj(fname, rvm.internedStrings);
-    const val = mod.createBFunctionVal(fname, fexec, arity);
+    const val = mod.createBFunctionVal(fname, fexec, arity, rvm.builtinsModule);
     rvm.globals.set(fname, val);
     rvm.builtins.set(fname, val);
 };

@@ -59,6 +59,8 @@ function roo__getProperty(rvm, arity) {
         return val;
     } else if ((def = obj.as().def) && (val = def.getMethod(strObj))) {
         return val;
+    } else if (obj.isModuleObject() && (val = obj.asModule().getItem(strObj))) {
+        return val;
     }
     rvm.runtimeError(
         `${obj.stringify()} has no property ${prop.stringify(true)}`
@@ -81,6 +83,8 @@ function roo__hasProperty(rvm, arity) {
     if (obj.isInstance() && obj.asInstance().getProperty(strObj)) {
         return mod.createTrueVal();
     } else if ((def = obj.as().def) && def.getMethod(strObj)) {
+        return mod.createTrueVal();
+    } else if (obj.isModuleObject() && obj.asModule().getItem(strObj)) {
         return mod.createTrueVal();
     }
     return mod.createFalseVal();

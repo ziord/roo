@@ -35,7 +35,7 @@ exports.initAll = function(rvm) {
     const strObj = mod.getStringObj("String", rvm.internedStrings);
     // create a builtins Module and set it on the VM
     const builtinsStr = mod.getStringObj("builtins", rvm.internedStrings);
-    rvm.builtinsModule = mod.createModuleObj(builtinsStr); // todo: filepath
+    rvm.builtinsModule = mod.createModuleObj(builtinsStr, null); // todo: fpath
     // initialize all objects
     functions.init(rvm);
     rnum.init(rvm);

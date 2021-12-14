@@ -122,37 +122,6 @@ Disassembler.prototype.invokeInstruction = function (inst, index) {
     return ++index;
 };
 
-Disassembler.prototype.importInstruction = function (inst, index, isWildcard) {
-    // import_star path alias <- wildcard
-    // import_name path [nameCount] name alias name alias name alias <-regular
-    const path = this.code.cp.readConstant(this.readShort(index));
-    index += 2;
-    out(inst.padEnd(pad, " ") + tab + `(${path})`);
-    if (isWildcard) {
-        const alias = this.code.cp.readConstant(this.readShort(index));
-        print(tab + `(${alias})`);
-        index += 2;
-    } else {
-        const nameCount = this.code.bytes[++index];
-        print(tab,  nameCount);
-        for (let i = 0; i < nameCount; ++i) {
-            const name = this.code.cp.readConstant(this.readShort(index));
-            index += 2;
-            const alias = this.code.cp.readConstant(this.readShort(index));
-            index += 2;
-            print(
-                "   |    " +  // line
-                (index - 4).toString().padStart(4, "0") +  // bytecode index
-                tab +
-                "  | ".padEnd(pad, " ") +  // continuation indicator
-                tab +
-                `(${name})`, `(${alias})` // the constants - implicit toString()
-            );
-        }
-    }
-    return ++index;
-};
-
 Disassembler.prototype.disassembleInstruction = function (index, code) {
     code !== undefined ? (this.code = code) : void 0;
     if (this.showSrcLines && this.hasSrcLines) {
@@ -300,10 +269,8 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
             return this.invokeInstruction("OP_INVOKE_DEREF", index);
         case opcode.OP_INVOKE_DEREF_UNPACK:
             return this.invokeInstruction("OP_INVOKE_DEREF_UNPACK", index);
-        case opcode.OP_IMPORT_STAR:
-            return this.importInstruction("OP_IMPORT_STAR", index, true);
-        case opcode.OP_IMPORT_NAME:
-            return this.importInstruction("OP_IMPORT_NAME", index, false);
+        case opcode.OP_IMPORT_MODULE:
+            return this.constantInstruction("OP_IMPORT_MODULE", index);
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
     }
@@ -375,6 +342,7 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.OP_SET_PROPERTY:
         case opcode.OP_GET_DEREF_PROPERTY:
         case opcode.OP_SETUP_EXCEPT:
+        case opcode.OP_IMPORT_MODULE:
             return index + 3;
         case opcode.OP_CLOSURE:
             // 2 bytes per 'upvalue'
@@ -383,13 +351,6 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.OP_INVOKE_DEREF:
         case opcode.OP_INVOKE_DEREF_UNPACK:
             return index + 4;
-        case opcode.OP_IMPORT_STAR:
-            return index + 5;
-        case opcode.OP_IMPORT_NAME:
-            index += 2; // path
-            const nameCount = this.code.bytes[++index];
-            // [name] 2 bytes [alias] 2 bytes -> 4 bytes per count
-            return index + nameCount * 4;
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
     }

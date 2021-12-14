@@ -128,13 +128,14 @@ function BoundMethodObject(inst, method) {
  * @param {StringObject} name: name of the function
  * @param {number} arity: number of accepted arguments
  * @param {function} builtinFn: direct js function
+ * @param {ModuleObject} module: module where this function was found
  * @constructor
  */
-function BFunctionObject(name, arity, builtinFn) {
+function BFunctionObject(name, arity, builtinFn, module = null) {
     this.fname = name;
     this.arity = arity;
     this.builtinFn = builtinFn;
-    this.module = null; // module where this function was found
+    this.module = module; // module where this function was found
 }
 
 /**
@@ -697,8 +698,11 @@ function createBoundMethodVal(inst, method) {
     return new Value(VAL_BOUND_METHOD, new BoundMethodObject(inst, method));
 }
 
-function createBFunctionVal(fname, fexec, arity) {
-    return new Value(VAL_BFUNCTION, new BFunctionObject(fname, arity, fexec));
+function createBFunctionVal(fname, fexec, arity, module = null) {
+    return new Value(
+        VAL_BFUNCTION,
+        new BFunctionObject(fname, arity, fexec, module)
+    );
 }
 
 /**

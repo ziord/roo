@@ -1276,51 +1276,35 @@ class Compiler extends ast.NodeVisitor {
 
     compileWildcardImport(node) {
         // import * as name from path
-        // import_star path alias
+        // import_star path
         const pathIndex = this.storeString(node.path);
-        const alias = node.names[0]["alias"];
-        const aliasIndex = this.storeString(alias.name);
+        const alias = node.names[0]["aliasVar"];
         gen.emit2BytesOperand(
             this.fn.code,
-            opcode.OP_IMPORT_STAR,
+            opcode.OP_IMPORT_MODULE,
             pathIndex,
             node.line
         );
-        gen.emitBytes(
-            this.fn.code,
-            (aliasIndex >> 8) & 0xff,
-            aliasIndex & 0xff,
-            node.line
-        );
+        this.defineVariable(alias.name, null, alias.line);
     }
 
     compileFromImport(node) {
         // import a as b from path
-        // import_name path [nameCount] name alias name alias name alias ...
+        // |-> import * as tmp from path; let b = tmp.a;
         const pathIndex = this.storeString(node.path);
-        const nameCount = node.names.length;
+        const aliasName = this.getFreeVar("imp");
         gen.emit2BytesOperand(
             this.fn.code,
-            opcode.OP_IMPORT_NAME,
+            opcode.OP_IMPORT_MODULE,
             pathIndex,
             node.line
         );
-        gen.emitByte(this.fn.code, nameCount, node.line);
-        node.names.forEach(({name, alias}) => { // VarNode(), VarNode()
-            const nameIndex = this.storeString(name.name);
-            const aliasIndex = this.storeString(alias.name);
-            gen.emitBytes(
-                this.fn.code,
-                (nameIndex >> 8) & 0xff,
-                nameIndex & 0xff,
-                node.line
-            );
-            gen.emitBytes(
-                this.fn.code,
-                (aliasIndex >> 8) & 0xff,
-                aliasIndex & 0xff,
-                node.line
-            );
+        this.defineVariable(aliasName, null, node.line);
+        const moduleVar = new ast.VarNode(aliasName, node.line);
+        node.names.forEach(({nameVar, aliasVar}) => { // VarNode(), VarNode()
+            const expr = new ast.DotExprNode(moduleVar, nameVar, nameVar.line);
+            const decl = new ast.VarDeclNode(aliasVar.name, expr, false, aliasVar.line);
+            this.visit(decl);
         });
     }
 

@@ -1379,14 +1379,14 @@ Parser.prototype.importStatement = function () {
         this.consume(tokens.TOKEN_AS);
         token = this.currentToken;
         variable.call(this);
-        const alias = this.pop();
+        const aliasVar = this.pop();
         this.consume(tokens.TOKEN_FROM);
         node.path = this.parseModulePath();
-        node.names.push({ name: null, alias });
+        node.names.push({ nameVar: null, aliasVar });
         node.importStyle = 1; // wildcard import
         // check if the alias' name redefines a const name in the current scope
-        this.inspectConstRedefinition(alias.name, false, { token });
-        if (!this.hadError) this.insert(alias.name, false);
+        this.inspectConstRedefinition(aliasVar.name, false, { token });
+        if (!this.hadError) this.insert(aliasVar.name, false);
     } else {
         // 'import' var ('as' var)? (, var (as var)?)* 'from' path
         do {
@@ -1397,22 +1397,22 @@ Parser.prototype.importStatement = function () {
             }
             token = this.currentToken;
             variable.call(this);
-            const name = this.pop();
+            const nameVar = this.pop();
             if (this.match(tokens.TOKEN_AS)) {
                 token = this.currentToken;
                 variable.call(this);
-                const alias = this.pop();
-                node.names.push({ name, alias });
+                const aliasVar = this.pop();
+                node.names.push({ nameVar, aliasVar });
                 // check if the alias' name redefines a const name in the current scope
-                this.inspectConstRedefinition(alias.name, false, { token });
-                if (!this.hadError) this.insert(alias.name, false);
+                this.inspectConstRedefinition(aliasVar.name, false, { token });
+                if (!this.hadError) this.insert(aliasVar.name, false);
             } else {
                 // check if the var name redefines a const name in the current scope
-                this.inspectConstRedefinition(name.name, false, { token });
-                if (!this.hadError) this.insert(name.name, false);
+                this.inspectConstRedefinition(nameVar.name, false, { token });
+                if (!this.hadError) this.insert(nameVar.name, false);
                 // use the name as its own alias, sort of like doing:
                 // import a as a from path
-                node.names.push({ name, alias: name });
+                node.names.push({ nameVar, aliasVar: nameVar });
             }
         } while (this.match(tokens.TOKEN_COMMA));
         this.consume(tokens.TOKEN_FROM);
@@ -1744,7 +1744,6 @@ IStringParser.prototype.iStringExpression = function () {
 };
 
 function parseSourceInternal(src, fpath = null) {
-    utils.assert(src, "Expected src string");
     const parser = new Parser(src, fpath);
     parser.advance();
     parser.program();

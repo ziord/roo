@@ -6,6 +6,7 @@
 "use strict";
 
 const fs = require("fs");
+const path = require("path");
 const {
     Value,
     getStringObj,
@@ -90,8 +91,7 @@ const {
     OP_BUILD_LIST_UNPACK,
     OP_CALL_UNPACK,
     OP_INVOKE_DEREF_UNPACK,
-    OP_IMPORT_STAR,
-    OP_IMPORT_NAME
+    OP_IMPORT_MODULE,
 } = require("../code/opcode");
 const rcore = require("../rcore/core");
 const exceptMod = require("../rcore/types/except");
@@ -146,6 +146,7 @@ function VM(func, debug = true, strings = null, repl = false) {
     // initialize the module as the entry point
     assert(func.module.name === null, "Entry module should have no name");
     this.initModule(func.module);
+    this.gpath = "";
 }
 
 /**
@@ -479,7 +480,7 @@ VM.prototype.propertyAccessError = function (val, prop, defName) {
     } else if (val.isDef()) {
         error = `'${val.asDef().dname.raw}' has no property '${prop.raw}'`;
     } else if (val.isModuleObject()) {
-        error = `'${val}' has no property '${prop.raw}'`; // implicit toString()
+        error = `module '${val.asModule().name.raw}' has no property '${prop.raw}'`;
     } else {
         error = `'${val.typeToString()}' has no property '${prop.raw}'`;
     }
@@ -1109,14 +1110,26 @@ VM.prototype.unpackArgs = function (arity) {
 };
 
 /**
- * Resolve the path
- * @param {StringObject} path
+ * Resolve the module path
+ * @param {StringObject} modulePath
  * @returns {boolean}
  */
-VM.prototype.resolvePath = function (path) {
-    const fpath = path.raw.replace(/\./g, "/") + ".roo";
+VM.prototype.resolvePath = function (modulePath) {
+    // currently, we're assuming the module exists in the current directory
+    // as the current running module.
+    const filename = modulePath.raw.replace(/\./g, path.sep) + ".roo";
+    let fpath = path.resolve(
+        path.dirname(this.currentModule.fpath),
+        filename
+    );
+    if (fs.existsSync(fpath)) {
+        return fpath;
+    }
+    // check for other expected places where the module could be [todo: ok?]
+    this.gpath = this.gpath || path.dirname(path.dirname(__dirname));
+    fpath = path.join(this.gpath, "src", "stdlib", filename);
     if (!fs.existsSync(fpath)) {
-        this.runtimeError(`Could not find module '${path.raw}'`);
+        this.runtimeError(`Could not find module '${modulePath.raw}'`);
         return false;
     }
     return fpath;
@@ -1129,12 +1142,16 @@ VM.prototype.resolvePath = function (path) {
  * @returns {null|Value}
  */
 VM.prototype.compileModule = function (modulePath, resolvedPath) {
+    // read and parse the module file
     const src = fs.readFileSync(resolvedPath).toString();
     const [root, parser] = parseSourceInternal(src, resolvedPath);
     if (parser.parsingFailed()) return null;
+
+    // store & initialize the module with VM globals
     const moduleObj = createModuleObj(modulePath, resolvedPath);
-    // store & initialize with VM globals
     const moduleVal = this.initModule(moduleObj);
+
+    // compile the module
     const compiler = new Compiler(parser, moduleObj);
     const fnObj = compiler.compile(root, this.internedStrings);
     if (compiler.compilationFailed()) return null;
@@ -1142,66 +1159,33 @@ VM.prototype.compileModule = function (modulePath, resolvedPath) {
         fnObj.module === moduleObj,
         "VM::compileModule::Failed to assign module"
     );
+
+    // push the module on the stack. This will be returned by the
+    // module 'function' (environment function containing all the module's code)
+    // when its execution completes
+    this.pushStack(moduleVal);
+    // push the module's function frame, for execution of the module.
     this.pushFrame(fnObj);
-    if (this.run(fnObj) !== this.iOK()) return null;
     return moduleVal;
 };
 
 /**
- * Import a module - called for wildcard imports
- * @param {Value} path: StringObject type indicating the module path
- * @param {Value} alias: StringObject type indicating the module alias
+ * Import a module, given its syntactic path
+ * @param {Value} modulePath: StringObject type indicating the
+ * module's syntactic path
  */
-VM.prototype.importModule = function (path, alias) {
+VM.prototype.importModule = function (modulePath) {
     // check if this module has already been imported
-    const fp = path.asString();
+    const fp = modulePath.asString();
     let module = this.modules.get(fp);
     if (module) {
-        this.currentModule.globals.set(alias.asString(), module);
+        this.pushStack(module);
         return module;
     }
-    // try to import it
-    let resolvedPath;
-    if (!(resolvedPath = this.resolvePath(fp))) {
-        return null;
-    }
-    const moduleVal = this.compileModule(fp, resolvedPath);
-    if (!moduleVal) return null;
-    this.currentModule.globals.set(alias.asString(), moduleVal);
-    return moduleVal;
-};
-
-/**
- * Import a module - called for wildcard imports
- * @param {Value} path: StringObject type indicating the module path
- * @param {number} nameCount: number of names to be imported from the module
- */
-VM.prototype.importModuleNames = function (path, nameCount) {
-    // check if this module has already been imported
-    const fp = path.asString();
-    let module,
-        moduleVal = this.modules.get(fp);
-    if (!moduleVal) {
-        // try to import it
-        let resolvedPath;
-        if (!(resolvedPath = this.resolvePath(fp))) {
-            return null;
-        }
-        moduleVal = this.compileModule(fp, resolvedPath);
-        if (!moduleVal) return null;
-    }
-    module = moduleVal.asModule();
-    let name, alias, value;
-    for (let i = 0; i < nameCount; ++i) {
-        name = this.readString();
-        alias = this.readString();
-        if (!(value = module.globals.get(name))) {
-            this.runtimeError(`cannot import name '${name.raw}' from '${module.name.raw}'`);
-            return null;
-        }
-        this.currentModule.globals.set(alias, value);
-    }
-    return module;
+    // if not, try to import it
+    const resolvedPath = this.resolvePath(fp);
+    if (!resolvedPath) return null;
+    return this.compileModule(fp, resolvedPath);
 };
 
 VM.prototype.isCoreDef = function (defVal) {
@@ -1325,16 +1309,8 @@ VM.prototype.run = function (externCaller) {
                 this.popStackN(argCount);
                 break;
             }
-            case OP_IMPORT_STAR: {
-                const path = this.readConst();
-                const alias = this.readConst();
-                if (!this.importModule(path, alias)) return this.iERR();
-                break;
-            }
-            case OP_IMPORT_NAME: {
-                const path = this.readConst();
-                const nameCount = this.readByte();
-                if (!this.importModuleNames(path, nameCount)) return this.iERR();
+            case OP_IMPORT_MODULE: {
+                if (!this.importModule(this.readConst())) return this.iERR();
                 break;
             }
             case OP_BUILD_LIST: {
@@ -1567,7 +1543,7 @@ VM.prototype.run = function (externCaller) {
                 break;
             }
             case OP_GET_PROPERTY: {
-                // [ ref ] or [ Def ]
+                // [ ref ] or [ Def ] or [ obj ]
                 const prop = this.readString();
                 const val = this.peekStack();
                 if (!this.getValueProperty(prop, val)) {
