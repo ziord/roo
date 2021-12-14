@@ -5,26 +5,31 @@ const { Disassembler } = require("../debug/disassembler");
 const { parseSourceInternal } = require("../parser/parser");
 const { Compiler } = require("../compiler/compiler");
 
-exports.compileSourceCode = function(src) {
-    const [root, parser] = parseSourceInternal(src);
+exports.compileSourceCodeFromRepl = function(src, interned, module) {
+    const [root, parser] = parseSourceInternal(src, "repl");
+    const compiler = new Compiler(parser, module);
+    return [compiler.compile(root, interned), compiler];
+};
+
+exports.compileSourceCode = function(src, fpath = null) {
+    const [root, parser] = parseSourceInternal(src, fpath);
+    if (parser.parsingFailed()) return null;
     const compiler = new Compiler(parser);
     return [compiler.compile(root), compiler];
 };
 
-exports.compileSourceCodeFromRepl = function(src, interned) {
-    const [root, parser] = parseSourceInternal(src);
-    const compiler = new Compiler(parser);
-    return [compiler.compile(root, interned), compiler];
-};
-
-exports.runSourceCode = function(src) {
-    const [fnObj, compiler] = exports.compileSourceCode(src);
+exports.runSourceCode = function(src, fpath = null) {
+    const result = exports.compileSourceCode(src, fpath);
+    if (!result) return null;
+    const [fnObj, compiler] = result;
     const vm = new VM(fnObj, false, compiler.strings);
     return vm.interpret();
 };
 
-exports.disSourceCode = function(src) {
-    const  [fnObj] = exports.compileSourceCode(src);
+exports.disSourceCode = function(src, fpath = null) {
+    const  result = exports.compileSourceCode(src, fpath);
+    if (!result) return;
+    const [fnObj] = result;
     const dis = new Disassembler(fnObj, true);
     dis.disassembleCode();
 };

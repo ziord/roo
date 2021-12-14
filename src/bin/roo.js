@@ -49,7 +49,16 @@ function tryRunFile(cliArgs) {
         return -1;
     }
     const src = fs.readFileSync(fileName).toString();
-    return vmApi.runSourceCode(src);
+    return vmApi.runSourceCode(src, fileName);
+}
+
+function tryDisFile(arg) {
+    if (!fs.existsSync(arg)) {
+        console.error(`Error: File not found '${arg}'`);
+        return -1;
+    }
+    const src = fs.readFileSync(arg).toString();
+    vmApi.disSourceCode(src, arg);
 }
 
 function tryRunSrc(cliArgs) {
@@ -60,8 +69,7 @@ function tryRunSrc(cliArgs) {
      */
     const arg = cliArgs[3];
     if (cliArgs[2] === "-d") {
-        const src = fs.readFileSync(arg).toString();
-        vmApi.disSourceCode(src);
+        tryDisFile(arg);
     } else if (cliArgs[2] === "-rs") {
         vmApi.runSourceCode(arg);
     } else if (cliArgs[2] === "-ds") {

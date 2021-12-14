@@ -8,12 +8,13 @@
 const opcode = require("../code/opcode");
 const { out, print } = require("../utils");
 const pad = 24;
+const tab = "    ";
 
 function Disassembler(func, showSrcLines = false, repl = false) {
     this.func = func;
     this.code = func.code;
     this.name = func.fname;
-    this.envName = repl ? "repl" : "script";
+    this.envName = repl ? "(repl)" : "(module)";
     this.showSrcLines = showSrcLines;
     this.hasSrcLines = Boolean(this.code.srcLines.length);
 }
@@ -43,9 +44,9 @@ Disassembler.prototype.constantInstruction = function (inst, index) {
     const constant = this.code.cp.pool[operandIdx]; // Value obj
     print(
         inst.padEnd(pad, " "),
-        "\t",
+        tab,
         `${operandIdx}`.padStart(4, " "),
-        "\t",
+        tab,
         `(${constant})`
     ); // implicit toString()
     return index + 3; // next-op
@@ -53,13 +54,13 @@ Disassembler.prototype.constantInstruction = function (inst, index) {
 
 Disassembler.prototype.byteInstruction = function (inst, index) {
     const operand = this.code.bytes[++index];
-    print(inst.padEnd(pad, " "), "\t", `${operand}`.padStart(4, " "));
+    print(inst.padEnd(pad, " "), tab, `${operand}`.padStart(4, " "));
     return ++index;
 };
 
 Disassembler.prototype.shortInstruction = function (inst, index) {
     const operand = this.readShort(index);
-    print(inst.padEnd(pad, " "), "\t", `${operand}`.padStart(4, " "));
+    print(inst.padEnd(pad, " "), tab, `${operand}`.padStart(4, " "));
     return index + 3;
 };
 
@@ -70,7 +71,7 @@ Disassembler.prototype.jumpInstruction = function (inst, index, sign) {
     let jmpIndex = index + 3 + jmpOffset * sign;
     print(
         inst.padEnd(pad, " "),
-        "\t",
+        tab,
         index.toString().padStart(4, " "),
         "->",
         jmpIndex
@@ -84,11 +85,11 @@ Disassembler.prototype.closureInstruction = function (inst, index) {
     const fnObj = constant.asFunction();
     print(
         inst.padEnd(pad, " "),
-        "\t",
+        tab,
         `${operandIdx}`.padStart(4, " "),
-        "\t",
-        `(${constant})`
-    ); // implicit toString() for `constant`
+        tab,
+        `(${constant})` // implicit toString() for `constant`
+    );
     index += 3;
     for (let i = 0; i < fnObj.upvalueCount; i++) {
         const slot = this.code.bytes[index++];
@@ -96,8 +97,8 @@ Disassembler.prototype.closureInstruction = function (inst, index) {
         print(
             "   |   ",
             (index - 2).toString().padStart(4, "0"),
-            "\t",
-            "  | ".padEnd(pad + pad / 2, " "),
+            tab,
+            "  | ".padEnd(pad + pad / 2 + 1, " "),
             isLocal ? "l-upvalue" : "upvalue  ",
             slot.toString().padStart(4, " ")
         );
@@ -113,11 +114,42 @@ Disassembler.prototype.invokeInstruction = function (inst, index) {
     // implicit toString() for `propName`
     print(
         inst.padEnd(pad, " "),
-        "\t",
+        tab,
         opArgsCount.toString().padStart(4, " "),
-        "\t",
+        tab,
         `(${propName})`
     );
+    return ++index;
+};
+
+Disassembler.prototype.importInstruction = function (inst, index, isWildcard) {
+    // import_star path alias <- wildcard
+    // import_name path [nameCount] name alias name alias name alias <-regular
+    const path = this.code.cp.readConstant(this.readShort(index));
+    index += 2;
+    out(inst.padEnd(pad, " ") + tab + `(${path})`);
+    if (isWildcard) {
+        const alias = this.code.cp.readConstant(this.readShort(index));
+        print(tab + `(${alias})`);
+        index += 2;
+    } else {
+        const nameCount = this.code.bytes[++index];
+        print(tab,  nameCount);
+        for (let i = 0; i < nameCount; ++i) {
+            const name = this.code.cp.readConstant(this.readShort(index));
+            index += 2;
+            const alias = this.code.cp.readConstant(this.readShort(index));
+            index += 2;
+            print(
+                "   |    " +  // line
+                (index - 4).toString().padStart(4, "0") +  // bytecode index
+                tab +
+                "  | ".padEnd(pad, " ") +  // continuation indicator
+                tab +
+                `(${name})`, `(${alias})` // the constants - implicit toString()
+            );
+        }
+    }
     return ++index;
 };
 
@@ -127,10 +159,10 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
         const srcLine = this.code.srcLines[index];
         if (srcLine !== 0xff) {
             const lineNum = this.code.lines[index];
-            print(`\n<line: ${lineNum}>\t${srcLine}`);
+            print(`\n<line: ${lineNum}>${tab}${srcLine}`);
         }
     }
-    const byteIndex = "\t" + index.toString().padStart(4, "0") + "\t";
+    const byteIndex = tab + index.toString().padStart(4, "0") + tab;
     if (this.code.lines[index - 1] === this.code.lines[index]) {
         out("   |" + byteIndex);
     } else {
@@ -268,6 +300,10 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
             return this.invokeInstruction("OP_INVOKE_DEREF", index);
         case opcode.OP_INVOKE_DEREF_UNPACK:
             return this.invokeInstruction("OP_INVOKE_DEREF_UNPACK", index);
+        case opcode.OP_IMPORT_STAR:
+            return this.importInstruction("OP_IMPORT_STAR", index, true);
+        case opcode.OP_IMPORT_NAME:
+            return this.importInstruction("OP_IMPORT_NAME", index, false);
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
     }
@@ -347,6 +383,13 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.OP_INVOKE_DEREF:
         case opcode.OP_INVOKE_DEREF_UNPACK:
             return index + 4;
+        case opcode.OP_IMPORT_STAR:
+            return index + 5;
+        case opcode.OP_IMPORT_NAME:
+            index += 2; // path
+            const nameCount = this.code.bytes[++index];
+            // [name] 2 bytes [alias] 2 bytes -> 4 bytes per count
+            return index + nameCount * 4;
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
     }

@@ -72,8 +72,8 @@ function inspectLine(line, mlStrStart, inMLString, inMLComment, depth) {
     return [inMLString, inMLComment, mlStrStart, (depth < 0 ? 0 : depth)];
 }
 
-function execute(src, interned, vm) {
-    const [fnObj, compiler] = vmApi.compileSourceCodeFromRepl(src, interned);
+function execute(src, interned, module, vm) {
+    const [fnObj, compiler] = vmApi.compileSourceCodeFromRepl(src, interned, module);
     interned = compiler.strings;
     if (vm) {
         vm.initFrom(fnObj);
@@ -85,7 +85,7 @@ function execute(src, interned, vm) {
         // re-used (newer instructions will not be executed) if not cleared.
         vm.clearError();
     }
-    return [vm, interned];
+    return [vm, interned, compiler.module];
 }
 
 function repl(roo_version) {
@@ -99,6 +99,7 @@ function repl(roo_version) {
         inMLString = false,
         mlStrStart = null,
         interned = null,
+        module = null,
         vm = null;
 
     showWelcome(roo_version);
@@ -132,7 +133,9 @@ function repl(roo_version) {
             return;
         }
         if (!isReplCommand(src)) {
-            [vm, interned] = execute(src, interned, vm);
+            // we make sure to reuse `interned` and `module` objects so that they
+            // won't be created again and again for every `src` execution.
+            [vm, interned, module] = execute(src, interned, module, vm);
         }
         showPrompt(cons, depth);
         src = "";

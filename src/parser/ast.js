@@ -49,6 +49,7 @@ const ASTType = {
     AST_NODE_TRY:               'AST_NODE_TRY',
     AST_NODE_PANIC:             'AST_NODE_PANIC',
     AST_NODE_SPREAD:            'AST_NODE_SPREAD',
+    AST_NODE_IMPORT:            'AST_NODE_IMPORT',
 };
 
 const OpType = {
@@ -593,6 +594,19 @@ class SpreadNode extends AST {
     }
 }
 
+class ImportNode extends AST {
+    constructor(line) {
+        super();
+        this.type = ASTType.AST_NODE_IMPORT;
+        this.path = null; // string
+        // [{name: VarNode, alias: null | VarNode}]
+        this.names = [];
+        // 1 -> wildcard import, 2 -> from import
+        this.importStyle = 0;
+        this.line = line;
+    }
+}
+
 class ProgramNode extends AST {
     constructor() {
         super();
@@ -646,6 +660,7 @@ module.exports = {
     TryNode,
     PanicNode,
     SpreadNode,
+    ImportNode,
     OpType,
     getOperator,
     NodeVisitor,

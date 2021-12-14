@@ -20,7 +20,8 @@ const VAL_INT = 0,
     VAL_DEFINITION = 9,
     VAL_INSTANCE = 10,
     VAL_BOUND_METHOD = 11,
-    VAL_BFUNCTION = 12;
+    VAL_BFUNCTION = 12,
+    VAL_MODULE = 13;
 
 const builtin_obj_types = [VAL_STRING, VAL_LIST, VAL_DICT];
 
@@ -87,6 +88,7 @@ function FunctionObject(name, arity, code, isLambda) {
     this.defaultParamsCount = 0;
     this.isStaticMethod = false;
     this.builtinMethod = null; // builtin executable
+    this.module = null; // module where this function was found
 }
 
 /**
@@ -132,7 +134,21 @@ function BFunctionObject(name, arity, builtinFn) {
     this.fname = name;
     this.arity = arity;
     this.builtinFn = builtinFn;
+    this.module = null; // module where this function was found
 }
+
+/**
+ * @param {StringObject} name: module name
+ * @param {string} fpath: module file path
+ * @constructor
+ */
+function ModuleObject(name, fpath = null) {
+    this.name = name;
+    this.globals = null;  // Map<StringObject, Value>
+    this.fpath = fpath;
+    this.exports = null; // todo
+}
+
 
 /*
  * Object methods
@@ -216,6 +232,14 @@ InstanceObject.prototype.setProperty = function (
     this.props.set(propName, propVal);
 };
 
+/**
+ * @param {StringObject} itemName: item name
+ * @returns {Value}
+ */
+ModuleObject.prototype.getItem = function (itemName) {
+    return this.globals.get(itemName);
+};
+
 /*
  * Value methods
  */
@@ -280,6 +304,10 @@ Value.prototype.isBFunction = function () {
     return this.type === VAL_BFUNCTION;
 };
 
+Value.prototype.isModuleObject = function () {
+    return this.type === VAL_MODULE;
+};
+
 Value.prototype.isBuiltinObject = function () {
     return builtin_obj_types.includes(this.type);
 };
@@ -327,6 +355,8 @@ Value.prototype.asBoundMethod = as;
 
 Value.prototype.asBFunction = as;
 
+Value.prototype.asModule = as;
+
 Value.prototype.as = as;
 
 Value.prototype.typeToString = function () {
@@ -355,6 +385,8 @@ Value.prototype.typeToString = function () {
             return "bound_method";
         case VAL_BFUNCTION:
             return "builtin_function";
+        case VAL_MODULE:
+            return "module";
         // todo: object type
         default:
             unreachable("Value::typeToString()");
@@ -449,6 +481,9 @@ Value.prototype.stringify = function (includeQuotes = false, rvm = null) {
             }
             return `{ref ${this.asInstance().def.dname.raw}}`;
         }
+        case VAL_MODULE: {
+            return `{mod ${this.asModule().name.raw}}`
+        }
         // todo: object type
         default:
             unreachable("Value::stringify()");
@@ -499,6 +534,7 @@ Value.prototype.equals = function (otherVal) {
             case VAL_INSTANCE:
             case VAL_BFUNCTION:
             case VAL_FUNCTION:
+            case VAL_MODULE:
                 return this.value === otherVal.value;
             case VAL_LIST:
                 return this.listEquals(otherVal);
@@ -521,10 +557,39 @@ Value.prototype.equals = function (otherVal) {
 /*
  * utilities
  */
-function createFunctionObj(name, arity, code, isLambda, builtinMethod = null) {
+/**
+ * Create a FunctionObject
+ * (on builtin types)
+ * @param {StringObject} name: name of the function
+ * @param {number} arity: number of accepted arguments
+ * @param {Code} code: Code object containing the function's bytecode
+ * @param {boolean} isLambda: flag for whether the function is a lambda func
+ * @param builtinMethod: builtin (js) function
+ * @param {ModuleObject} module
+ * @constructor
+ */
+function createFunctionObj(
+    name,
+    arity,
+    code,
+    isLambda,
+    builtinMethod = null,
+    module = null
+) {
     const fn = new FunctionObject(name, arity, code, isLambda);
+    fn.module = module;
     fn.builtinMethod = builtinMethod;
     return fn;
+}
+
+/**
+ * Create a ModuleObject
+ * @param {StringObject} name: module name
+ * @param {string} fpath: module file path
+ * @returns {ModuleObject}
+ */
+function createModuleObj(name, fpath) {
+    return new ModuleObject(name, fpath);
 }
 
 /**
@@ -636,6 +701,16 @@ function createBFunctionVal(fname, fexec, arity) {
     return new Value(VAL_BFUNCTION, new BFunctionObject(fname, arity, fexec));
 }
 
+/**
+ * Create a ModuleObject
+ * @param {ModuleObject} module: the module object
+ * @returns Value
+ */
+function createModuleVal(module) {
+    return new Value(VAL_MODULE, module);
+}
+
+
 module.exports = {
     assert,
     Value,
@@ -659,6 +734,8 @@ module.exports = {
     createInstanceVal,
     createBoundMethodVal,
     createBFunctionVal,
+    createModuleObj,
+    createModuleVal,
     VAL_INT,
     VAL_FLOAT,
     VAL_BOOLEAN,
@@ -672,4 +749,5 @@ module.exports = {
     VAL_INSTANCE,
     VAL_BOUND_METHOD,
     VAL_BFUNCTION,
+    VAL_MODULE,
 };

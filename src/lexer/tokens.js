@@ -102,6 +102,9 @@ module.exports = {
     TOKEN_DEFINE: 'TOKEN_DEFINE',           // define
     TOKEN_DERIVE: 'TOKEN_DERIVE',           // derive
     TOKEN_PANIC: 'TOKEN_PANIC',           // panic
+    TOKEN_IMPORT: 'TOKEN_IMPORT',           // import
+    TOKEN_FROM: 'TOKEN_FROM',               // from
+    TOKEN_AS: 'TOKEN_AS',                   // as
 
     // others
     TOKEN_ERROR: 'TOKEN_ERROR',

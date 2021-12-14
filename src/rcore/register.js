@@ -30,7 +30,8 @@ exports.registerDef = function (
             data.methodArity,
             null,
             false,
-            data.methodExec
+            data.methodExec,
+            rvm.builtinsModule,
         );
         fn["isVariadic"] = data.isVariadic || false;
         fn["defaultParamsCount"] = data.defaultParamsCount || 0;

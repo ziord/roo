@@ -4,6 +4,8 @@
 
 "use strict";
 
+const utils = require("../utils");
+
 const SEP = "[[-]]";
 const TAB = "\t";
 const EL0000 = 'EL0000',  // no error
@@ -334,6 +336,13 @@ RError[EP0047] = createError(EP0047,
     "Invalid assignment target.",
     "Can't assign to 'ref'."
 );
+
+RError[EP0048] = createError(EP0048,
+    "Maximum number of importable items exceeded.",
+    `Can't import more than ${utils.MAX_IMPORTABLE_NAMES} ` +
+    "items for a single import statement."
+);
+
 
 
 module.exports = {

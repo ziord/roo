@@ -33,6 +33,10 @@ exports.initInternedStrings = function (rvm, strObj) {
 exports.initAll = function(rvm) {
     // intern the string "String"
     const strObj = mod.getStringObj("String", rvm.internedStrings);
+    // create a builtins Module and set it on the VM
+    const builtinsStr = mod.getStringObj("builtins", rvm.internedStrings);
+    rvm.builtinsModule = mod.createModuleObj(builtinsStr); // todo: filepath
+    // initialize all objects
     functions.init(rvm);
     rnum.init(rvm);
     rstring.init(rvm);  // string def is created here

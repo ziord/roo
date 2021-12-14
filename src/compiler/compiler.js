@@ -61,14 +61,23 @@ class Upvalue {
 }
 
 class Compiler extends ast.NodeVisitor {
-    constructor(parser = null, fnType = ast.FnTypes.TYPE_SCRIPT) {
+    constructor(
+        parser = null,
+        module = null,
+        fnType = ast.FnTypes.TYPE_SCRIPT
+    ) {
         super();
         this.parser = parser;
+        this.filepath = parser ? parser.getFilePath() : null;
+        // current module
+        this.module = module || vmod.createModuleObj(null, this.filepath);
         this.fn = vmod.createFunctionObj(
             "",
             0,
             new Code(parser ? parser.lexer : null),
-            false
+            false,
+            null,
+            this.module
         );
         this.currentScope = 0;
         // the current function type:
@@ -1009,7 +1018,7 @@ class Compiler extends ast.NodeVisitor {
          * }
          * let foo = () => {...}
          */
-        let compiler = new Compiler(this.parser, node.fnType);
+        let compiler = new Compiler(this.parser, this.module, node.fnType);
         compiler.enclosingCompiler = this;
         // use the same map for interning all strings
         compiler.strings = this.strings;
@@ -1214,11 +1223,8 @@ class Compiler extends ast.NodeVisitor {
         // define the `def`
         this.defineVariable(node.defVar.name, index, node.line);
         if (node.derivingNode) {
-            // derivingNode is a VarNode()
-            utils.assert(
-                node.derivingNode instanceof ast.VarNode,
-                "compiler::visitDefNode()"
-            );
+            // derivingNode is any valid roo expression
+            utils.assert(node.derivingNode, "compiler::visitDefNode()");
             // increase the current scope in order to make the base def
             // be in its own scope - a local scope.
             this.currentScope++;
@@ -1265,6 +1271,69 @@ class Compiler extends ast.NodeVisitor {
             // At this point, the base def would be sitting on the
             // stack. popLocals() causes this to be popped off.
             this.popLocals();
+        }
+    }
+
+    compileWildcardImport(node) {
+        // import * as name from path
+        // import_star path alias
+        const pathIndex = this.storeString(node.path);
+        const alias = node.names[0]["alias"];
+        const aliasIndex = this.storeString(alias.name);
+        gen.emit2BytesOperand(
+            this.fn.code,
+            opcode.OP_IMPORT_STAR,
+            pathIndex,
+            node.line
+        );
+        gen.emitBytes(
+            this.fn.code,
+            (aliasIndex >> 8) & 0xff,
+            aliasIndex & 0xff,
+            node.line
+        );
+    }
+
+    compileFromImport(node) {
+        // import a as b from path
+        // import_name path [nameCount] name alias name alias name alias ...
+        const pathIndex = this.storeString(node.path);
+        const nameCount = node.names.length;
+        gen.emit2BytesOperand(
+            this.fn.code,
+            opcode.OP_IMPORT_NAME,
+            pathIndex,
+            node.line
+        );
+        gen.emitByte(this.fn.code, nameCount, node.line);
+        node.names.forEach(({name, alias}) => { // VarNode(), VarNode()
+            const nameIndex = this.storeString(name.name);
+            const aliasIndex = this.storeString(alias.name);
+            gen.emitBytes(
+                this.fn.code,
+                (nameIndex >> 8) & 0xff,
+                nameIndex & 0xff,
+                node.line
+            );
+            gen.emitBytes(
+                this.fn.code,
+                (aliasIndex >> 8) & 0xff,
+                aliasIndex & 0xff,
+                node.line
+            );
+        });
+    }
+
+    visitImportNode(node) {
+        switch (node.importStyle) {
+            case 1:
+                this.compileWildcardImport(node);
+                break;
+            case 2:
+                this.compileFromImport(node);
+                break;
+            default:
+                utils.unreachable("compiler::visitImportNode()");
         }
     }
 
@@ -1395,6 +1464,10 @@ class Compiler extends ast.NodeVisitor {
 
     visitProgramNode(node) {
         node.decls.forEach((decl) => this.visit(decl));
+    }
+
+    compilationFailed () {
+        return (this.hasError || this.fn.code.hasError());
     }
 
     compile(node, interned = null) {

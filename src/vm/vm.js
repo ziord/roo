@@ -5,6 +5,7 @@
 
 "use strict";
 
+const fs = require("fs");
 const {
     Value,
     getStringObj,
@@ -15,6 +16,8 @@ const {
     createInstanceVal,
     createBoundMethodVal,
     createFunctionVal,
+    createModuleObj,
+    createModuleVal,
     VAL_INT,
     VAL_FLOAT,
     VAL_BOOLEAN,
@@ -86,11 +89,15 @@ const {
     OP_PANIC,
     OP_BUILD_LIST_UNPACK,
     OP_CALL_UNPACK,
-    OP_INVOKE_DEREF_UNPACK
+    OP_INVOKE_DEREF_UNPACK,
+    OP_IMPORT_STAR,
+    OP_IMPORT_NAME
 } = require("../code/opcode");
 const rcore = require("../rcore/core");
 const exceptMod = require("../rcore/types/except");
+const { Compiler } = require("../compiler/compiler");
 const { Disassembler } = require("../debug/disassembler");
+const { parseSourceInternal } = require("../parser/parser");
 const { assert, out, print, unreachable, MAX_FUNCTION_PARAMS } = require("../utils");
 const MAX_FRAMES_SIZE = 80;
 const FRAME_STACK_SIZE = 0x1000;
@@ -114,11 +121,14 @@ function VM(func, debug = true, strings = null, repl = false) {
     this.frames = [];
     this.fp = null; // frame pointer; current frame
     this.sp = 0; // stack pointer
-    this.envName = repl ? "repl" : "script";
+    this.envName = repl ? "(repl)" : "(module)";
     this.execFnNow = false;
     this.popCallback = null; // todo
+    this.currentModule = null; // pointer to the current running module
+    this.builtinsModule = null; // pointer to builtins module
     this.builtins = new Map();
-    this.globals = new Map();
+    this.globals = new Map();  // vm's own globals
+    this.modules = new Map();  // Map<StringObject, Value(ModuleObject)>
     this.internedStrings = strings || new Map();
     this.initializerMethodName = getStringObj("__init__", this.internedStrings);
     this.stringMethodName = getStringObj("__str__", this.internedStrings);
@@ -133,6 +143,9 @@ function VM(func, debug = true, strings = null, repl = false) {
     this.dis = new Disassembler(this.fp.func, this.debug);
     // register all builtin/core functions
     rcore.initAll(this);
+    // initialize the module as the entry point
+    assert(func.module.name === null, "Entry module should have no name");
+    this.initModule(func.module);
 }
 
 /**
@@ -191,6 +204,20 @@ VM.prototype.initFrom = function (fnObj) {
     // reset the disassembler for the new function
     this.dis.reset(this.fp.func, this.debug);
     rcore.initInternedStrings(this, null);
+};
+
+/**
+ * Initialize a module
+ * @param {ModuleObject} module
+ * @returns {Value|*}
+ */
+VM.prototype.initModule = function (module) {
+    // store the module as a Value object, and
+    // initialize it with the VM globals
+    const mod = createModuleVal(module);
+    this.modules.set(module.name, mod); // Map<StringObject, Value(ModuleObject)>
+    module.globals = new Map(this.globals);
+    return mod;
 };
 
 VM.prototype.iOK = function () {
@@ -267,11 +294,13 @@ VM.prototype.pushFrame = function (func) {
     const frame = new CallFrame(func, retIndex, this.stack);
     this.frames.push(frame);
     this.fp = frame;
+    this.currentModule = this.fp.func.module;
 };
 
 VM.prototype.popFrame = function () {
     const frame = this.frames.pop();
     this.fp = this.frames[this.frames.length - 1];
+    this.currentModule = this.fp ? this.fp.func.module : null;
     return frame;
 };
 
@@ -384,8 +413,9 @@ VM.prototype.runtimeError = function (msgStr, msgVal = null, isFatal = false) {
             const fnName = this.fp.func.fname
                 ? this.fp.func.fname.raw + "()"
                 : this.envName;
+            const fpath = this.fp.func.module.fpath || this.envName;
             const lineNum = this.fp.func.code.lines[this.fp.ip];
-            stackTrace += `<Line ${lineNum}: in ${fnName}>\n`;
+            stackTrace += `<File "${fpath}", Line ${lineNum}: in ${fnName}>\n`;
             stackTrace += `  ${srcAtLine.trim()}\n`;
         }
         prevFrame = this.popFrame();
@@ -448,6 +478,8 @@ VM.prototype.propertyAccessError = function (val, prop, defName) {
         }'`;
     } else if (val.isDef()) {
         error = `'${val.asDef().dname.raw}' has no property '${prop.raw}'`;
+    } else if (val.isModuleObject()) {
+        error = `'${val}' has no property '${prop.raw}'`; // implicit toString()
     } else {
         error = `'${val.typeToString()}' has no property '${prop.raw}'`;
     }
@@ -812,6 +844,14 @@ VM.prototype.getValueProperty = function (prop, val) {
         }
     } else if (val.isBuiltinObject()) {
         this.bindMethod(val.getBuiltinDef(), prop);
+    } else if (val.isModuleObject()) {
+        const propVal = val.asModule().getItem(prop);
+        if (propVal) {
+            this.popStack();
+            this.pushStack(propVal);
+        } else {
+            this.propertyAccessError(val, prop);
+        }
     } else {
         this.propertyAccessError(val, prop);
     }
@@ -1032,6 +1072,19 @@ VM.prototype.invokeValue = function (prop, arity) {
         }
     } else if (val.isBuiltinObject()) {
         this.invokeFromDef(val.getBuiltinDef(), prop, arity);
+    } else if (val.isModuleObject()) {
+        const propVal = val.asModule().getItem(prop);
+        if (propVal) {
+            /*
+             * simulate `OP_GET_PROPERTY index` by placing the property
+             * on the stack at the module's position, and allowing
+             * callValue() handle the call
+             */
+            this.stack[this.sp - 1 - arity] = propVal;
+            this.callValue(arity);
+        } else {
+            this.propertyAccessError(val, prop);
+        }
     } else {
         this.propertyAccessError(val, prop);
     }
@@ -1053,6 +1106,102 @@ VM.prototype.unpackArgs = function (arity) {
     this.popStackN(arity);
     for (let i = 0; i < arr.length; ++i) this.pushStack(arr[i]);
     return arr.length;
+};
+
+/**
+ * Resolve the path
+ * @param {StringObject} path
+ * @returns {boolean}
+ */
+VM.prototype.resolvePath = function (path) {
+    const fpath = path.raw.replace(/\./g, "/") + ".roo";
+    if (!fs.existsSync(fpath)) {
+        this.runtimeError(`Could not find module '${path.raw}'`);
+        return false;
+    }
+    return fpath;
+};
+
+/**
+ * compile a module given its path
+ * @param {StringObject} modulePath: original specified path / module name
+ * @param {string} resolvedPath: resolved path to the module, a js string
+ * @returns {null|Value}
+ */
+VM.prototype.compileModule = function (modulePath, resolvedPath) {
+    const src = fs.readFileSync(resolvedPath).toString();
+    const [root, parser] = parseSourceInternal(src, resolvedPath);
+    if (parser.parsingFailed()) return null;
+    const moduleObj = createModuleObj(modulePath, resolvedPath);
+    // store & initialize with VM globals
+    const moduleVal = this.initModule(moduleObj);
+    const compiler = new Compiler(parser, moduleObj);
+    const fnObj = compiler.compile(root, this.internedStrings);
+    if (compiler.compilationFailed()) return null;
+    assert(
+        fnObj.module === moduleObj,
+        "VM::compileModule::Failed to assign module"
+    );
+    this.pushFrame(fnObj);
+    if (this.run(fnObj) !== this.iOK()) return null;
+    return moduleVal;
+};
+
+/**
+ * Import a module - called for wildcard imports
+ * @param {Value} path: StringObject type indicating the module path
+ * @param {Value} alias: StringObject type indicating the module alias
+ */
+VM.prototype.importModule = function (path, alias) {
+    // check if this module has already been imported
+    const fp = path.asString();
+    let module = this.modules.get(fp);
+    if (module) {
+        this.currentModule.globals.set(alias.asString(), module);
+        return module;
+    }
+    // try to import it
+    let resolvedPath;
+    if (!(resolvedPath = this.resolvePath(fp))) {
+        return null;
+    }
+    const moduleVal = this.compileModule(fp, resolvedPath);
+    if (!moduleVal) return null;
+    this.currentModule.globals.set(alias.asString(), moduleVal);
+    return moduleVal;
+};
+
+/**
+ * Import a module - called for wildcard imports
+ * @param {Value} path: StringObject type indicating the module path
+ * @param {number} nameCount: number of names to be imported from the module
+ */
+VM.prototype.importModuleNames = function (path, nameCount) {
+    // check if this module has already been imported
+    const fp = path.asString();
+    let module,
+        moduleVal = this.modules.get(fp);
+    if (!moduleVal) {
+        // try to import it
+        let resolvedPath;
+        if (!(resolvedPath = this.resolvePath(fp))) {
+            return null;
+        }
+        moduleVal = this.compileModule(fp, resolvedPath);
+        if (!moduleVal) return null;
+    }
+    module = moduleVal.asModule();
+    let name, alias, value;
+    for (let i = 0; i < nameCount; ++i) {
+        name = this.readString();
+        alias = this.readString();
+        if (!(value = module.globals.get(name))) {
+            this.runtimeError(`cannot import name '${name.raw}' from '${module.name.raw}'`);
+            return null;
+        }
+        this.currentModule.globals.set(alias, value);
+    }
+    return module;
 };
 
 VM.prototype.isCoreDef = function (defVal) {
@@ -1176,6 +1325,18 @@ VM.prototype.run = function (externCaller) {
                 this.popStackN(argCount);
                 break;
             }
+            case OP_IMPORT_STAR: {
+                const path = this.readConst();
+                const alias = this.readConst();
+                if (!this.importModule(path, alias)) return this.iERR();
+                break;
+            }
+            case OP_IMPORT_NAME: {
+                const path = this.readConst();
+                const nameCount = this.readByte();
+                if (!this.importModuleNames(path, nameCount)) return this.iERR();
+                break;
+            }
             case OP_BUILD_LIST: {
                 const size = this.readShort();
                 const arr = [];
@@ -1253,12 +1414,12 @@ VM.prototype.run = function (externCaller) {
             case OP_DEFINE_GLOBAL: {
                 const val = this.popStack();
                 const name = this.readString();
-                this.globals.set(name, val);
+                this.currentModule.globals.set(name, val);
                 break;
             }
             case OP_GET_GLOBAL: {
                 const name = this.readString();
-                const val = this.globals.get(name);
+                const val = this.currentModule.globals.get(name);
                 if (val === undefined) {
                     this.runtimeError(`'${name.raw}' is not defined`);
                     return this.iERR();
@@ -1268,14 +1429,14 @@ VM.prototype.run = function (externCaller) {
             }
             case OP_SET_GLOBAL: {
                 const name = this.readString();
-                if (!this.globals.has(name)) {
+                if (!this.currentModule.globals.has(name)) {
                     this.runtimeError(
                         `Cannot assign value to ` +
                             `undefined variable '${name.raw}'`
                     );
                     return this.iERR();
                 }
-                this.globals.set(name, this.peekStack());
+                this.currentModule.globals.set(name, this.peekStack());
                 break;
             }
             case OP_INC: {

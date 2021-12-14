@@ -131,10 +131,14 @@ BPTable[tokens.TOKEN_STRUCT] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_DEFINE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_DERIVE] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_PANIC] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_IMPORT] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_FROM] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_AS] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_ERROR] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_EOF] = bp(POWER_NONE, null, null);
 
-function Parser(src) {
+function Parser(src, fpath) {
+    this.filepath = fpath;
     // has the parser encountered an error?
     this.hadError = false;
     // sho n para lowo?
@@ -252,6 +256,7 @@ Parser.prototype.pError = function (errorCode, args) {
     let token = args ? (args["token"] || this.currentToken) : this.currentToken;
     let helpMsg = args ? (args["helpMsg"] || error.helpMsg) : error.helpMsg;
     let helpInfo = "";
+    let srcFile = this.filepath ? `(${this.filepath})\n` : "";
     let lineNum = `${token.line}`.padStart(4, " ");
     let errMsg = ` |[${errorCode}]${warningMsg}${error.errorMsg}\n`;
     let padding = "|".padStart(6, " ") + " ";
@@ -273,7 +278,7 @@ Parser.prototype.pError = function (errorCode, args) {
             helpInfo += padding + helpMsg + "\n";
         }
     }
-    console.error(lineNum + errMsg + errSrc + helpInfo);
+    console.error(srcFile + lineNum + errMsg + errSrc + helpInfo);
 };
 
 Parser.prototype.consume = function (tokenType, errorCode) {
@@ -420,6 +425,7 @@ function iStringLiteral() {
     // (const, etc.), and correct error reporting.
     let parser = new IStringParser(
         this.lexer,
+        this.filepath,
         this.previousToken,
         this.currentToken,
         this.currentScope
@@ -919,13 +925,18 @@ Parser.prototype.inspectConstAssignment = function (name, args) {
     }
 };
 
-Parser.prototype.inspectConstRedefinition = function (name, isConst) {
-    // check if var is a const todo: fine-tune implementation
+Parser.prototype.inspectConstRedefinition = function (
+    name,
+    isConst,
+    args = null
+) {
+    // todo: fine-tune implementation
+    // check if var is a const
     const var_ = this.lookup(name, true);
     if (var_ && isConst) {
-        this.pError(errors.EP0013);
+        this.pError(errors.EP0013, args);
     } else if (var_ && var_.isConst) {
-        this.pError(errors.EP0027);
+        this.pError(errors.EP0027, args);
     }
 };
 
@@ -1120,6 +1131,7 @@ Parser.prototype.synchronize = function () {
             case tokens.TOKEN_AT:
             case tokens.TOKEN_DERIVE:
             case tokens.TOKEN_PANIC:
+            case tokens.TOKEN_IMPORT:
                 return;
             default: // pass
         }
@@ -1342,6 +1354,74 @@ Parser.prototype.panicStatement = function () {
     this.push(new ast.PanicNode(this.pop(), line));
 };
 
+Parser.prototype.parseModulePath = function () {
+    // path  := var ('.' var)*
+    let path = "";
+    do {
+        path += this.parseName();
+        this.check(tokens.TOKEN_DOT) ? path += "." : void 0;
+    } while (this.match(tokens.TOKEN_DOT));
+    return path;
+};
+
+Parser.prototype.importStatement = function () {
+    /*
+     * import x from a.b.c;
+     * import x as foo from x.y.z;
+     * import bar, fyi from x.y.z;
+     * import bar as foo from x.y.z;
+     * import * as fx from x.y.z;
+     */
+    const node = new ast.ImportNode(this.currentToken.line);
+    this.advance();
+    let token;
+    if (this.match(tokens.TOKEN_STAR)) {
+        this.consume(tokens.TOKEN_AS);
+        token = this.currentToken;
+        variable.call(this);
+        const alias = this.pop();
+        this.consume(tokens.TOKEN_FROM);
+        node.path = this.parseModulePath();
+        node.names.push({ name: null, alias });
+        node.importStyle = 1; // wildcard import
+        // check if the alias' name redefines a const name in the current scope
+        this.inspectConstRedefinition(alias.name, false, { token });
+        if (!this.hadError) this.insert(alias.name, false);
+    } else {
+        // 'import' var ('as' var)? (, var (as var)?)* 'from' path
+        do {
+            if (node.names.length > utils.MAX_IMPORTABLE_NAMES) {
+                this.pError(errors.EP0048);
+                this.push(node);
+                return;
+            }
+            token = this.currentToken;
+            variable.call(this);
+            const name = this.pop();
+            if (this.match(tokens.TOKEN_AS)) {
+                token = this.currentToken;
+                variable.call(this);
+                const alias = this.pop();
+                node.names.push({ name, alias });
+                // check if the alias' name redefines a const name in the current scope
+                this.inspectConstRedefinition(alias.name, false, { token });
+                if (!this.hadError) this.insert(alias.name, false);
+            } else {
+                // check if the var name redefines a const name in the current scope
+                this.inspectConstRedefinition(name.name, false, { token });
+                if (!this.hadError) this.insert(name.name, false);
+                // use the name as its own alias, sort of like doing:
+                // import a as a from path
+                node.names.push({ name, alias: name });
+            }
+        } while (this.match(tokens.TOKEN_COMMA));
+        this.consume(tokens.TOKEN_FROM);
+        node.path = this.parseModulePath();
+        node.importStyle = 2; // from import
+    }
+    this.push(node);
+};
+
 Parser.prototype.funDecl = function () {
     // fn name() {}
     const line = this.currentToken.line;
@@ -1360,6 +1440,12 @@ Parser.prototype.funDecl = function () {
     const fn = new ast.FunctionNode(this.pop(), false, line);
     fn.isStatic = isStatic; // a static member?
     fn.name = this.parseName();
+    if (!this.inDefinition) {
+        this.inspectConstRedefinition(fn.name, false, {
+            token: this.previousToken,
+        });
+        if (!this.hadError) this.insert(fn.name, false);
+    }
     // handle invalid use of 'static' and other method symbols
     this.handleMethodSymbols(fn, token);
     this.consume(tokens.TOKEN_LEFT_BRACKET);
@@ -1419,13 +1505,21 @@ Parser.prototype.defDecl = function (consumeArrow) {
     const line = this.previousToken.line;
     variable.apply(this);
     const node = new ast.DefNode(this.pop(), line);
+    this.inspectConstRedefinition(node.defVar.name, false, {
+        token: this.previousToken,
+    });
+    if (!this.hadError) this.insert(node.defVar.name, false);
     // derivations
     if (consumeArrow) {
         this.consume(tokens.TOKEN_ARROW);
-        variable.apply(this);
+        // variable.apply(this);
+        this.expression();
         node.derivingNode = this.pop();
         // deriving from itself
-        if (node.derivingNode.name === node.defVar.name) {
+        if (
+            node.derivingNode.type === ast.ASTType.AST_NODE_VAR &&
+            node.derivingNode.name === node.defVar.name
+        ) {
             this.pError(errors.EP0042, { token: this.previousToken });
         }
         // set a flag indicating that a derivation is currently occurring
@@ -1472,7 +1566,9 @@ Parser.prototype.varDecl = function () {
     do {
         const name = this.parseName();
         // check const redefinition
-        this.inspectConstRedefinition(name, isConst);
+        this.inspectConstRedefinition(name, isConst, {
+            token: this.previousToken,
+        });
         let value = null;
         // (= expr)?
         if (this.check(tokens.TOKEN_EQUAL)) {
@@ -1482,7 +1578,7 @@ Parser.prototype.varDecl = function () {
         } else {
             value = new ast.NullNode(line);
         }
-        this.insert(name, isConst);
+        if (!this.hadError) this.insert(name, isConst);
         decls.push(new ast.VarDeclNode(name, value, isConst, line));
     } while (this.match(tokens.TOKEN_COMMA));
     this.consume(tokens.TOKEN_SEMI_COLON);
@@ -1505,6 +1601,10 @@ Parser.prototype.statement = function () {
             break;
         case tokens.TOKEN_PANIC:
             this.panicStatement();
+            consumeSemicolon = true;
+            break;
+        case tokens.TOKEN_IMPORT:
+            this.importStatement();
             consumeSemicolon = true;
             break;
         case tokens.TOKEN_LEFT_CURLY:
@@ -1596,9 +1696,17 @@ Parser.prototype.program = function program() {
     this.push(node);
 };
 
-function IStringParser(lexer, previousToken, currentToken, currentScope) {
+Parser.prototype.getFilePath = function () {
+    return this.filepath;
+};
+
+Parser.prototype.parsingFailed = function () {
+    return this.hadError;
+};
+
+function IStringParser(lexer, fpath, previousToken, currentToken, currentScope) {
     // call parser's constructor with a bogus string, then replace `lexer`
-    Parser.call(this, "");
+    Parser.call(this, "", fpath);
     this.lexer = null; // intentional
     this.lexer = lexer;
     this.previousToken = previousToken;
@@ -1635,15 +1743,16 @@ IStringParser.prototype.iStringExpression = function () {
     this.push(node);
 };
 
-function parseSourceInternal(src) {
-    const parser = new Parser(src);
+function parseSourceInternal(src, fpath = null) {
+    utils.assert(src, "Expected src string");
+    const parser = new Parser(src, fpath);
     parser.advance();
     parser.program();
     return [parser.hadError ? new ast.ProgramNode() : parser.pop(), parser];
 }
 
-function parseSource(src) {
-    const [node] = parseSourceInternal(src);
+function parseSource(src, fpath = null) {
+    const [node] = parseSourceInternal(src, fpath);
     return node;
 }
 
