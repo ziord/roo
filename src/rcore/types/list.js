@@ -351,7 +351,7 @@ function list_iterator__next(rvm, arity) {
 
 exports.init = function (rvm) {
     // List
-    register.registerDef(rvm, "List", [
+    register.registerBuiltinDef(rvm, "List", [
         {
             methodName: "__init__",
             methodExec: list__init,
@@ -438,7 +438,7 @@ exports.init = function (rvm) {
     ]);
 
     // ListIterator
-    register.registerDef(
+    register.registerBuiltinDef(
         rvm,
         "ListIterator",
         [

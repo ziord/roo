@@ -70,7 +70,7 @@ function except__message(rvm, arity) {
 }
 
 exports.init = function (rvm) {
-    register.registerDef(rvm, "Exception", [
+    register.registerBuiltinDef(rvm, "Exception", [
         {
             methodName: "__init__",
             methodExec: except__init,

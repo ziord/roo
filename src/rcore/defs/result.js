@@ -166,7 +166,7 @@ function err__init(rvm, arity) {
 
 exports.init = function (rvm) {
     // Result
-    register.registerDef(rvm, "Result", [
+    register.registerBuiltinDef(rvm, "Result", [
         {
             methodName: "__init__",
             methodExec: result__init,
@@ -220,7 +220,7 @@ exports.init = function (rvm) {
     ], null, true);
 
     // Ok
-    register.registerDef(rvm, "Ok", [
+    register.registerBuiltinDef(rvm, "Ok", [
         {
             methodName: "__init__",
             methodExec: ok__init,
@@ -229,7 +229,7 @@ exports.init = function (rvm) {
     ]);
 
     // Err
-    register.registerDef(rvm, "Err", [
+    register.registerBuiltinDef(rvm, "Err", [
         {
             methodName: "__init__",
             methodExec: err__init,

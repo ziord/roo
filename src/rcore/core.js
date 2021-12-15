@@ -5,13 +5,22 @@
 "use strict";
 
 const mod = require("../constant/value");
-const functions = require("./functions");
+
+// builtin functions  | <builtins module> *global
+const functions = require("./functions/functions");
+
+// core types (defs)  | <builtins module> *global
 const rdict = require("./types/dict");
 const rlist = require("./types/list");
 const rstring = require("./types/string");
 const rnum = require("./types/num");
-const rresult = require("./types/result");
-const rexcept = require("./types/except");
+
+// builtin defs  | <builtins module> *global
+const rresult = require("./defs/result");
+const rexcept = require("./defs/except");
+
+// core modules  | <custom module> non-global
+const filesystem = require("./lib/filesystem");
 
 
 /******************
@@ -30,7 +39,7 @@ exports.initInternedStrings = function (rvm, strObj) {
     }
 };
 
-exports.initAll = function(rvm) {
+exports.initAll = function (rvm) {
     // intern the string "String"
     const strObj = mod.getStringObj("String", rvm.internedStrings);
     // create a builtins Module and set it on the VM
@@ -39,7 +48,7 @@ exports.initAll = function(rvm) {
     // initialize all objects
     functions.init(rvm);
     rnum.init(rvm);
-    rstring.init(rvm);  // string def is created here
+    rstring.init(rvm); // string def is created here
     rlist.init(rvm);
     rdict.init(rvm);
     rresult.init(rvm);
@@ -52,6 +61,20 @@ exports.initAll = function(rvm) {
     }
 };
 
+/**
+ * Get the core module
+ * @param {string} modName: the module name/path
+ * @param {VM} rvm: the vm
+ * @returns {null|void | Value}
+ */
+exports.getModule = function (modName, rvm) {
+    const modFiles = { filesystem };
+    const moduleFile = modFiles[modName];
+    if (!moduleFile) return null;
+    // return an initialized module
+    return moduleFile.init(rvm);
+};
+
 exports.coreDefs = [
     "Bool",
     "Int",
@@ -62,7 +85,6 @@ exports.coreDefs = [
     "ListIterator",
     "Dict",
     "DictKeyIterator",
-    "Result",
 ];
 
-exports.builtinDefs = [...exports.coreDefs, "Exception"];
+exports.builtinDefs = [...exports.coreDefs, "Exception", "Result"];

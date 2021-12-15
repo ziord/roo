@@ -272,7 +272,7 @@ function str_iterator__next(rvm, arity) {
 
 exports.init = function (rvm) {
     // String
-    register.registerDef(rvm, "String", [
+    register.registerBuiltinDef(rvm, "String", [
         {
             methodName: "__init__",
             methodExec: str__init,
@@ -390,7 +390,7 @@ exports.init = function (rvm) {
     ]);
 
     // StringIterator
-    register.registerDef(
+    register.registerBuiltinDef(
         rvm,
         "StringIterator",
         [

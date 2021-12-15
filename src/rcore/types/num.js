@@ -129,7 +129,7 @@ function float__init(rvm, arity) {
 
 exports.init = function (rvm) {
     // Bool
-    register.registerDef(rvm, "Bool", [
+    register.registerBuiltinDef(rvm, "Bool", [
         {
             methodName: "__init__",
             methodExec: bool__init,
@@ -140,7 +140,7 @@ exports.init = function (rvm) {
     ]);
 
     // Int
-    register.registerDef(rvm, "Int", [
+    register.registerBuiltinDef(rvm, "Int", [
         {
             methodName: "__init__",
             methodExec: int__init,
@@ -151,7 +151,7 @@ exports.init = function (rvm) {
     ]);
 
     // Float
-    register.registerDef(rvm, "Float", [
+    register.registerBuiltinDef(rvm, "Float", [
         {
             methodName: "__init__",
             methodExec: float__init,

@@ -1,8 +1,8 @@
 "use strict";
 
-const mod = require("../constant/value");
-const utils = require("../utils");
-const register = require("./register");
+const mod = require("../../constant/value");
+const utils = require("../../utils");
+const register = require("../register");
 
 /*
  ****************************************
@@ -165,13 +165,13 @@ function roo__dir(rvm, arity) {
 
 exports.init = function (rvm) {
     // Global Functions
-    register.registerFunc(rvm, "clock", roo__clock, 0);
-    register.registerFunc(rvm, "str", roo__str, 1);
-    register.registerFunc(rvm, "setProperty", roo__setProperty, 3);
-    register.registerFunc(rvm, "getProperty", roo__getProperty, 2);
-    register.registerFunc(rvm, "hasProperty", roo__hasProperty, 2);
-    register.registerFunc(rvm, "typeOf", roo__typeOf, 1);
-    register.registerFunc(rvm, "isInstance", roo__isInstance, 2);
-    register.registerFunc(rvm, "exit", roo__exit, 1);
-    // register.registerFunc(rvm, "dir", roo__dir, 1); todo
+    register.registerBuiltinFunc(rvm, "clock", roo__clock, 0);
+    register.registerBuiltinFunc(rvm, "str", roo__str, 1);
+    register.registerBuiltinFunc(rvm, "setProperty", roo__setProperty, 3);
+    register.registerBuiltinFunc(rvm, "getProperty", roo__getProperty, 2);
+    register.registerBuiltinFunc(rvm, "hasProperty", roo__hasProperty, 2);
+    register.registerBuiltinFunc(rvm, "typeOf", roo__typeOf, 1);
+    register.registerBuiltinFunc(rvm, "isInstance", roo__isInstance, 2);
+    register.registerBuiltinFunc(rvm, "exit", roo__exit, 1);
+    // register.registerBuiltinFunc(rvm, "dir", roo__dir, 1); todo
 };

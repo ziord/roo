@@ -94,7 +94,7 @@ const {
     OP_IMPORT_MODULE,
 } = require("../code/opcode");
 const rcore = require("../rcore/core");
-const exceptMod = require("../rcore/types/except");
+const exceptMod = require("../rcore/defs/except");
 const { Compiler } = require("../compiler/compiler");
 const { Disassembler } = require("../debug/disassembler");
 const { parseSourceInternal } = require("../parser/parser");
@@ -1128,11 +1128,10 @@ VM.prototype.resolvePath = function (modulePath) {
     // check for other expected places where the module could be [todo: ok?]
     this.gpath = this.gpath || path.dirname(path.dirname(__dirname));
     fpath = path.join(this.gpath, "src", "stdlib", filename);
-    if (!fs.existsSync(fpath)) {
-        this.runtimeError(`Could not find module '${modulePath.raw}'`);
-        return false;
+    if (fs.existsSync(fpath)) {
+        return fpath;
     }
-    return fpath;
+    return null;
 };
 
 /**
@@ -1179,12 +1178,25 @@ VM.prototype.importModule = function (modulePath) {
     const fp = modulePath.asString();
     let module = this.modules.get(fp);
     if (module) {
+        // place the module on the stack for use
         this.pushStack(module);
         return module;
     }
     // if not, try to import it
     const resolvedPath = this.resolvePath(fp);
-    if (!resolvedPath) return null;
+    if (!resolvedPath) {
+        // check if its a core module
+        module = rcore.getModule(fp.raw, this);
+        if (!module) {
+            this.runtimeError(`Could not find module '${fp.raw}'`);
+            return null;
+        }
+        // cache the module
+        this.modules.set(module.name, module);
+        // place the module on the stack for use
+        this.pushStack(module);
+        return module;
+    }
     return this.compileModule(fp, resolvedPath);
 };
 

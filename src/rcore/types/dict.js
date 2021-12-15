@@ -137,7 +137,7 @@ function dict_key_iterator__next(rvm, arity) {
 }
 
 exports.init = function (rvm) {
-    register.registerDef(rvm, "Dict", [
+    register.registerBuiltinDef(rvm, "Dict", [
         {
             methodName: "__init__",
             methodExec: dict__init,
@@ -198,7 +198,7 @@ exports.init = function (rvm) {
     ]);
 
     // DictKeyIterator
-    register.registerDef(
+    register.registerBuiltinDef(
         rvm,
         "DictKeyIterator",
         [
