@@ -3,6 +3,8 @@ grammars
 src/tests
 tmp
 src/stdlib
+node_modules
+package-lock.json
 *.roo
 *.txt
 test.js
