@@ -5,6 +5,7 @@ tmp
 src/stdlib
 node_modules
 package-lock.json
+*.rk
 *.roo
 *.txt
 test.js
