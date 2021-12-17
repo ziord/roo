@@ -122,6 +122,23 @@ Disassembler.prototype.invokeInstruction = function (inst, index) {
     return ++index;
 };
 
+Disassembler.prototype.importInstruction = function (inst, index) {
+    // op args o1..o2..o3 next-op
+    const operandIdx = this.readShort(index);
+    const constant = this.code.cp.pool[operandIdx]; // Value obj
+    index += 2;
+    const isRelativeImport = this.code.bytes[++index];
+    print(
+        inst.padEnd(pad, " "),
+        tab,
+        `${operandIdx}`.padStart(4, " "),
+        tab,
+        `(${constant})`, // implicit toString()
+        `(${isRelativeImport})`
+    );
+    return ++index; // next-op
+};
+
 Disassembler.prototype.disassembleInstruction = function (index, code) {
     code !== undefined ? (this.code = code) : void 0;
     if (this.showSrcLines && this.hasSrcLines) {
@@ -209,6 +226,8 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
             return this.plainInstruction("OP_POP_EXCEPT", index);
         case opcode.OP_PANIC:
             return this.plainInstruction("OP_PANIC", index);
+        case opcode.OP_INSTOF:
+            return this.plainInstruction("OP_INSTOF", index);
         case opcode.OP_SHOW:
             return this.byteInstruction("OP_SHOW", index);
         case opcode.OP_CALL:
@@ -270,7 +289,7 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
         case opcode.OP_INVOKE_DEREF_UNPACK:
             return this.invokeInstruction("OP_INVOKE_DEREF_UNPACK", index);
         case opcode.OP_IMPORT_MODULE:
-            return this.constantInstruction("OP_IMPORT_MODULE", index);
+            return this.importInstruction("OP_IMPORT_MODULE", index);
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
     }
@@ -314,6 +333,7 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.OP_DERIVE:
         case opcode.OP_POP_EXCEPT:
         case opcode.OP_PANIC:
+        case opcode.OP_INSTOF:
             return index + 1;
         case opcode.OP_SHOW:
         case opcode.OP_CALL:
@@ -342,7 +362,6 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.OP_SET_PROPERTY:
         case opcode.OP_GET_DEREF_PROPERTY:
         case opcode.OP_SETUP_EXCEPT:
-        case opcode.OP_IMPORT_MODULE:
             return index + 3;
         case opcode.OP_CLOSURE:
             // 2 bytes per 'upvalue'
@@ -350,6 +369,7 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.OP_INVOKE:
         case opcode.OP_INVOKE_DEREF:
         case opcode.OP_INVOKE_DEREF_UNPACK:
+        case opcode.OP_IMPORT_MODULE:
             return index + 4;
         default:
             return this.plainInstruction("OP_UNKNOWN", index);

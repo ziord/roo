@@ -134,6 +134,7 @@ BPTable[tokens.TOKEN_PANIC] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_IMPORT] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_FROM] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_AS] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_INSTANCEOF] = bp(POWER_COMPARISON, null, binary);
 BPTable[tokens.TOKEN_ERROR] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_EOF] = bp(POWER_NONE, null, null);
 
@@ -150,7 +151,7 @@ function Parser(src, fpath) {
     this.currentBp = { bp: POWER_NONE, prev: null };
     this.pstack = [];
     // a chain of environments for tracking constness
-    this.currentScope = { name: "global", enclosingScope: null };
+    this.currentScope = { $scopeName: "global", $enclosingScope: null };
     this.scopeCount = 1;
     this.inLoop = 0;
     // are we parsing/in a function?:
@@ -209,24 +210,24 @@ Parser.prototype.lookup = function (name, currentScopeOnly = false) {
     let currentScope = this.currentScope;
     while (currentScope && !(name in currentScope)) {
         if (currentScopeOnly) break;
-        currentScope = currentScope.enclosingScope;
+        currentScope = currentScope.$enclosingScope;
     }
     return currentScope && currentScope[name];
 };
 
 Parser.prototype.insert = function (name, isConst) {
-    this.currentScope[name] = { name, isConst };
+    this.currentScope[name] = { $varName: name, isConst };
 };
 
 Parser.prototype.enterScope = function () {
-    const newScope = { name: `local-${++this.scopeCount}` };
-    newScope.enclosingScope = this.currentScope;
+    const newScope = { $scopeName: `local-${++this.scopeCount}` };
+    newScope.$enclosingScope = this.currentScope;
     this.currentScope = newScope;
 };
 
 Parser.prototype.leaveScope = function () {
     this.scopeCount--;
-    this.currentScope = this.currentScope.enclosingScope;
+    this.currentScope = this.currentScope.$enclosingScope;
 };
 
 Parser.prototype.enterDerivation = function (baseDef) {
@@ -1097,7 +1098,10 @@ Parser.prototype.purgeReturn = function (blockNode, token) {
     const decls = blockNode.decls;
     const lastNode = decls[decls.length - 1];
     if (lastNode) {
-        if (lastNode.type === ast.ASTType.AST_NODE_EXPR) {
+        if (
+            lastNode.type === ast.ASTType.AST_NODE_EXPR &&
+            lastNode.expr.type !== ast.ASTType.AST_NODE_ASSIGN
+        ) {
             this.pError(errors.EP0040, { token, warn: true });
         } else if (lastNode.type === ast.ASTType.AST_NODE_RETURN) {
             this.pError(errors.EP0039, { token });
@@ -1355,13 +1359,20 @@ Parser.prototype.panicStatement = function () {
 };
 
 Parser.prototype.parseModulePath = function () {
-    // path  := var ('.' var)*
-    let path = "";
-    do {
-        path += this.parseName();
-        this.check(tokens.TOKEN_DOT) ? path += "." : void 0;
-    } while (this.match(tokens.TOKEN_DOT));
-    return path;
+    // path  := var ('.' var)* | "..."
+    let path = "",
+        isRelative = false;
+    if (this.check(tokens.TOKEN_STRING)) {
+        path += this.currentToken.value;
+        isRelative = true;
+        this.advance();
+    } else {
+        do {
+            path += this.parseName();
+            this.check(tokens.TOKEN_DOT) ? (path += ".") : void 0;
+        } while (this.match(tokens.TOKEN_DOT));
+    }
+    return [path, isRelative];
 };
 
 Parser.prototype.importStatement = function () {
@@ -1381,7 +1392,7 @@ Parser.prototype.importStatement = function () {
         variable.call(this);
         const aliasVar = this.pop();
         this.consume(tokens.TOKEN_FROM);
-        node.path = this.parseModulePath();
+        [node.path, node.isRelative] = this.parseModulePath();
         node.names.push({ nameVar: null, aliasVar });
         node.importStyle = 1; // wildcard import
         // check if the alias' name redefines a const name in the current scope
@@ -1416,7 +1427,7 @@ Parser.prototype.importStatement = function () {
             }
         } while (this.match(tokens.TOKEN_COMMA));
         this.consume(tokens.TOKEN_FROM);
-        node.path = this.parseModulePath();
+        [node.path, node.isRelative] = this.parseModulePath();
         node.importStyle = 2; // from import
     }
     this.push(node);

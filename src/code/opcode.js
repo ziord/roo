@@ -69,4 +69,5 @@ module.exports = {
     OP_CALL_UNPACK: 63,
     OP_INVOKE_DEREF_UNPACK: 64,
     OP_IMPORT_MODULE: 65,
+    OP_INSTOF: 66,
 };

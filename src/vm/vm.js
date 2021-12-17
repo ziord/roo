@@ -11,6 +11,8 @@ const {
     Value,
     getStringObj,
     createVMStringVal,
+    createTrueVal,
+    createFalseVal,
     createListVal,
     createDictVal,
     createDefVal,
@@ -49,6 +51,7 @@ const {
     OP_BW_RSHIFT,
     OP_POW,
     OP_MOD,
+    OP_INSTOF,
     OP_BW_AND,
     OP_BW_OR,
     OP_BW_XOR,
@@ -721,6 +724,35 @@ VM.prototype.bwBinaryOp = function (opcode) {
     }
 };
 
+VM.prototype.instanceOf = function () {
+    const obj2 = this.popStack();
+    const obj1 = this.popStack();
+    if (!obj2.isDef()) {
+        this.runtimeError(`second arg must be a definition`);
+    }
+    const defName = obj2.asDef().dname.raw;
+    if (obj1.isInt() && defName === "Int") {
+        this.pushStack(createTrueVal());
+    } else if (obj1.isFloat() && defName === "Float") {
+        this.pushStack(createTrueVal());
+    } else if (!obj1.as().def) {
+        this.pushStack(createFalseVal());
+    } else if (obj1.asInstance().def === obj2.asDef()) {
+        this.pushStack(createTrueVal());
+    } else {
+        let def = obj1.asInstance().def.baseDef,
+            desc = obj2.asDef();
+        while (def) {
+            if (def === desc) {
+                this.pushStack(createTrueVal());
+                break;
+            }
+            def = def.baseDef;
+        }
+        this.pushStack(createFalseVal());
+    }
+};
+
 VM.prototype.isFalsy = function (valObj) {
     // todo: update
     return (valObj.isNumber() && !valObj.value) || // covers boolean
@@ -935,9 +967,9 @@ VM.prototype.callFn = function (fnVal, callArity) {
     // return if an error was encountered above.
     if (this.atError) return;
     // does this function have a builtin executable (callable)?
-    if (fnObj.builtinMethod) {
+    if (fnObj.builtinFn) {
         // handle builtin methods
-        this.callBuiltinMethod(fnObj, fnObj.arity);
+        this.callBuiltinFnOrMethod(fnObj, fnObj.arity);
     } else {
         // if not, just push the frame
         this.pushFrame(fnObj);
@@ -947,18 +979,17 @@ VM.prototype.callFn = function (fnVal, callArity) {
     }
 };
 
-VM.prototype.callBuiltinMethod = function (fnObj, arity) {
+VM.prototype.callBuiltinFnOrMethod = function (fnObj, arity) {
     // call and set the return value directly
-    const result = fnObj.builtinMethod(this, arity);
+    const result = fnObj.builtinFn(this, arity);
     if (this.atError) return;
     this.stack[this.sp - 1 - arity] = result;
-    // trim the stack pointer - to reflect the return of the builtinMethod
+    // trim the stack pointer - to reflect the return of the builtinFn
     this.sp -= arity;
 };
 
 VM.prototype.callBuiltinFn = function (val, arity) {
     const bFn = val.asBFunction();
-    // todo: enhance
     if (bFn.arity !== arity) {
         const argsWord = bFn.arity > 1 ? "arguments" : "argument";
         const arityWord = arity >= 1 ? arity : "none";
@@ -1112,12 +1143,22 @@ VM.prototype.unpackArgs = function (arity) {
 /**
  * Resolve the module path
  * @param {StringObject} modulePath
+ * @param {boolean} isRelativeImport
  * @returns {boolean}
  */
-VM.prototype.resolvePath = function (modulePath) {
+VM.prototype.resolvePath = function (modulePath, isRelativeImport) {
     // currently, we're assuming the module exists in the current directory
     // as the current running module.
-    const filename = modulePath.raw.replace(/\./g, path.sep) + ".roo";
+    let filename;
+    if (isRelativeImport) {
+        filename = modulePath.raw;
+    } else {
+        filename = modulePath.raw.replace(/\./g, path.sep);
+    }
+    filename += ".rk";
+    if (fs.existsSync(filename)) {
+        return filename;
+    }
     let fpath = path.resolve(
         path.dirname(this.currentModule.fpath),
         filename
@@ -1172,8 +1213,9 @@ VM.prototype.compileModule = function (modulePath, resolvedPath) {
  * Import a module, given its syntactic path
  * @param {Value} modulePath: StringObject type indicating the
  * module's syntactic path
+ * @param {boolean} isRelativeImport
  */
-VM.prototype.importModule = function (modulePath) {
+VM.prototype.importModule = function (modulePath, isRelativeImport) {
     // check if this module has already been imported
     const fp = modulePath.asString();
     let module = this.modules.get(fp);
@@ -1183,7 +1225,7 @@ VM.prototype.importModule = function (modulePath) {
         return module;
     }
     // if not, try to import it
-    const resolvedPath = this.resolvePath(fp);
+    const resolvedPath = this.resolvePath(fp, isRelativeImport);
     if (!resolvedPath) {
         // check if its a core module
         module = rcore.getModule(fp.raw, this);
@@ -1263,12 +1305,6 @@ VM.prototype.run = function (externCaller) {
                 if (this.atError) return this.iERR();
                 break;
             }
-            case OP_MOD:
-            case OP_DIVIDE: {
-                this.binaryOp(bytecode);
-                if (this.atError) return this.iERR();
-                break;
-            }
             case OP_BW_LSHIFT:
             case OP_BW_RSHIFT:
             case OP_BW_AND:
@@ -1278,6 +1314,8 @@ VM.prototype.run = function (externCaller) {
                 if (this.atError) return this.iERR();
                 break;
             }
+            case OP_MOD:
+            case OP_DIVIDE:
             case OP_POW:
             case OP_GREATER:
             case OP_LESS:
@@ -1287,6 +1325,10 @@ VM.prototype.run = function (externCaller) {
             case OP_MULTIPLY: {
                 this.binaryOp(bytecode);
                 if (this.atError) return this.iERR();
+                break;
+            }
+            case OP_INSTOF: {
+                this.instanceOf();
                 break;
             }
             case OP_EQUAL: {
@@ -1322,7 +1364,8 @@ VM.prototype.run = function (externCaller) {
                 break;
             }
             case OP_IMPORT_MODULE: {
-                if (!this.importModule(this.readConst())) return this.iERR();
+                if (!this.importModule(this.readConst(), this.readByte()))
+                    return this.iERR();
                 break;
             }
             case OP_BUILD_LIST: {

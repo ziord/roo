@@ -78,6 +78,7 @@ const OpType = {
     OPTR_COND: 'OPTR_COND',        // ?
     OPTR_OR: 'OPTR_OR',          // or
     OPTR_AND: 'OPTR_AND',         // and
+    OPTR_INSTOF: 'OPTR_INSTOF',   // instanceof
     /**/
     OPTR_MUL_ASSIGN: 'OPTR_MUL_ASSIGN',
     OPTR_DIV_ASSIGN: 'OPTR_DIV_ASSIGN',
@@ -137,6 +138,7 @@ function getOperator(tokenType){
         case tokens.TOKEN_STAR_STAR_EQUAL:     return OpType.OPTR_POW_ASSIGN;
         case tokens.TOKEN_OR:                  return OpType.OPTR_OR;
         case tokens.TOKEN_AND:                 return OpType.OPTR_AND;
+        case tokens.TOKEN_INSTANCEOF:          return OpType.OPTR_INSTOF;
         default:                               return undefined;
     }
 }
@@ -599,10 +601,11 @@ class ImportNode extends AST {
         super();
         this.type = ASTType.AST_NODE_IMPORT;
         this.path = null; // string
-        // [{name: VarNode, alias: null | VarNode}]
+        // [{nameVar: VarNode, aliasVar: null | VarNode}]
         this.names = [];
         // 1 -> wildcard import, 2 -> from import
         this.importStyle = 0;
+        this.isRelative = false;
         this.line = line;
     }
 }

@@ -8,6 +8,14 @@ const mod = require("../constant/value");
  ***************
  */
 
+/**
+ * Register a builtin Def
+ * @param {VM} rvm: the vm
+ * @param {string} dname: the def's name
+ * @param {Array} methodData: the def's method data
+ * @param {DefObject} baseDef: the def's base def
+ * @param {boolean} excludeGlobal: flag controlling the def's global visibility
+ */
 exports.registerBuiltinDef = function (
     rvm,
     dname,
@@ -31,7 +39,7 @@ exports.registerBuiltinDef = function (
             null,
             false,
             data.methodExec,
-            rvm.builtinsModule,
+            rvm.builtinsModule
         );
         fn["isVariadic"] = data.isVariadic || false;
         fn["defaultParamsCount"] = data.defaultParamsCount || 0;
@@ -47,15 +55,57 @@ exports.registerBuiltinDef = function (
     rvm.builtins.set(dname, val);
 };
 
-exports.registerBuiltinFunc = function (rvm, fname, fexec, arity) {
-    // todo: enable defaults in BFunctionObject
+/**
+ * Register a builtin function
+ * @param {VM} rvm: the vm
+ * @param {string} fname: the function's name
+ * @param {Function} fexec: the functions's executable
+ * @param {number} arity: number of parameters
+ * @param {Object | null} functionData: the function's data
+ */
+exports.registerBuiltinFunc = function (
+    rvm,
+    fname,
+    fexec,
+    arity,
+    functionData = null
+) {
     // obtain an interned StringObject for the string fname
     fname = mod.getStringObj(fname, rvm.internedStrings);
-    const val = mod.createBFunctionVal(fname, fexec, arity, rvm.builtinsModule);
+    let val = null;
+    if (functionData) {
+        const fn = mod.createFunctionObj(
+            fname,
+            arity,
+            null,
+            false,
+            fexec,
+            rvm.builtinsModule
+        );
+        fn["isVariadic"] = functionData.isVariadic || false;
+        fn["defaultParamsCount"] = functionData.defaultParamsCount || 0;
+        if (fn.defaultParamsCount) {
+            // place the default values at position specified in `defaults`
+            functionData.defaults.forEach(
+                ({ pos, val }) => (fn.defaults[pos] = val)
+            );
+        }
+        val = mod.createFunctionVal(fn);
+    } else {
+        val = mod.createBFunctionVal(fname, fexec, arity, rvm.builtinsModule);
+    }
     rvm.globals.set(fname, val);
     rvm.builtins.set(fname, val);
 };
 
+/**
+ * Register a custom Def
+ * @param {VM} rvm: the vm
+ * @param {string} dname: the def's name
+ * @param {Array} methodData: the def's method data
+ * @param {DefObject} baseDef: the def's base def
+ * @param {ModuleObject} module: the def's module
+ */
 exports.registerCustomDef = function (rvm, dname, methodData, baseDef, module) {
     // obtain an interned StringObject for the string dname
     // we use getVMStringObj() instead of getStringObj() because at this point
@@ -90,12 +140,49 @@ exports.registerCustomDef = function (rvm, dname, methodData, baseDef, module) {
     return module;
 };
 
-exports.registerCustomFunc = function (rvm, fname, fexec, arity, module) {
-    // todo: enable defaults in BFunctionObject
+/**
+ * Register a custom function
+ * @param {VM} rvm: the vm
+ * @param {string} fname: the function's name
+ * @param {Function} fexec: the functions's executable
+ * @param {number} arity: number of parameters
+ * @param {ModuleObject} module: the function's module
+ * @param {Object | null} functionData: the function's data
+ */
+exports.registerCustomFunc = function (
+    rvm,
+    fname,
+    fexec,
+    arity,
+    module,
+    functionData = null
+) {
     // obtain an interned StringObject for the string fname
     // we use getVMStringObj() instead of getStringObj() because at this point
     // the String def would have been created & stored in the vm's `builtins` map
     fname = mod.getVMStringObj(fname, rvm);
-    module.globals.set(fname, mod.createBFunctionVal(fname, fexec, arity, module));
+    let val = null;
+    if (functionData) {
+        const fn = mod.createFunctionObj(
+            fname,
+            arity,
+            null,
+            false,
+            fexec,
+            module
+        );
+        fn["isVariadic"] = functionData.isVariadic || false;
+        fn["defaultParamsCount"] = functionData.defaultParamsCount || 0;
+        if (fn.defaultParamsCount) {
+            // place the default values at position specified in `defaults`
+            functionData.defaults.forEach(
+                ({ pos, val }) => (fn.defaults[pos] = val)
+            );
+        }
+        val = mod.createFunctionVal(fn);
+    } else {
+        val = mod.createBFunctionVal(fname, fexec, arity, module);
+    }
+    module.globals.set(fname, val);
     return module;
 };

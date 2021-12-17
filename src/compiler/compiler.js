@@ -31,6 +31,7 @@ const OPS = {
     [ast.OpType.OPTR_MOD]: opcode.OP_MOD,
     [ast.OpType.OPTR_POW]: opcode.OP_POW,
     [ast.OpType.OPTR_POW]: opcode.OP_POW,
+    [ast.OpType.OPTR_INSTOF]: opcode.OP_INSTOF,
     [ast.OpType.OPTR_MINUS_ASSIGN]: opcode.OP_SUBTRACT,
     [ast.OpType.OPTR_PLUS_ASSIGN]: opcode.OP_ADD,
     [ast.OpType.OPTR_DIV_ASSIGN]: opcode.OP_DIVIDE,
@@ -1285,6 +1286,7 @@ class Compiler extends ast.NodeVisitor {
             pathIndex,
             node.line
         );
+        gen.emitByte(this.fn.code, node.isRelative, node.line);
         this.defineVariable(alias.name, null, alias.line);
     }
 
@@ -1299,6 +1301,7 @@ class Compiler extends ast.NodeVisitor {
             pathIndex,
             node.line
         );
+        gen.emitByte(this.fn.code, node.isRelative, node.line);
         this.defineVariable(aliasName, null, node.line);
         const moduleVar = new ast.VarNode(aliasName, node.line);
         node.names.forEach(({nameVar, aliasVar}) => { // VarNode(), VarNode()
@@ -1324,7 +1327,7 @@ class Compiler extends ast.NodeVisitor {
     transformSpreadNode(node) {
         /*  ...itr -|
          * ((var) => {
-         *  if isInstance(var, List) return var;
+         *  if var instanceof List return var;
          *  let tmp = [];
          *  for e in var
          *      tmp.append(e);
@@ -1338,13 +1341,12 @@ class Compiler extends ast.NodeVisitor {
         const param = new ast.VarNode("var", line);
         const paramNode = new ast.ParameterNode(param, null, line);
 
-        //1. if isInstance(var, List) return itr;
-        const condition = new ast.CallNode(
-            new ast.VarNode("isInstance", line),
-            line
+        //1. if var instanceof List return var;
+        const condition = new ast.BinaryNode(
+            param,
+            new ast.VarNode("List", line),
+            ast.OpType.OPTR_INSTOF
         );
-        condition.args.push(param);
-        condition.args.push(new ast.VarNode("List", line));
         const ifBlock = new ast.BlockNode(
             [new ast.ReturnNode(param, line)],
             line

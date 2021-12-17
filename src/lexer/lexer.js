@@ -118,6 +118,7 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_IMPORT:               return "import";
         case tokens.TOKEN_FROM:                 return "from";
         case tokens.TOKEN_AS:                   return "as";
+        case tokens.TOKEN_INSTANCEOF:           return "instanceof";
         case tokens.TOKEN_ERROR:                return "ERROR";
         case tokens.TOKEN_EOF:                  return "EOF";
     }
@@ -196,6 +197,7 @@ Lexer.keywords = function() {
         ["import", tokens.TOKEN_IMPORT],
         ["from", tokens.TOKEN_FROM],
         ["as", tokens.TOKEN_AS],
+        ["instanceof", tokens.TOKEN_INSTANCEOF],
     ];
 };
 
@@ -514,6 +516,7 @@ Lexer.prototype.lexIdentifier = function () {
 Lexer.prototype.lexString = function (start, isIString) {
     if (start !== '"' && start !== "'") return this.errorToken(errors.EL0007);
     let tmp,
+        p,
         str = "";
     // depth of {} encountered
     let interpCount = 0;
@@ -528,17 +531,17 @@ Lexer.prototype.lexString = function (start, isIString) {
                 this.move();
                 return this.errorToken(errors.EL0006);
             }
-            switch (this.peek()) {
-                case "\\": str += "\\";  break;
-                case "'":  str += "'";   break;
-                case '"':  str += '"';   break;
-                case "a":  str += "a";   break;
-                case "b":  str += "\b";  break;
-                case "f":  str += "\f";  break;
-                case "n":  str += "\n";  break;
-                case "r":  str += "\r";  break;
-                case "t":  str += "\t";  break;
-                default: return this.errorToken(errors.EL0005);
+            switch ((p = this.peek())) {
+                case "\\":  str += "\\";      break;
+                case "'":   str += "'";       break;
+                case '"':   str += '"';       break;
+                case "a":   str += "a";       break;
+                case "b":   str += "\b";      break;
+                case "f":   str += "\f";      break;
+                case "n":   str += "\n";      break;
+                case "r":   str += "\r";      break;
+                case "t":   str += "\t";      break;
+                default:    str += "\\" + p;  break;
             }
             this.move();
             continue;
@@ -552,14 +555,16 @@ Lexer.prototype.lexString = function (start, isIString) {
 };
 
 Lexer.prototype.getToken = function() {
-    while (this.hasStackedLexer()){
+    while (this.hasStackedLexer()) {
         let lexer = this.getStackedLexer();
-        if (!lexer.done){
+        if (!lexer.done) {
             const token = lexer.nextToken();
             // check if a new lexer was added to the stacked lexer's
             // `lexStack` array, if so, forward it to the current lexer.
-            if (lexer.lexStack.length){
-                lexer.lexStack.forEach(newLexer => this.lexStack.push(newLexer));
+            if (lexer.lexStack.length) {
+                lexer.lexStack.forEach((newLexer) =>
+                    this.lexStack.push(newLexer)
+                );
                 lexer.lexStack = [];
             }
             // was the end of the current interpolation string reached?
@@ -567,12 +572,16 @@ Lexer.prototype.getToken = function() {
             if (token.type === tokens.TOKEN_EOF) continue;
             // else just return the token lexed.
             return token;
-        }else{
+        } else {
             // the stacked lexer is done lexing
             this.lexStack.pop();
             // return a sentinel token indicating the end of the iString
-            return this.customToken(tokens.TOKEN_ISTRING_END, "",
-                lexer.line, lexer.column);
+            return this.customToken(
+                tokens.TOKEN_ISTRING_END,
+                "",
+                lexer.line,
+                lexer.column
+            );
         }
     }
     this.skipWhitespace();
@@ -580,11 +589,11 @@ Lexer.prototype.getToken = function() {
     if (this.atError) return this.errorToken(this.errorCode);
     this.startIndex = this.currentIndex;
     let char = this.move();
-    if (isAlpha(char)){
+    if (isAlpha(char)) {
         return this.lexIdentifier();
-    }else if (isDigit(char)){
+    } else if (isDigit(char)) {
         return this.lexNumber();
-    }else if (char === '$'){
+    } else if (char === "$") {
         const token = this.newToken(tokens.TOKEN_ISTRING_START);
         const startQuote = this.move();
         const currentColumn = this.column;
@@ -592,7 +601,11 @@ Lexer.prototype.getToken = function() {
         const iStringToken = this.lexString(startQuote, true);
         // check if the string contains errors, if so, return the error token
         if (iStringToken.type === tokens.TOKEN_ERROR) return iStringToken;
-        const newLexer = new IStringLexer(iStringToken.value, currentColumn, currentLine);
+        const newLexer = new IStringLexer(
+            iStringToken.value,
+            currentColumn,
+            currentLine
+        );
         this.lexStack.push(newLexer);
         return token;
     }

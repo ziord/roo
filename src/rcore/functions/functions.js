@@ -119,10 +119,19 @@ function roo__isInstance(rvm, arity) {
         return mod.createTrueVal();
     } else if (obj1.isFloat() && defName === "Float") {
         return mod.createTrueVal();
+    } else if (!obj1.as().def) {
+        return mod.createFalseVal();
     } else if (obj1.as().def === obj2.asDef()) {
         return mod.createTrueVal();
+    } else {
+        let def = obj1.asInstance().def.baseDef,
+            desc = obj2.asDef();
+        while (def) {
+            if (def === desc) return mod.createTrueVal();
+            def = def.baseDef;
+        }
+        return mod.createFalseVal();
     }
-    return mod.createFalseVal();
 }
 
 function roo__dir(rvm, arity) {

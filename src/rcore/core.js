@@ -10,17 +10,18 @@ const mod = require("../constant/value");
 const functions = require("./functions/functions");
 
 // core types (defs)  | <builtins module> *global
-const rdict = require("./types/dict");
-const rlist = require("./types/list");
-const rstring = require("./types/string");
-const rnum = require("./types/num");
+const dictType = require("./types/dict");
+const listType = require("./types/list");
+const stringType = require("./types/string");
+const numType = require("./types/num");
 
 // builtin defs  | <builtins module> *global
-const rresult = require("./defs/result");
-const rexcept = require("./defs/except");
+const resultDef = require("./defs/result");
+const exceptDef = require("./defs/except");
 
 // core modules  | <custom module> non-global
-const filesystem = require("./lib/filesystem");
+const fsLib = require("./lib/filesystem");
+const ioLib = require("./lib/io");
 
 
 /******************
@@ -47,12 +48,12 @@ exports.initAll = function (rvm) {
     rvm.builtinsModule = mod.createModuleObj(builtinsStr, null); // todo: fpath
     // initialize all objects
     functions.init(rvm);
-    rnum.init(rvm);
-    rstring.init(rvm); // string def is created here
-    rlist.init(rvm);
-    rdict.init(rvm);
-    rresult.init(rvm);
-    rexcept.init(rvm);
+    numType.init(rvm);
+    stringType.init(rvm); // string def is created here
+    listType.init(rvm);
+    dictType.init(rvm);
+    resultDef.init(rvm);
+    exceptDef.init(rvm);
     const strDef = rvm.builtins.get(strObj).asDef();
     // associate the builtin String def with all string objects
     for (let [_, value] of rvm.internedStrings) {
@@ -68,7 +69,7 @@ exports.initAll = function (rvm) {
  * @returns {null|void | Value}
  */
 exports.getModule = function (modName, rvm) {
-    const modFiles = { filesystem };
+    const modFiles = { filesystem: fsLib, io: ioLib };
     const moduleFile = modFiles[modName];
     if (!moduleFile) return null;
     // return an initialized module

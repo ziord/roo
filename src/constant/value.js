@@ -87,7 +87,7 @@ function FunctionObject(name, arity, code, isLambda) {
     this.defaults = [];
     this.defaultParamsCount = 0;
     this.isStaticMethod = false;
-    this.builtinMethod = null; // builtin executable
+    this.builtinFn = null; // builtin executable
     this.module = null; // module where this function was found
 }
 
@@ -412,18 +412,19 @@ Value.prototype.dictToString = function () {
 };
 
 Value.prototype.listToString = function () {
-    return (
-        "[" +
-        this.asList()
-            .elements.map((e) => {
-                if (e.value === this.value) {
-                    return "[...]";
-                }
-                return e.stringify(true);
-            })
-            .join(", ") +
-        "]"
-    );
+    const elements = this.value.elements;
+    let str = "[", stop = elements.length - 1;
+    for (let i = 0, elem; i < elements.length; ++i) {
+        elem = elements[i];
+        if (elem.value !== this.value) {
+            str += elem.stringify(true);
+        } else {
+            str += "[...]";
+        }
+        if (i < stop) str += ", ";
+    }
+    str += "]";
+    return str;
 };
 
 Value.prototype.stringify = function (includeQuotes = false, rvm = null) {
@@ -446,9 +447,8 @@ Value.prototype.stringify = function (includeQuotes = false, rvm = null) {
         case VAL_DICT:
             return this.dictToString();
         case VAL_FUNCTION:
-            // todo: top level function should be file name
             // {fn foo}. top level function is 'script'
-            const native = this.value.builtinMethod ? " :native" : "";
+            const native = this.value.builtinFn ? " :native" : "";
             return this.value.fname
                 ? `{fn ${this.value.fname.raw}${native}}`
                 : "{script}";
@@ -456,7 +456,7 @@ Value.prototype.stringify = function (includeQuotes = false, rvm = null) {
             return `{${this.asBoundMethod().method.stringify()}:bound}`;
         case VAL_BFUNCTION:
             // {{fn foo}:native}
-            return `{{fn ${this.asBFunction().fname.raw}}:native}`;
+            return `{fn ${this.asBFunction().fname.raw} :native}`;
         case VAL_DEFINITION:
             return `{def ${this.asDef().dname.raw}}`;
         case VAL_INSTANCE: {
@@ -476,14 +476,21 @@ Value.prototype.stringify = function (includeQuotes = false, rvm = null) {
                     // obtain the result - this would have replaced the instance
                     // pushed on the stack, hence popping this off balances the
                     // stack effect.
-                    return rvm.popStack().stringify(includeQuotes, rvm);
+                    const str = rvm.popStack();
+                    if (!str.isString()) {
+                        rvm.runtimeError(
+                            `__str__ returned non-string (type ${str.typeToString()})`
+                        );
+                        return "";
+                    }
+                    return str.asString().raw;
                 }
                 return "";
             }
             return `{ref ${this.asInstance().def.dname.raw}}`;
         }
         case VAL_MODULE: {
-            return `{mod ${this.asModule().name.raw}}`
+            return `{mod ${this.asModule().name.raw}}`;
         }
         // todo: object type
         default:
@@ -565,7 +572,7 @@ Value.prototype.equals = function (otherVal) {
  * @param {number} arity: number of accepted arguments
  * @param {Code} code: Code object containing the function's bytecode
  * @param {boolean} isLambda: flag for whether the function is a lambda func
- * @param builtinMethod: builtin (js) function
+ * @param builtinFn: builtin (js) function
  * @param {ModuleObject} module
  * @constructor
  */
@@ -574,12 +581,12 @@ function createFunctionObj(
     arity,
     code,
     isLambda,
-    builtinMethod = null,
+    builtinFn = null,
     module = null
 ) {
     const fn = new FunctionObject(name, arity, code, isLambda);
     fn.module = module;
-    fn.builtinMethod = builtinMethod;
+    fn.builtinFn = builtinFn;
     return fn;
 }
 

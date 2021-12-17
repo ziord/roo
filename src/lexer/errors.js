@@ -13,7 +13,7 @@ const EL0000 = 'EL0000',  // no error
     EL0002 = 'EL0002',  // (lexer) unknown token
     EL0003 = 'EL0003',  // (lexer) unclosed string
     EL0004 = 'EL0004',  // (lexer) invalid number token
-    EL0005 = 'EL0005',  // (lexer) invalid escape sequence
+    EL0005 = 'EL0005',  // (lexer)
     EL0006 = 'EL0006',  // (lexer) backslash in interpolation {string}
     EL0007 = 'EL0007',  // (lexer) invalid interpolation string
     EP0001 = 'EP0001',
@@ -103,11 +103,6 @@ RError[EL0004] = createError(EL0004,
     "Invalid number token",
     "Some examples of valid numbers include hex (0x12345), " +
     "int (12345), decimal (.12345, 1.2345e-6)");
-
-RError[EL0005] = createError(EL0005,
-    "Invalid escape sequence",
-    "The escape sequence used isn't recognized. " +
-    "Some valid escape sequences are `\\n`, `\\b`, etc.");
 
 RError[EL0006] = createError(EL0006,
     "Interpolation string expression part cannot include a backslash.",
@@ -352,7 +347,7 @@ module.exports = {
     EL0002,  // (lexer) unknown token
     EL0003,  // (lexer) unclosed string
     EL0004,  // (lexer) invalid number token
-    EL0005,  // (lexer) invalid escape sequence
+    EL0005,  // (lexer)
     EL0006,  // (lexer) backslash in interpolation {string}
     EL0007,  // (lexer) invalid interpolation string
     EP0001,
