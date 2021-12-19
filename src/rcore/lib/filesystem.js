@@ -12,6 +12,7 @@ const register = require("../register");
  ****************************
  */
 
+const PLATFORM = os.platform();
 const writeFlags = ["a", "a+", "as", "as+", "w", "w+"];
 const readWriteFlags = [...writeFlags, "r"];
 const encodings = [
@@ -161,7 +162,7 @@ function file__readLines(rvm, arity) {
     // takes 1 arg: encoding {default}
     let data = __read(rvm, arity);
     if (data === null) return rvm.dummyVal();
-    data = data.split(os.platform() === 'win32' ? "\r\n" : "\n");
+    data = data.split(PLATFORM === 'win32' ? "\r\n" : "\n");
     const list = [];
     for (let line of data) {
         list.push(mod.createVMStringVal(line, rvm));
@@ -186,7 +187,7 @@ function file__writeLines(rvm, arity) {
         return rvm.dummyVal();
     }
     const lines = rvm.peekStack(2).asList().elements;
-    let tmp, data = "", newline = os.platform() === "win32" ? "\r\n" : "\n";
+    let tmp, data = "", newline = PLATFORM === "win32" ? "\r\n" : "\n";
     for (let i = 0; i < lines.length; ++i) {
         tmp = lines[i];
         if (!tmp.isString()) {

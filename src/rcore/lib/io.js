@@ -1,7 +1,6 @@
 "use strict";
 
 const fs = require("fs");
-// const readlineSync = require("readline-sync");
 const mod = require("../../constant/value");
 const register = require("../register");
 const utils = require("../../utils");
