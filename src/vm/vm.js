@@ -412,13 +412,14 @@ VM.prototype.runtimeError = function (msgStr, msgVal = null, isFatal = false) {
             }
         }
         // gather the stack trace
-        srcAtLine = this.getLineSrcCode(this.fp.ip);
+        // ( -1 since ip points at the _next_ instruction)
+        srcAtLine = this.getLineSrcCode(this.fp.ip - 1);
         if (srcAtLine && srcAtLine !== 0xff) {
             const fnName = this.fp.func.fname
                 ? this.fp.func.fname.raw + "()"
                 : this.envName;
             const fpath = this.fp.func.module.fpath || this.envName;
-            const lineNum = this.fp.func.code.lines[this.fp.ip];
+            const lineNum = this.fp.func.code.lines[this.fp.ip - 1];
             stackTrace += `<File "${fpath}", Line ${lineNum}: in ${fnName}>\n`;
             stackTrace += `  ${srcAtLine.trim()}\n`;
         }
