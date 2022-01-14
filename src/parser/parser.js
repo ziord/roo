@@ -1700,10 +1700,11 @@ Parser.prototype.block = function () {
 
 Parser.prototype.program = function program() {
     let node = new ast.ProgramNode();
-    while (!this.match(tokens.TOKEN_EOF)) {
+    while (this.isNotMatching(tokens.TOKEN_EOF)) {
         this.declaration();
         node.decls.push(this.pop());
     }
+    this.consume(tokens.TOKEN_EOF);
     this.push(node);
 };
 
@@ -1742,7 +1743,7 @@ IStringParser.prototype.replacementExpr = function () {
 IStringParser.prototype.iStringExpression = function () {
     this.advance();
     const node = new ast.IStringNode(this.currentToken.line);
-    while (!this.match(tokens.TOKEN_ISTRING_END)) {
+    while (this.isNotMatching(tokens.TOKEN_ISTRING_END)) {
         if (this.check(tokens.TOKEN_STRING)) {
             stringLiteral.call(this);
             node.exprs.push(this.pop());
@@ -1751,6 +1752,7 @@ IStringParser.prototype.iStringExpression = function () {
             node.exprs.push(this.pop());
         }
     }
+    this.consume(tokens.TOKEN_ISTRING_END);
     this.push(node);
 };
 
