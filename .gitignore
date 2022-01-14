@@ -3,6 +3,7 @@ grammars
 src/tests
 tmp
 src/stdlib
+examples
 node_modules
 package-lock.json
 *.rk
