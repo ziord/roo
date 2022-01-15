@@ -13,36 +13,36 @@ const opcode = require("../code/opcode");
 const opt = require("./optimizer");
 
 const OPS = {
-    [ast.OpType.OPTR_PLUS]: opcode.OP_ADD,
-    [ast.OpType.OPTR_MINUS]: opcode.OP_SUBTRACT,
-    [ast.OpType.OPTR_MUL]: opcode.OP_MULTIPLY,
-    [ast.OpType.OPTR_DIV]: opcode.OP_DIVIDE,
-    [ast.OpType.OPTR_BW_AND]: opcode.OP_BW_AND,
-    [ast.OpType.OPTR_BW_OR]: opcode.OP_BW_OR,
-    [ast.OpType.OPTR_BW_XOR]: opcode.OP_BW_XOR,
-    [ast.OpType.OPTR_BW_LSHIFT]: opcode.OP_BW_LSHIFT,
-    [ast.OpType.OPTR_BW_RSHIFT]: opcode.OP_BW_RSHIFT,
-    [ast.OpType.OPTR_EQEQ]: opcode.OP_EQUAL,
-    [ast.OpType.OPTR_NEQ]: opcode.OP_NOT_EQUAL,
-    [ast.OpType.OPTR_GT]: opcode.OP_GREATER,
-    [ast.OpType.OPTR_LT]: opcode.OP_LESS,
-    [ast.OpType.OPTR_GEQ]: opcode.OP_GREATER_OR_EQUAL,
-    [ast.OpType.OPTR_LEQ]: opcode.OP_LESS_OR_EQUAL,
-    [ast.OpType.OPTR_MOD]: opcode.OP_MOD,
-    [ast.OpType.OPTR_POW]: opcode.OP_POW,
-    [ast.OpType.OPTR_POW]: opcode.OP_POW,
-    [ast.OpType.OPTR_INSTOF]: opcode.OP_INSTOF,
-    [ast.OpType.OPTR_MINUS_ASSIGN]: opcode.OP_SUBTRACT,
-    [ast.OpType.OPTR_PLUS_ASSIGN]: opcode.OP_ADD,
-    [ast.OpType.OPTR_DIV_ASSIGN]: opcode.OP_DIVIDE,
-    [ast.OpType.OPTR_MUL_ASSIGN]: opcode.OP_MULTIPLY,
-    [ast.OpType.OPTR_MOD_ASSIGN]: opcode.OP_MOD,
-    [ast.OpType.OPTR_BW_LSHIFT_ASSIGN]: opcode.OP_BW_LSHIFT,
-    [ast.OpType.OPTR_BW_RSHIFT_ASSIGN]: opcode.OP_BW_RSHIFT,
-    [ast.OpType.OPTR_BW_AND_ASSIGN]: opcode.OP_BW_AND,
-    [ast.OpType.OPTR_BW_OR_ASSIGN]: opcode.OP_BW_OR,
-    [ast.OpType.OPTR_BW_XOR_ASSIGN]: opcode.OP_BW_XOR,
-    [ast.OpType.OPTR_POW_ASSIGN]: opcode.OP_POW,
+    [ast.OpType.OPTR_PLUS]: opcode.$ADD,
+    [ast.OpType.OPTR_MINUS]: opcode.$SUBTRACT,
+    [ast.OpType.OPTR_MUL]: opcode.$MULTIPLY,
+    [ast.OpType.OPTR_DIV]: opcode.$DIVIDE,
+    [ast.OpType.OPTR_BW_AND]: opcode.$BW_AND,
+    [ast.OpType.OPTR_BW_OR]: opcode.$BW_OR,
+    [ast.OpType.OPTR_BW_XOR]: opcode.$BW_XOR,
+    [ast.OpType.OPTR_BW_LSHIFT]: opcode.$BW_LSHIFT,
+    [ast.OpType.OPTR_BW_RSHIFT]: opcode.$BW_RSHIFT,
+    [ast.OpType.OPTR_EQEQ]: opcode.$EQUAL,
+    [ast.OpType.OPTR_NEQ]: opcode.$NOT_EQUAL,
+    [ast.OpType.OPTR_GT]: opcode.$GREATER,
+    [ast.OpType.OPTR_LT]: opcode.$LESS,
+    [ast.OpType.OPTR_GEQ]: opcode.$GREATER_OR_EQUAL,
+    [ast.OpType.OPTR_LEQ]: opcode.$LESS_OR_EQUAL,
+    [ast.OpType.OPTR_MOD]: opcode.$MOD,
+    [ast.OpType.OPTR_POW]: opcode.$POW,
+    [ast.OpType.OPTR_POW]: opcode.$POW,
+    [ast.OpType.OPTR_INSTOF]: opcode.$INSTOF,
+    [ast.OpType.OPTR_MINUS_ASSIGN]: opcode.$SUBTRACT,
+    [ast.OpType.OPTR_PLUS_ASSIGN]: opcode.$ADD,
+    [ast.OpType.OPTR_DIV_ASSIGN]: opcode.$DIVIDE,
+    [ast.OpType.OPTR_MUL_ASSIGN]: opcode.$MULTIPLY,
+    [ast.OpType.OPTR_MOD_ASSIGN]: opcode.$MOD,
+    [ast.OpType.OPTR_BW_LSHIFT_ASSIGN]: opcode.$BW_LSHIFT,
+    [ast.OpType.OPTR_BW_RSHIFT_ASSIGN]: opcode.$BW_RSHIFT,
+    [ast.OpType.OPTR_BW_AND_ASSIGN]: opcode.$BW_AND,
+    [ast.OpType.OPTR_BW_OR_ASSIGN]: opcode.$BW_OR,
+    [ast.OpType.OPTR_BW_XOR_ASSIGN]: opcode.$BW_XOR,
+    [ast.OpType.OPTR_POW_ASSIGN]: opcode.$POW,
 };
 
 class Local {
@@ -154,13 +154,13 @@ class Compiler extends ast.NodeVisitor {
     visitBooleanNode(node) {
         gen.emitByte(
             this.fn.code,
-            node.value ? opcode.OP_LOAD_TRUE : opcode.OP_LOAD_FALSE,
+            node.value ? opcode.$LOAD_TRUE : opcode.$LOAD_FALSE,
             node.line
         );
     }
 
     visitNullNode(node) {
-        gen.emitByte(this.fn.code, opcode.OP_LOAD_NULL, node.line);
+        gen.emitByte(this.fn.code, opcode.$LOAD_NULL, node.line);
     }
 
     visitStringNode(node) {
@@ -175,7 +175,7 @@ class Compiler extends ast.NodeVisitor {
         node.nodes.forEach((expr) => this.visit(expr));
         gen.emitBytes(
             this.fn.code,
-            opcode.OP_SHOW,
+            opcode.$SHOW,
             node.nodes.length,
             node.line
         );
@@ -192,16 +192,16 @@ class Compiler extends ast.NodeVisitor {
         this.visit(node.node);
         switch (node.op) {
             case ast.OpType.OPTR_PLUS:
-                gen.emitByte(this.fn.code, opcode.OP_POSITIVE, node.line);
+                gen.emitByte(this.fn.code, opcode.$POSITIVE, node.line);
                 break;
             case ast.OpType.OPTR_MINUS:
-                gen.emitByte(this.fn.code, opcode.OP_NEGATE, node.line);
+                gen.emitByte(this.fn.code, opcode.$NEGATE, node.line);
                 break;
             case ast.OpType.OPTR_BW_INVERT:
-                gen.emitByte(this.fn.code, opcode.OP_BW_INVERT, node.line);
+                gen.emitByte(this.fn.code, opcode.$BW_INVERT, node.line);
                 break;
             case ast.OpType.OPTR_NOT:
-                gen.emitByte(this.fn.code, opcode.OP_NOT, node.line);
+                gen.emitByte(this.fn.code, opcode.$NOT, node.line);
                 break;
             default:
                 utils.unreachable("Compiler::visitUnaryNode()");
@@ -231,10 +231,10 @@ class Compiler extends ast.NodeVisitor {
         const node = postfixNode.node;
         let code, op;
         if (postfixNode.op === ast.OpType.OPTR_PLUS_PLUS) {
-            code = opcode.OP_DEC;
+            code = opcode.$DEC;
             op = ast.OpType.OPTR_PLUS;
         } else {
-            code = opcode.OP_INC;
+            code = opcode.$INC;
             op = ast.OpType.OPTR_MINUS;
         }
         const assignNode = new ast.AssignNode(
@@ -262,7 +262,7 @@ class Compiler extends ast.NodeVisitor {
         node.nodes.forEach((item) => this.visit(item));
         gen.emit2BytesOperand(
             this.fn.code,
-            (node.hasSpread ? opcode.OP_BUILD_LIST_UNPACK : opcode.OP_BUILD_LIST),
+            (node.hasSpread ? opcode.$BUILD_LIST_UNPACK : opcode.$BUILD_LIST),
             node.nodes.length,
             node.line
         );
@@ -272,18 +272,18 @@ class Compiler extends ast.NodeVisitor {
         this.visit(node.startNode);
         this.visit(node.endNode);
         this.visit(node.stepNode);
-        gen.emitByte(this.fn.code, opcode.OP_BUILD_RANGE, node.line);
+        gen.emitByte(this.fn.code, opcode.$BUILD_RANGE, node.line);
     }
 
     visitIndexExprNode(node) {
         this.visit(node.leftExpr);
         this.visit(node.indexExpr);
-        gen.emitByte(this.fn.code, opcode.OP_SUBSCRIPT, node.line);
+        gen.emitByte(this.fn.code, opcode.$SUBSCRIPT, node.line);
     }
 
     visitExprStatementNode(node) {
         this.visit(node.expr);
-        gen.emitByte(this.fn.code, opcode.OP_POP, node.line);
+        gen.emitByte(this.fn.code, opcode.$POP, node.line);
     }
 
     storeString(string) {
@@ -390,7 +390,7 @@ class Compiler extends ast.NodeVisitor {
         }
         // are there any locals to be popped off?
         if (pops) {
-            gen.emit2BytesOperand(this.fn.code, opcode.OP_POP_N, pops, popLine);
+            gen.emit2BytesOperand(this.fn.code, opcode.$POP_N, pops, popLine);
             this.locals.length -= pops;
         }
     }
@@ -411,7 +411,7 @@ class Compiler extends ast.NodeVisitor {
     compileIndexExprAssign(node) {
         this.compileAssignment(node);
         this.visit(node.leftNode);
-        this.fn.code.bytes[this.fn.code.length - 1] = opcode.OP_SET_SUBSCRIPT;
+        this.fn.code.bytes[this.fn.code.length - 1] = opcode.$SET_SUBSCRIPT;
     }
 
     compileDotExprAssign(node) {
@@ -424,25 +424,25 @@ class Compiler extends ast.NodeVisitor {
          * thus, we reset it at this index, to reflect the correct instruction
          * for this expression
          */
-        this.fn.code.bytes[this.fn.code.length - 3] = opcode.OP_SET_PROPERTY;
+        this.fn.code.bytes[this.fn.code.length - 3] = opcode.$SET_PROPERTY;
     }
 
     compileVarAssign(node) {
         let index, code, fn;
         // check if it's a local
         if ((index = this.findLocal(node.leftNode)) !== -1) {
-            code = opcode.OP_SET_LOCAL;
+            code = opcode.$SET_LOCAL;
             fn = gen.emit2BytesOperand;
         }
         // check if it's an upvalue
         else if ((index = this.findUpvalue(node.leftNode)) !== -1) {
             // only 1 byte (256) upvalues allowable for now
-            code = opcode.OP_SET_UPVALUE;
+            code = opcode.$SET_UPVALUE;
             fn = gen.emitBytes;
         }
         // might be a global
         else {
-            code = opcode.OP_SET_GLOBAL;
+            code = opcode.$SET_GLOBAL;
             index = this.storeString(node.leftNode.name);
             fn = gen.emit2BytesOperand;
         }
@@ -469,7 +469,7 @@ class Compiler extends ast.NodeVisitor {
             this.locals[index].isInitialized = true;
             gen.emit2BytesOperand(
                 this.fn.code,
-                opcode.OP_DEFINE_LOCAL,
+                opcode.$DEFINE_LOCAL,
                 index,
                 node.line
             );
@@ -479,7 +479,7 @@ class Compiler extends ast.NodeVisitor {
             this.visit(node.value);
             gen.emit2BytesOperand(
                 this.fn.code,
-                opcode.OP_DEFINE_GLOBAL,
+                opcode.$DEFINE_GLOBAL,
                 index,
                 node.line
             );
@@ -504,7 +504,7 @@ class Compiler extends ast.NodeVisitor {
             }
             gen.emit2BytesOperand(
                 this.fn.code,
-                opcode.OP_GET_LOCAL,
+                opcode.$GET_LOCAL,
                 index,
                 node.line
             );
@@ -514,7 +514,7 @@ class Compiler extends ast.NodeVisitor {
             // only 1 byte (256) upvalues allowable for now
             gen.emitBytes(
                 this.fn.code,
-                opcode.OP_GET_UPVALUE,
+                opcode.$GET_UPVALUE,
                 index,
                 node.line
             );
@@ -524,7 +524,7 @@ class Compiler extends ast.NodeVisitor {
             index = this.storeString(node.name);
             gen.emit2BytesOperand(
                 this.fn.code,
-                opcode.OP_GET_GLOBAL,
+                opcode.$GET_GLOBAL,
                 index,
                 node.line
             );
@@ -535,7 +535,7 @@ class Compiler extends ast.NodeVisitor {
         node.exprs.forEach((expr) => this.visit(expr));
         gen.emit2BytesOperand(
             this.fn.code,
-            opcode.OP_FORMAT,
+            opcode.$FORMAT,
             node.exprs.length,
             node.line
         );
@@ -545,7 +545,7 @@ class Compiler extends ast.NodeVisitor {
         this.visit(node.leftNode);
         const conditionEnd = gen.emitJump(
             this.fn.code,
-            opcode.OP_JUMP_IF_FALSE_OR_POP,
+            opcode.$JUMP_IF_FALSE_OR_POP,
             node.line
         );
         this.visit(node.rightNode);
@@ -556,16 +556,16 @@ class Compiler extends ast.NodeVisitor {
         this.visit(node.leftNode);
         const absJumpExit = gen.emitJump(
             this.fn.code,
-            opcode.OP_JUMP_IF_FALSE,
+            opcode.$JUMP_IF_FALSE,
             node.line
         );
         const conditionEnd = gen.emitJump(
             this.fn.code,
-            opcode.OP_JUMP,
+            opcode.$JUMP,
             node.line
         );
         gen.patchJump(this.fn.code, absJumpExit);
-        gen.emitByte(this.fn.code, opcode.OP_POP);
+        gen.emitByte(this.fn.code, opcode.$POP);
         this.visit(node.rightNode);
         gen.patchJump(this.fn.code, conditionEnd);
     }
@@ -576,13 +576,13 @@ class Compiler extends ast.NodeVisitor {
         // or pop condition result off the stack if it evaluates to true
         const elseJmp = gen.emitJump(
             this.fn.code,
-            opcode.OP_JUMP_IF_FALSE_OR_POP
+            opcode.$JUMP_IF_FALSE_OR_POP
         );
         this.visit(node.ifBlock);
         // jump to end of if clause
-        const endJmp = gen.emitJump(this.fn.code, opcode.OP_JUMP);
+        const endJmp = gen.emitJump(this.fn.code, opcode.$JUMP);
         gen.patchJump(this.fn.code, elseJmp);
-        gen.emitByte(this.fn.code, opcode.OP_POP, node.elseLine);
+        gen.emitByte(this.fn.code, opcode.$POP, node.elseLine);
         if (node.elseBlock) this.visit(node.elseBlock);
         gen.patchJump(this.fn.code, endJmp);
     }
@@ -605,14 +605,14 @@ class Compiler extends ast.NodeVisitor {
         // or pop condition result off the stack if it evaluates to true
         const exitJmp = gen.emitJump(
             this.fn.code,
-            opcode.OP_JUMP_IF_FALSE_OR_POP
+            opcode.$JUMP_IF_FALSE_OR_POP
         );
         this.visit(node.block);
         gen.emitLoop(this.fn.code, loopPoint);
         gen.patchJump(this.fn.code, exitJmp);
         // pop condition result off the stack <- resulting from a jump from
         // the loop condition
-        gen.emitByte(this.fn.code, opcode.OP_POP);
+        gen.emitByte(this.fn.code, opcode.$POP);
         // check for loop controls (break/continue)
         this.processLoopControl(loopPoint);
         this.currentLoop = prevLoop;
@@ -628,12 +628,12 @@ class Compiler extends ast.NodeVisitor {
 
         const exitJmp = gen.emitJump(
             this.fn.code,
-            opcode.OP_JUMP_IF_FALSE_OR_POP
+            opcode.$JUMP_IF_FALSE_OR_POP
         );
         gen.emitLoop(this.fn.code, beginLoop);
         gen.patchJump(this.fn.code, exitJmp);
 
-        gen.emitByte(this.fn.code, opcode.OP_POP);
+        gen.emitByte(this.fn.code, opcode.$POP);
         this.processLoopControl(loopPoint);
         this.currentLoop = prevLoop;
     }
@@ -659,14 +659,14 @@ class Compiler extends ast.NodeVisitor {
             this.visit(node.conditionExpr);
             bodyJmp = gen.emitJump(
                 this.fn.code,
-                opcode.OP_JUMP_IF_FALSE_OR_POP
+                opcode.$JUMP_IF_FALSE_OR_POP
             );
         }
         if (node.incrExpr) {
-            incrJmp = gen.emitJump(this.fn.code, opcode.OP_JUMP);
+            incrJmp = gen.emitJump(this.fn.code, opcode.$JUMP);
             let tmp = this.fn.code.length;
             this.visit(node.incrExpr);
-            gen.emitByte(this.fn.code, opcode.OP_POP);
+            gen.emitByte(this.fn.code, opcode.$POP);
             gen.emitLoop(this.fn.code, loopPoint);
             loopPoint = tmp;
             gen.patchJump(this.fn.code, incrJmp);
@@ -675,7 +675,7 @@ class Compiler extends ast.NodeVisitor {
         gen.emitLoop(this.fn.code, loopPoint);
         if (bodyJmp !== null) {
             gen.patchJump(this.fn.code, bodyJmp);
-            gen.emitByte(this.fn.code, opcode.OP_POP);
+            gen.emitByte(this.fn.code, opcode.$POP);
         }
         this.processLoopControl(loopPoint);
         this.currentScope--;
@@ -689,7 +689,7 @@ class Compiler extends ast.NodeVisitor {
                 const localsCount = node.initExpr.decls.length;
                 gen.emit2BytesOperand(
                     this.fn.code,
-                    opcode.OP_POP_N,
+                    opcode.$POP_N,
                     localsCount
                 );
                 this.locals.length -= localsCount;
@@ -800,7 +800,7 @@ class Compiler extends ast.NodeVisitor {
             const breakOffset = breakEnd - (slot + 3);
             this.assertJumpOffset(breakOffset, control);
             // 3 bytes long -> slot + 1 + 1
-            this.fn.code.bytes[slot] = opcode.OP_JUMP;
+            this.fn.code.bytes[slot] = opcode.$JUMP;
             this.fn.code.bytes[slot + 1] = (breakOffset >> 8) & 0xff;
             this.fn.code.bytes[slot + 2] = breakOffset & 0xff;
         } else {
@@ -810,10 +810,10 @@ class Compiler extends ast.NodeVisitor {
             let continueOffset, bytecode;
             if (control.loopName !== "doWhile") {
                 continueOffset = slot + 3 - continuePoint;
-                bytecode = opcode.OP_LOOP;
+                bytecode = opcode.$LOOP;
             } else {
                 continueOffset = continuePoint - (slot + 3);
-                bytecode = opcode.OP_JUMP;
+                bytecode = opcode.$JUMP;
             }
             this.assertJumpOffset(continueOffset, control);
             this.fn.code.bytes[slot] = bytecode;
@@ -841,7 +841,7 @@ class Compiler extends ast.NodeVisitor {
         if (localsLength) {
             gen.emit2BytesOperand(
                 this.fn.code,
-                opcode.OP_POP_N,
+                opcode.$POP_N,
                 localsLength,
                 node.line
             );
@@ -972,7 +972,7 @@ class Compiler extends ast.NodeVisitor {
         });
         gen.emit2BytesOperand(
             this.fn.code,
-            opcode.OP_BUILD_DICT,
+            opcode.$BUILD_DICT,
             node.entries.length,
             node.line
         );
@@ -991,7 +991,7 @@ class Compiler extends ast.NodeVisitor {
         if (this.currentScope > 0) {
             gen.emit2BytesOperand(
                 this.fn.code,
-                opcode.OP_DEFINE_LOCAL,
+                opcode.$DEFINE_LOCAL,
                 this.initLocal(name),
                 line
             );
@@ -1000,7 +1000,7 @@ class Compiler extends ast.NodeVisitor {
             index = index === null ? this.storeString(name) : index;
             gen.emit2BytesOperand(
                 this.fn.code,
-                opcode.OP_DEFINE_GLOBAL,
+                opcode.$DEFINE_GLOBAL,
                 index,
                 line
             );
@@ -1009,7 +1009,7 @@ class Compiler extends ast.NodeVisitor {
 
     visitReturnNode(node) {
         this.visit(node.expr);
-        gen.emitByte(this.fn.code, opcode.OP_RETURN, node.line);
+        gen.emitByte(this.fn.code, opcode.$RETURN, node.line);
     }
 
     visitFunctionNode(node) {
@@ -1055,7 +1055,7 @@ class Compiler extends ast.NodeVisitor {
             const slot = compiler.initLocal(param.leftNode.name);
             gen.emit2BytesOperand(
                 compiler.fn.code,
-                opcode.OP_DEFINE_LOCAL,
+                opcode.$DEFINE_LOCAL,
                 slot,
                 param.line
             );
@@ -1073,7 +1073,7 @@ class Compiler extends ast.NodeVisitor {
             this.fn.code,
             new vmod.Value(vmod.VAL_FUNCTION, compiler.fn),
             node.line,
-            opcode.OP_CLOSURE
+            opcode.$CLOSURE
         );
         //! emit instructions for processing closures captured in `compiler`
         //! during its compilation process:
@@ -1100,7 +1100,7 @@ class Compiler extends ast.NodeVisitor {
         node.args.forEach((arg) => this.visit(arg));
         gen.emitBytes(
             this.fn.code,
-            (node.hasSpread ? opcode.OP_CALL_UNPACK : opcode.OP_CALL),
+            (node.hasSpread ? opcode.$CALL_UNPACK : opcode.$CALL),
             node.args.length,
             node.line
         );
@@ -1110,7 +1110,7 @@ class Compiler extends ast.NodeVisitor {
         let bytecode;
         // handle property access for `deref` and other variables/nodes
         if (node.isDerefExpr) {
-            bytecode = opcode.OP_GET_DEREF_PROPERTY;
+            bytecode = opcode.$GET_DEREF_PROPERTY;
             /* place `ref` on stack for binding to base def's method
              * this is because a method requires the `ref` arg to be
              * the first value on its call frame's stack.
@@ -1119,7 +1119,7 @@ class Compiler extends ast.NodeVisitor {
             const ref = new ast.VarNode("ref", node.line);
             this.visit(ref);
         } else {
-            bytecode = opcode.OP_GET_PROPERTY;
+            bytecode = opcode.$GET_PROPERTY;
         }
         this.visit(node.leftNode);
         utils.assert(
@@ -1132,7 +1132,7 @@ class Compiler extends ast.NodeVisitor {
 
     visitMethodNode(node) {
         this.visit(node.fnNode);
-        gen.emitByte(this.fn.code, opcode.OP_METHOD);
+        gen.emitByte(this.fn.code, opcode.$METHOD);
     }
 
     compileDerefMethodCall(node) {
@@ -1165,13 +1165,13 @@ class Compiler extends ast.NodeVisitor {
          * always a VarNode. Hence access that `rightNode` to obtain its name.
          */
         const index = this.storeString(dotNode.rightNode.name);
-        // `OP_INVOKE_DEREF` -> instruction for handling `deref` method invocations
+        // `$INVOKE_DEREF` -> instruction for handling `deref` method invocations
         // (e.g.deref->method()) i.e. invocations of a base def's methods/props
         gen.emit2BytesOperand(
             this.fn.code,
             node.hasSpread
-                ? opcode.OP_INVOKE_DEREF_UNPACK
-                : opcode.OP_INVOKE_DEREF,
+                ? opcode.$INVOKE_DEREF_UNPACK
+                : opcode.$INVOKE_DEREF,
             index,
             node.line
         );
@@ -1188,39 +1188,39 @@ class Compiler extends ast.NodeVisitor {
         this.visit(node.leftNode);
         const code = this.fn.code;
         /*
-         * `OP_GET_PROPERTY index` would have been emitted when visiting
+         * `$GET_PROPERTY index` would have been emitted when visiting
          * DotExprNode above.
-         * -2 for the index operand of `OP_GET_PROPERTY` (2 bytes long)
+         * -2 for the index operand of `$GET_PROPERTY` (2 bytes long)
          * to obtain the index at which the property/method name was stored
          * in the constant pool (cp).
          */
         const index =
             (code.bytes[code.length - 2] << 8) | code.bytes[code.length - 1];
         // reset the length of the Code object to erase the emitted code.
-        // it's 3 bytes long (OP_GET_PROPERTY index).
+        // it's 3 bytes long ($GET_PROPERTY index).
         code.resetBy(3);
         // push the arguments on the stack by visiting.
         node.args.forEach((arg) => this.visit(arg));
         /*
          * now emit fresh instructions for handling the method call:
-         * OP_INVOKE[1 byte] index[2 bytes] argCount[1 byte]
+         * $INVOKE[1 byte] index[2 bytes] argCount[1 byte]
          * index: is the position at which the property method name was stored
          *        in the constant pool
          * argCount: is the number of arguments in the call
 
-         * `OP_INVOKE` -> instruction for handling regular method invocations.
+         * `$INVOKE` -> instruction for handling regular method invocations.
          */
-        gen.emit2BytesOperand(this.fn.code, opcode.OP_INVOKE, index, node.line);
+        gen.emit2BytesOperand(this.fn.code, opcode.$INVOKE, index, node.line);
         // args length is 1 byte long (max), as enforced by the parser;
         gen.emitByte(this.fn.code, node.args.length, node.line);
     }
 
     visitDefNode(node) {
-        // emit: OP_DEF | index (to definition name)
+        // emit: $DEF | index (to definition name)
         // base def -> def whose props is to be derived
         // child def -> def which is deriving from another def
         const index = this.storeString(node.defVar.name);
-        gen.emit2BytesOperand(this.fn.code, opcode.OP_DEF, index, node.line);
+        gen.emit2BytesOperand(this.fn.code, opcode.$DEF, index, node.line);
         // define the `def`
         this.defineVariable(node.defVar.name, index, node.line);
         if (node.derivingNode) {
@@ -1238,13 +1238,13 @@ class Compiler extends ast.NodeVisitor {
              * variable is local (see this.currentScope++ above). Simply
              * calling initLocal() binds `deref` to the base def. Also,
              * no need to emit any instructions for defining a local variable,
-             * i.e. OP_DEFINE_LOCAL, because this does nothing literally, all
+             * i.e. $DEFINE_LOCAL, because this does nothing literally, all
              * local variables are already defined the moment they're pushed on
-             * the stack - see `OP_DEFINE_LOCAL` instruction block in vm.run().
+             * the stack - see `$DEFINE_LOCAL` instruction block in vm.run().
              * [[-
-             *   I may consider removing `OP_DEFINE_LOCAL` in the future, as
+             *   I may consider removing `$DEFINE_LOCAL` in the future, as
              *   it's a completely useless instruction, and was only added
-             *   for synchronization with `OP_DEFINE_GLOBAL`.
+             *   for synchronization with `$DEFINE_GLOBAL`.
              * -]]
              */
             const deref = "deref";
@@ -1255,7 +1255,7 @@ class Compiler extends ast.NodeVisitor {
             // emit derivation/inheritance instructions
             gen.emitByte(
                 this.fn.code,
-                opcode.OP_DERIVE,
+                opcode.$DERIVE,
                 node.derivingNode.line
             );
         }
@@ -1265,7 +1265,7 @@ class Compiler extends ast.NodeVisitor {
         // compile its methods
         node.methods.forEach((method) => this.visit(method));
         // pop off the child `def` after its methods are processed
-        gen.emitByte(this.fn.code, opcode.OP_POP);
+        gen.emitByte(this.fn.code, opcode.$POP);
         if (node.derivingNode) {
             // Exit the local scope.
             this.currentScope--;
@@ -1282,7 +1282,7 @@ class Compiler extends ast.NodeVisitor {
         const alias = node.names[0]["aliasVar"];
         gen.emit2BytesOperand(
             this.fn.code,
-            opcode.OP_IMPORT_MODULE,
+            opcode.$IMPORT_MODULE,
             pathIndex,
             node.line
         );
@@ -1297,7 +1297,7 @@ class Compiler extends ast.NodeVisitor {
         const aliasName = this.getFreeVar("imp");
         gen.emit2BytesOperand(
             this.fn.code,
-            opcode.OP_IMPORT_MODULE,
+            opcode.$IMPORT_MODULE,
             pathIndex,
             node.line
         );
@@ -1388,20 +1388,20 @@ class Compiler extends ast.NodeVisitor {
     }
 
     visitTryNode(node) {
-        // dump placeholder bytes for the operand of OP_SETUP_EXCEPT
+        // dump placeholder bytes for the operand of $SETUP_EXCEPT
         // instruction, since we don't know where the offset of the
         // except block is yet.
         const trySetup = gen.emitExcept(
             this.fn.code,
-            opcode.OP_SETUP_EXCEPT,
+            opcode.$SETUP_EXCEPT,
             node.line
         );
         this.visit(node.tryBlock);
         // at this point, no error occurred, so pop off the except handler
-        gen.emitByte(this.fn.code, opcode.OP_POP_EXCEPT);
+        gen.emitByte(this.fn.code, opcode.$POP_EXCEPT);
         // skip the except {} block
-        const jmpExcept = gen.emitJump(this.fn.code, opcode.OP_JUMP);
-        // now patch the OP_SETUP_EXCEPT instruction's operands since
+        const jmpExcept = gen.emitJump(this.fn.code, opcode.$JUMP);
+        // now patch the $SETUP_EXCEPT instruction's operands since
         // the except block offset is now know here.
         gen.patchExcept(this.fn.code, trySetup);
         // create a local scope for the except handler variable
@@ -1427,7 +1427,7 @@ class Compiler extends ast.NodeVisitor {
             // the except block
             const elseJmp = gen.emitJump(
                 this.fn.code,
-                opcode.OP_JUMP,
+                opcode.$JUMP,
                 node.line
             );
             // we jump into the else block (if available) after skipping the
@@ -1445,7 +1445,7 @@ class Compiler extends ast.NodeVisitor {
 
     visitPanicNode(node) {
         this.visit(node.msgNode);
-        gen.emitByte(this.fn.code, opcode.OP_PANIC, node.line);
+        gen.emitByte(this.fn.code, opcode.$PANIC, node.line);
     }
 
     visitProgramNode(node) {
@@ -1468,7 +1468,7 @@ class Compiler extends ast.NodeVisitor {
             // use an empty function object if an error occurred
             this.fn = vmod.createFunctionObj("", 0, new Code(), false);
         }
-        gen.emitByte(this.fn.code, opcode.OP_RETURN);
+        gen.emitByte(this.fn.code, opcode.$RETURN);
         return this.fn;
     }
 }

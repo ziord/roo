@@ -40,7 +40,12 @@ function emit2BytesOperand(codeObj, byte, operand, lineNum = null) {
 
 function emitConstant(codeObj, value, lineNum = null, opc = null) {
     const index = codeObj.cp.writeConstant(value);
-    emit2BytesOperand(codeObj, opc || opcode.OP_LOAD_CONST, index, lineNum);
+    emit2BytesOperand(
+        codeObj,
+        opc == null ? opcode.$LOAD_CONST : opc,
+        index,
+        lineNum
+    );
 }
 
 function emitJump(codeObj, byte, lineNum = null) {
@@ -85,7 +90,7 @@ function emitLoop(codeObj, loopPoint, lineNum = null) {
         emitError(codeObj, "code body too large to loop over");
         return;
     }
-    emit2BytesOperand(codeObj, opcode.OP_LOOP, actualJumpOffset, lineNum);
+    emit2BytesOperand(codeObj, opcode.$LOOP, actualJumpOffset, lineNum);
 }
 
 module.exports = {
@@ -97,5 +102,5 @@ module.exports = {
     patchJump,
     emitExcept,
     patchExcept,
-    emitLoop
+    emitLoop,
 };

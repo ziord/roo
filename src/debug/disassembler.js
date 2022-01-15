@@ -156,140 +156,140 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
     }
     const byte = this.code.bytes[index];
     switch (byte) {
-        case opcode.OP_ADD:
-            return this.plainInstruction("OP_ADD", index);
-        case opcode.OP_SUBTRACT:
-            return this.plainInstruction("OP_SUBTRACT", index);
-        case opcode.OP_MULTIPLY:
-            return this.plainInstruction("OP_MULTIPLY", index);
-        case opcode.OP_DIVIDE:
-            return this.plainInstruction("OP_DIVIDE", index);
-        case opcode.OP_RETURN:
-            return this.plainInstruction("OP_RETURN", index);
-        case opcode.OP_LOAD_FALSE:
-            return this.plainInstruction("OP_LOAD_FALSE", index);
-        case opcode.OP_LOAD_TRUE:
-            return this.plainInstruction("OP_LOAD_TRUE", index);
-        case opcode.OP_LOAD_NULL:
-            return this.plainInstruction("OP_LOAD_NULL", index);
-        case opcode.OP_BW_INVERT:
-            return this.plainInstruction("OP_BW_INVERT", index);
-        case opcode.OP_POSITIVE:
-            return this.plainInstruction("OP_POSITIVE", index);
-        case opcode.OP_NOT:
-            return this.plainInstruction("OP_NOT", index);
-        case opcode.OP_NEGATE:
-            return this.plainInstruction("OP_NEGATE", index);
-        case opcode.OP_GREATER:
-            return this.plainInstruction("OP_GREATER", index);
-        case opcode.OP_LESS:
-            return this.plainInstruction("OP_LESS", index);
-        case opcode.OP_GREATER_OR_EQUAL:
-            return this.plainInstruction("OP_GREATER_OR_EQUAL", index);
-        case opcode.OP_LESS_OR_EQUAL:
-            return this.plainInstruction("OP_LESS_OR_EQUAL", index);
-        case opcode.OP_EQUAL:
-            return this.plainInstruction("OP_EQUAL", index);
-        case opcode.OP_NOT_EQUAL:
-            return this.plainInstruction("OP_NOT_EQUAL", index);
-        case opcode.OP_BW_LSHIFT:
-            return this.plainInstruction("OP_BW_LSHIFT", index);
-        case opcode.OP_BW_RSHIFT:
-            return this.plainInstruction("OP_BW_RSHIFT", index);
-        case opcode.OP_POW:
-            return this.plainInstruction("OP_POW", index);
-        case opcode.OP_MOD:
-            return this.plainInstruction("OP_MOD", index);
-        case opcode.OP_BW_AND:
-            return this.plainInstruction("OP_BW_AND", index);
-        case opcode.OP_BW_OR:
-            return this.plainInstruction("OP_BW_OR", index);
-        case opcode.OP_BW_XOR:
-            return this.plainInstruction("OP_BW_XOR", index);
-        case opcode.OP_SUBSCRIPT:
-            return this.plainInstruction("OP_SUBSCRIPT", index);
-        case opcode.OP_SET_SUBSCRIPT:
-            return this.plainInstruction("OP_SET_SUBSCRIPT", index);
-        case opcode.OP_POP:
-            return this.plainInstruction("OP_POP", index);
-        case opcode.OP_BUILD_RANGE:
-            return this.plainInstruction("OP_BUILD_RANGE", index);
-        case opcode.OP_DEC:
-            return this.plainInstruction("OP_DEC", index);
-        case opcode.OP_INC:
-            return this.plainInstruction("OP_INC", index);
-        case opcode.OP_METHOD:
-            return this.plainInstruction("OP_METHOD", index);
-        case opcode.OP_DERIVE:
-            return this.plainInstruction("OP_DERIVE", index);
-        case opcode.OP_POP_EXCEPT:
-            return this.plainInstruction("OP_POP_EXCEPT", index);
-        case opcode.OP_PANIC:
-            return this.plainInstruction("OP_PANIC", index);
-        case opcode.OP_INSTOF:
-            return this.plainInstruction("OP_INSTOF", index);
-        case opcode.OP_SHOW:
-            return this.byteInstruction("OP_SHOW", index);
-        case opcode.OP_CALL:
-            return this.byteInstruction("OP_CALL", index);
-        case opcode.OP_CALL_UNPACK:
-            return this.byteInstruction("OP_CALL_UNPACK", index);
-        case opcode.OP_GET_UPVALUE:
-            return this.byteInstruction("OP_GET_UPVALUE", index);
-        case opcode.OP_SET_UPVALUE:
-            return this.byteInstruction("OP_SET_UPVALUE", index);
-        case opcode.OP_BUILD_LIST:
-            return this.shortInstruction("OP_BUILD_LIST", index);
-        case opcode.OP_BUILD_LIST_UNPACK:
-            return this.shortInstruction("OP_BUILD_LIST_UNPACK", index);
-        case opcode.OP_BUILD_DICT:
-            return this.shortInstruction("OP_BUILD_DICT", index);
-        case opcode.OP_GET_LOCAL:
-            return this.shortInstruction("OP_GET_LOCAL", index);
-        case opcode.OP_SET_LOCAL:
-            return this.shortInstruction("OP_SET_LOCAL", index);
-        case opcode.OP_SET_PROPERTY:
-            return this.shortInstruction("OP_SET_PROPERTY", index);
-        case opcode.OP_GET_PROPERTY:
-            return this.shortInstruction("OP_GET_PROPERTY", index);
-        case opcode.OP_GET_DEREF_PROPERTY:
-            return this.shortInstruction("OP_GET_DEREF_PROPERTY", index);
-        case opcode.OP_DEFINE_LOCAL:
-            return this.shortInstruction("OP_DEFINE_LOCAL", index);
-        case opcode.OP_FORMAT:
-            return this.shortInstruction("OP_FORMAT", index);
-        case opcode.OP_SET_GLOBAL:
-            return this.shortInstruction("OP_SET_GLOBAL", index);
-        case opcode.OP_POP_N:
-            return this.shortInstruction("OP_POP_N", index);
-        case opcode.OP_DEF:
-            return this.shortInstruction("OP_DEF", index);
-        case opcode.OP_SETUP_EXCEPT:
-            return this.shortInstruction("OP_SETUP_EXCEPT", index);
-        case opcode.OP_LOAD_CONST:
-            return this.constantInstruction("OP_LOAD_CONST", index);
-        case opcode.OP_DEFINE_GLOBAL:
-            return this.constantInstruction("OP_DEFINE_GLOBAL", index);
-        case opcode.OP_GET_GLOBAL:
-            return this.constantInstruction("OP_GET_GLOBAL", index);
-        case opcode.OP_JUMP:
-            return this.jumpInstruction("OP_JUMP", index, +1);
-        case opcode.OP_JUMP_IF_FALSE:
-            return this.jumpInstruction("OP_JUMP_IF_FALSE", index, +1);
-        case opcode.OP_JUMP_IF_FALSE_OR_POP:
-            return this.jumpInstruction("OP_JUMP_IF_FALSE_OR_POP", index, +1);
-        case opcode.OP_LOOP:
-            return this.jumpInstruction("OP_LOOP", index, -1);
-        case opcode.OP_CLOSURE:
-            return this.closureInstruction("OP_CLOSURE", index);
-        case opcode.OP_INVOKE:
-            return this.invokeInstruction("OP_INVOKE", index);
-        case opcode.OP_INVOKE_DEREF:
-            return this.invokeInstruction("OP_INVOKE_DEREF", index);
-        case opcode.OP_INVOKE_DEREF_UNPACK:
-            return this.invokeInstruction("OP_INVOKE_DEREF_UNPACK", index);
-        case opcode.OP_IMPORT_MODULE:
-            return this.importInstruction("OP_IMPORT_MODULE", index);
+        case opcode.$ADD:
+            return this.plainInstruction("$ADD", index);
+        case opcode.$SUBTRACT:
+            return this.plainInstruction("$SUBTRACT", index);
+        case opcode.$MULTIPLY:
+            return this.plainInstruction("$MULTIPLY", index);
+        case opcode.$DIVIDE:
+            return this.plainInstruction("$DIVIDE", index);
+        case opcode.$RETURN:
+            return this.plainInstruction("$RETURN", index);
+        case opcode.$LOAD_FALSE:
+            return this.plainInstruction("$LOAD_FALSE", index);
+        case opcode.$LOAD_TRUE:
+            return this.plainInstruction("$LOAD_TRUE", index);
+        case opcode.$LOAD_NULL:
+            return this.plainInstruction("$LOAD_NULL", index);
+        case opcode.$BW_INVERT:
+            return this.plainInstruction("$BW_INVERT", index);
+        case opcode.$POSITIVE:
+            return this.plainInstruction("$POSITIVE", index);
+        case opcode.$NOT:
+            return this.plainInstruction("$NOT", index);
+        case opcode.$NEGATE:
+            return this.plainInstruction("$NEGATE", index);
+        case opcode.$GREATER:
+            return this.plainInstruction("$GREATER", index);
+        case opcode.$LESS:
+            return this.plainInstruction("$LESS", index);
+        case opcode.$GREATER_OR_EQUAL:
+            return this.plainInstruction("$GREATER_OR_EQUAL", index);
+        case opcode.$LESS_OR_EQUAL:
+            return this.plainInstruction("$LESS_OR_EQUAL", index);
+        case opcode.$EQUAL:
+            return this.plainInstruction("$EQUAL", index);
+        case opcode.$NOT_EQUAL:
+            return this.plainInstruction("$NOT_EQUAL", index);
+        case opcode.$BW_LSHIFT:
+            return this.plainInstruction("$BW_LSHIFT", index);
+        case opcode.$BW_RSHIFT:
+            return this.plainInstruction("$BW_RSHIFT", index);
+        case opcode.$POW:
+            return this.plainInstruction("$POW", index);
+        case opcode.$MOD:
+            return this.plainInstruction("$MOD", index);
+        case opcode.$BW_AND:
+            return this.plainInstruction("$BW_AND", index);
+        case opcode.$BW_OR:
+            return this.plainInstruction("$BW_OR", index);
+        case opcode.$BW_XOR:
+            return this.plainInstruction("$BW_XOR", index);
+        case opcode.$SUBSCRIPT:
+            return this.plainInstruction("$SUBSCRIPT", index);
+        case opcode.$SET_SUBSCRIPT:
+            return this.plainInstruction("$SET_SUBSCRIPT", index);
+        case opcode.$POP:
+            return this.plainInstruction("$POP", index);
+        case opcode.$BUILD_RANGE:
+            return this.plainInstruction("$BUILD_RANGE", index);
+        case opcode.$DEC:
+            return this.plainInstruction("$DEC", index);
+        case opcode.$INC:
+            return this.plainInstruction("$INC", index);
+        case opcode.$METHOD:
+            return this.plainInstruction("$METHOD", index);
+        case opcode.$DERIVE:
+            return this.plainInstruction("$DERIVE", index);
+        case opcode.$POP_EXCEPT:
+            return this.plainInstruction("$POP_EXCEPT", index);
+        case opcode.$PANIC:
+            return this.plainInstruction("$PANIC", index);
+        case opcode.$INSTOF:
+            return this.plainInstruction("$INSTOF", index);
+        case opcode.$SHOW:
+            return this.byteInstruction("$SHOW", index);
+        case opcode.$CALL:
+            return this.byteInstruction("$CALL", index);
+        case opcode.$CALL_UNPACK:
+            return this.byteInstruction("$CALL_UNPACK", index);
+        case opcode.$GET_UPVALUE:
+            return this.byteInstruction("$GET_UPVALUE", index);
+        case opcode.$SET_UPVALUE:
+            return this.byteInstruction("$SET_UPVALUE", index);
+        case opcode.$BUILD_LIST:
+            return this.shortInstruction("$BUILD_LIST", index);
+        case opcode.$BUILD_LIST_UNPACK:
+            return this.shortInstruction("$BUILD_LIST_UNPACK", index);
+        case opcode.$BUILD_DICT:
+            return this.shortInstruction("$BUILD_DICT", index);
+        case opcode.$GET_LOCAL:
+            return this.shortInstruction("$GET_LOCAL", index);
+        case opcode.$SET_LOCAL:
+            return this.shortInstruction("$SET_LOCAL", index);
+        case opcode.$SET_PROPERTY:
+            return this.shortInstruction("$SET_PROPERTY", index);
+        case opcode.$GET_PROPERTY:
+            return this.shortInstruction("$GET_PROPERTY", index);
+        case opcode.$GET_DEREF_PROPERTY:
+            return this.shortInstruction("$GET_DEREF_PROPERTY", index);
+        case opcode.$DEFINE_LOCAL:
+            return this.shortInstruction("$DEFINE_LOCAL", index);
+        case opcode.$FORMAT:
+            return this.shortInstruction("$FORMAT", index);
+        case opcode.$SET_GLOBAL:
+            return this.shortInstruction("$SET_GLOBAL", index);
+        case opcode.$POP_N:
+            return this.shortInstruction("$POP_N", index);
+        case opcode.$DEF:
+            return this.shortInstruction("$DEF", index);
+        case opcode.$SETUP_EXCEPT:
+            return this.shortInstruction("$SETUP_EXCEPT", index);
+        case opcode.$LOAD_CONST:
+            return this.constantInstruction("$LOAD_CONST", index);
+        case opcode.$DEFINE_GLOBAL:
+            return this.constantInstruction("$DEFINE_GLOBAL", index);
+        case opcode.$GET_GLOBAL:
+            return this.constantInstruction("$GET_GLOBAL", index);
+        case opcode.$JUMP:
+            return this.jumpInstruction("$JUMP", index, +1);
+        case opcode.$JUMP_IF_FALSE:
+            return this.jumpInstruction("$JUMP_IF_FALSE", index, +1);
+        case opcode.$JUMP_IF_FALSE_OR_POP:
+            return this.jumpInstruction("$JUMP_IF_FALSE_OR_POP", index, +1);
+        case opcode.$LOOP:
+            return this.jumpInstruction("$LOOP", index, -1);
+        case opcode.$CLOSURE:
+            return this.closureInstruction("$CLOSURE", index);
+        case opcode.$INVOKE:
+            return this.invokeInstruction("$INVOKE", index);
+        case opcode.$INVOKE_DEREF:
+            return this.invokeInstruction("$INVOKE_DEREF", index);
+        case opcode.$INVOKE_DEREF_UNPACK:
+            return this.invokeInstruction("$INVOKE_DEREF_UNPACK", index);
+        case opcode.$IMPORT_MODULE:
+            return this.importInstruction("$IMPORT_MODULE", index);
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
     }
@@ -298,78 +298,78 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
 Disassembler.prototype.getInstructionOffset = function (index) {
     const byte = this.code.bytes[index];
     switch (byte) {
-        case opcode.OP_ADD:
-        case opcode.OP_SUBTRACT:
-        case opcode.OP_MULTIPLY:
-        case opcode.OP_DIVIDE:
-        case opcode.OP_RETURN:
-        case opcode.OP_LOAD_FALSE:
-        case opcode.OP_LOAD_TRUE:
-        case opcode.OP_LOAD_NULL:
-        case opcode.OP_BW_INVERT:
-        case opcode.OP_POSITIVE:
-        case opcode.OP_NOT:
-        case opcode.OP_NEGATE:
-        case opcode.OP_GREATER:
-        case opcode.OP_LESS:
-        case opcode.OP_GREATER_OR_EQUAL:
-        case opcode.OP_LESS_OR_EQUAL:
-        case opcode.OP_EQUAL:
-        case opcode.OP_NOT_EQUAL:
-        case opcode.OP_BW_LSHIFT:
-        case opcode.OP_BW_RSHIFT:
-        case opcode.OP_POW:
-        case opcode.OP_MOD:
-        case opcode.OP_BW_AND:
-        case opcode.OP_BW_OR:
-        case opcode.OP_BW_XOR:
-        case opcode.OP_BUILD_RANGE:
-        case opcode.OP_SUBSCRIPT:
-        case opcode.OP_SET_SUBSCRIPT:
-        case opcode.OP_POP:
-        case opcode.OP_DEC:
-        case opcode.OP_INC:
-        case opcode.OP_METHOD:
-        case opcode.OP_DERIVE:
-        case opcode.OP_POP_EXCEPT:
-        case opcode.OP_PANIC:
-        case opcode.OP_INSTOF:
+        case opcode.$ADD:
+        case opcode.$SUBTRACT:
+        case opcode.$MULTIPLY:
+        case opcode.$DIVIDE:
+        case opcode.$RETURN:
+        case opcode.$LOAD_FALSE:
+        case opcode.$LOAD_TRUE:
+        case opcode.$LOAD_NULL:
+        case opcode.$BW_INVERT:
+        case opcode.$POSITIVE:
+        case opcode.$NOT:
+        case opcode.$NEGATE:
+        case opcode.$GREATER:
+        case opcode.$LESS:
+        case opcode.$GREATER_OR_EQUAL:
+        case opcode.$LESS_OR_EQUAL:
+        case opcode.$EQUAL:
+        case opcode.$NOT_EQUAL:
+        case opcode.$BW_LSHIFT:
+        case opcode.$BW_RSHIFT:
+        case opcode.$POW:
+        case opcode.$MOD:
+        case opcode.$BW_AND:
+        case opcode.$BW_OR:
+        case opcode.$BW_XOR:
+        case opcode.$BUILD_RANGE:
+        case opcode.$SUBSCRIPT:
+        case opcode.$SET_SUBSCRIPT:
+        case opcode.$POP:
+        case opcode.$DEC:
+        case opcode.$INC:
+        case opcode.$METHOD:
+        case opcode.$DERIVE:
+        case opcode.$POP_EXCEPT:
+        case opcode.$PANIC:
+        case opcode.$INSTOF:
             return index + 1;
-        case opcode.OP_SHOW:
-        case opcode.OP_CALL:
-        case opcode.OP_CALL_UNPACK:
-        case opcode.OP_GET_UPVALUE:
-        case opcode.OP_SET_UPVALUE:
+        case opcode.$SHOW:
+        case opcode.$CALL:
+        case opcode.$CALL_UNPACK:
+        case opcode.$GET_UPVALUE:
+        case opcode.$SET_UPVALUE:
             return index + 2;
-        case opcode.OP_DEFINE_GLOBAL:
-        case opcode.OP_LOAD_CONST:
-        case opcode.OP_GET_GLOBAL:
-        case opcode.OP_BUILD_LIST:
-        case opcode.OP_BUILD_LIST_UNPACK:
-        case opcode.OP_BUILD_DICT:
-        case opcode.OP_SET_GLOBAL:
-        case opcode.OP_GET_LOCAL:
-        case opcode.OP_SET_LOCAL:
-        case opcode.OP_DEFINE_LOCAL:
-        case opcode.OP_FORMAT:
-        case opcode.OP_POP_N:
-        case opcode.OP_JUMP:
-        case opcode.OP_JUMP_IF_FALSE:
-        case opcode.OP_JUMP_IF_FALSE_OR_POP:
-        case opcode.OP_LOOP:
-        case opcode.OP_DEF:
-        case opcode.OP_GET_PROPERTY:
-        case opcode.OP_SET_PROPERTY:
-        case opcode.OP_GET_DEREF_PROPERTY:
-        case opcode.OP_SETUP_EXCEPT:
+        case opcode.$DEFINE_GLOBAL:
+        case opcode.$LOAD_CONST:
+        case opcode.$GET_GLOBAL:
+        case opcode.$BUILD_LIST:
+        case opcode.$BUILD_LIST_UNPACK:
+        case opcode.$BUILD_DICT:
+        case opcode.$SET_GLOBAL:
+        case opcode.$GET_LOCAL:
+        case opcode.$SET_LOCAL:
+        case opcode.$DEFINE_LOCAL:
+        case opcode.$FORMAT:
+        case opcode.$POP_N:
+        case opcode.$JUMP:
+        case opcode.$JUMP_IF_FALSE:
+        case opcode.$JUMP_IF_FALSE_OR_POP:
+        case opcode.$LOOP:
+        case opcode.$DEF:
+        case opcode.$GET_PROPERTY:
+        case opcode.$SET_PROPERTY:
+        case opcode.$GET_DEREF_PROPERTY:
+        case opcode.$SETUP_EXCEPT:
             return index + 3;
-        case opcode.OP_CLOSURE:
+        case opcode.$CLOSURE:
             // 2 bytes per 'upvalue'
             return index + 3 + this.func.upvalues.length * 2;
-        case opcode.OP_INVOKE:
-        case opcode.OP_INVOKE_DEREF:
-        case opcode.OP_INVOKE_DEREF_UNPACK:
-        case opcode.OP_IMPORT_MODULE:
+        case opcode.$INVOKE:
+        case opcode.$INVOKE_DEREF:
+        case opcode.$INVOKE_DEREF_UNPACK:
+        case opcode.$IMPORT_MODULE:
             return index + 4;
         default:
             return this.plainInstruction("OP_UNKNOWN", index);
@@ -384,7 +384,7 @@ Disassembler.prototype.disassembleCode = function () {
     out("\n");
     // disassemble functions found earlier
     for (let index = 0; index < this.code.length; ) {
-        if (this.code.bytes[index] === opcode.OP_CLOSURE) {
+        if (this.code.bytes[index] === opcode.$CLOSURE) {
             const c = this.code.cp.readConstant(this.readShort(index));
             if (c.isFunction()) {
                 // todo: find a better way of handling this

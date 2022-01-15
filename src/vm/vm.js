@@ -28,73 +28,73 @@ const {
 } = require("../constant/value");
 const {
     Code,
-    OP_ADD,
-    OP_SUBTRACT,
-    OP_MULTIPLY,
-    OP_DIVIDE,
-    OP_RETURN,
-    OP_LOAD_CONST,
-    OP_LOAD_NULL,
-    OP_LOAD_TRUE,
-    OP_LOAD_FALSE,
-    OP_POSITIVE,
-    OP_NEGATE,
-    OP_BW_INVERT,
-    OP_NOT,
-    OP_GREATER,
-    OP_LESS,
-    OP_GREATER_OR_EQUAL,
-    OP_LESS_OR_EQUAL,
-    OP_EQUAL,
-    OP_NOT_EQUAL,
-    OP_BW_LSHIFT,
-    OP_BW_RSHIFT,
-    OP_POW,
-    OP_MOD,
-    OP_INSTOF,
-    OP_BW_AND,
-    OP_BW_OR,
-    OP_BW_XOR,
-    OP_SHOW,
-    OP_BUILD_LIST,
-    OP_BUILD_RANGE,
-    OP_SUBSCRIPT,
-    OP_POP,
-    OP_DEFINE_GLOBAL,
-    OP_GET_GLOBAL,
-    OP_SET_GLOBAL,
-    OP_SET_SUBSCRIPT,
-    OP_INC,
-    OP_DEC,
-    OP_DEFINE_LOCAL,
-    OP_GET_LOCAL,
-    OP_SET_LOCAL,
-    OP_FORMAT,
-    OP_JUMP,
-    OP_JUMP_IF_FALSE,
-    OP_LOOP,
-    OP_POP_N,
-    OP_JUMP_IF_FALSE_OR_POP,
-    OP_BUILD_DICT,
-    OP_CALL,
-    OP_GET_UPVALUE,
-    OP_SET_UPVALUE,
-    OP_DEF,
-    OP_CLOSURE,
-    OP_METHOD,
-    OP_GET_PROPERTY,
-    OP_SET_PROPERTY,
-    OP_INVOKE,
-    OP_DERIVE,
-    OP_INVOKE_DEREF,
-    OP_GET_DEREF_PROPERTY,
-    OP_SETUP_EXCEPT,
-    OP_POP_EXCEPT,
-    OP_PANIC,
-    OP_BUILD_LIST_UNPACK,
-    OP_CALL_UNPACK,
-    OP_INVOKE_DEREF_UNPACK,
-    OP_IMPORT_MODULE,
+    $ADD,
+    $SUBTRACT,
+    $MULTIPLY,
+    $DIVIDE,
+    $RETURN,
+    $LOAD_CONST,
+    $LOAD_NULL,
+    $LOAD_TRUE,
+    $LOAD_FALSE,
+    $POSITIVE,
+    $NEGATE,
+    $BW_INVERT,
+    $NOT,
+    $GREATER,
+    $LESS,
+    $GREATER_OR_EQUAL,
+    $LESS_OR_EQUAL,
+    $EQUAL,
+    $NOT_EQUAL,
+    $BW_LSHIFT,
+    $BW_RSHIFT,
+    $POW,
+    $MOD,
+    $INSTOF,
+    $BW_AND,
+    $BW_OR,
+    $BW_XOR,
+    $SHOW,
+    $BUILD_LIST,
+    $BUILD_RANGE,
+    $SUBSCRIPT,
+    $POP,
+    $DEFINE_GLOBAL,
+    $GET_GLOBAL,
+    $SET_GLOBAL,
+    $SET_SUBSCRIPT,
+    $INC,
+    $DEC,
+    $DEFINE_LOCAL,
+    $GET_LOCAL,
+    $SET_LOCAL,
+    $FORMAT,
+    $JUMP,
+    $JUMP_IF_FALSE,
+    $LOOP,
+    $POP_N,
+    $JUMP_IF_FALSE_OR_POP,
+    $BUILD_DICT,
+    $CALL,
+    $GET_UPVALUE,
+    $SET_UPVALUE,
+    $DEF,
+    $CLOSURE,
+    $METHOD,
+    $GET_PROPERTY,
+    $SET_PROPERTY,
+    $INVOKE,
+    $DERIVE,
+    $INVOKE_DEREF,
+    $GET_DEREF_PROPERTY,
+    $SETUP_EXCEPT,
+    $POP_EXCEPT,
+    $PANIC,
+    $BUILD_LIST_UNPACK,
+    $CALL_UNPACK,
+    $INVOKE_DEREF_UNPACK,
+    $IMPORT_MODULE,
 } = require("../code/opcode");
 const rcore = require("../rcore/core");
 const exceptMod = require("../rcore/defs/except");
@@ -136,7 +136,7 @@ function VM(func, debug = true, strings = null, repl = false) {
     this.initializerMethodName = getStringObj("__init__", this.internedStrings);
     this.stringMethodName = getStringObj("__str__", this.internedStrings);
 
-    // set the callback handler for OP_POP instruction
+    // set the callback handler for $POP instruction
     this.setPopCallback(repl); // todo
     // push 'environment' function on the value stack
     this.pushStack(createFunctionVal(func));
@@ -318,7 +318,7 @@ VM.prototype.currentFrame = function () {
 };
 
 VM.prototype.setPopCallback = function (repl) {
-    // set the callback used in handling an OP_POP instruction; this
+    // set the callback used in handling an $POP instruction; this
     // allows the VM to overload the pop instruction depending
     // on the environment the VM is being invoked in.
     this.popCallback = repl
@@ -363,7 +363,7 @@ VM.prototype.computeNumType = function (leftType, rightType, opcode) {
         leftType <= 2 && rightType <= 2,
         "VM::computeNumType() - num types changed"
     );
-    if (opcode === OP_DIVIDE) {
+    if (opcode === $DIVIDE) {
         return VAL_FLOAT;
     } else {
         const types = [];
@@ -527,19 +527,19 @@ VM.prototype.unaryErrorMsg = function (val, op) {
     return `bad operand type for unary '${op}' -> ${val.typeToString()}`;
 };
 
-VM.prototype[OP_ADD] = function (leftVal, rightVal) {
+VM.prototype[$ADD] = function (leftVal, rightVal) {
     return leftVal.value + rightVal.value;
 };
 
-VM.prototype[OP_SUBTRACT] = function (leftVal, rightVal) {
+VM.prototype[$SUBTRACT] = function (leftVal, rightVal) {
     return leftVal.value - rightVal.value;
 };
 
-VM.prototype[OP_MULTIPLY] = function (leftVal, rightVal) {
+VM.prototype[$MULTIPLY] = function (leftVal, rightVal) {
     return leftVal.value * rightVal.value;
 };
 
-VM.prototype[OP_DIVIDE] = function (leftVal, rightVal) {
+VM.prototype[$DIVIDE] = function (leftVal, rightVal) {
     if (rightVal.value === 0) {
         this.runtimeError("Attempt to divide by zero");
         return this.dummyVal();
@@ -565,7 +565,7 @@ VM.prototype.fastInvert = function () {
     }
 };
 
-VM.prototype[OP_BW_LSHIFT] = function (leftVal, rightVal) {
+VM.prototype[$BW_LSHIFT] = function (leftVal, rightVal) {
     if (rightVal.value < 0) {
         this.runtimeError("negative shift count");
         return;
@@ -573,7 +573,7 @@ VM.prototype[OP_BW_LSHIFT] = function (leftVal, rightVal) {
     return leftVal.value << rightVal.value;
 };
 
-VM.prototype[OP_BW_RSHIFT] = function (leftVal, rightVal) {
+VM.prototype[$BW_RSHIFT] = function (leftVal, rightVal) {
     if (rightVal.value < 0) {
         this.runtimeError("negative shift count");
         return;
@@ -581,19 +581,19 @@ VM.prototype[OP_BW_RSHIFT] = function (leftVal, rightVal) {
     return leftVal.value >> rightVal.value;
 };
 
-VM.prototype[OP_BW_AND] = function (leftVal, rightVal) {
+VM.prototype[$BW_AND] = function (leftVal, rightVal) {
     return leftVal.value & rightVal.value;
 };
 
-VM.prototype[OP_BW_OR] = function (leftVal, rightVal) {
+VM.prototype[$BW_OR] = function (leftVal, rightVal) {
     return leftVal.value | rightVal.value;
 };
 
-VM.prototype[OP_BW_XOR] = function (leftVal, rightVal) {
+VM.prototype[$BW_XOR] = function (leftVal, rightVal) {
     return leftVal.value ^ rightVal.value;
 };
 
-VM.prototype[OP_MOD] = function (leftVal, rightVal) {
+VM.prototype[$MOD] = function (leftVal, rightVal) {
     if (rightVal.value === 0) {
         this.runtimeError("Attempt to divide by zero");
         return this.dummyVal();
@@ -601,58 +601,58 @@ VM.prototype[OP_MOD] = function (leftVal, rightVal) {
     return leftVal.value % rightVal.value;
 };
 
-VM.prototype[OP_POW] = function (leftVal, rightVal) {
+VM.prototype[$POW] = function (leftVal, rightVal) {
     // todo: handle infinity on all number operations
     return leftVal.value ** rightVal.value;
 };
 
-VM.prototype[OP_GREATER] = function (leftVal, rightVal) {
+VM.prototype[$GREATER] = function (leftVal, rightVal) {
     return leftVal.value > rightVal.value;
 };
 
-VM.prototype[OP_LESS] = function (leftVal, rightVal) {
+VM.prototype[$LESS] = function (leftVal, rightVal) {
     return leftVal.value < rightVal.value;
 };
 
-VM.prototype[OP_GREATER_OR_EQUAL] = function (leftVal, rightVal) {
+VM.prototype[$GREATER_OR_EQUAL] = function (leftVal, rightVal) {
     return leftVal.value >= rightVal.value;
 };
 
-VM.prototype[OP_LESS_OR_EQUAL] = function (leftVal, rightVal) {
+VM.prototype[$LESS_OR_EQUAL] = function (leftVal, rightVal) {
     return leftVal.value <= rightVal.value;
 };
 
 VM.prototype.opcodeToString = function (opcode) {
     switch (opcode) {
-        case OP_ADD:
+        case $ADD:
             return "+";
-        case OP_SUBTRACT:
+        case $SUBTRACT:
             return "-";
-        case OP_DIVIDE:
+        case $DIVIDE:
             return "/";
-        case OP_MULTIPLY:
+        case $MULTIPLY:
             return "*";
-        case OP_BW_LSHIFT:
+        case $BW_LSHIFT:
             return "<<";
-        case OP_BW_RSHIFT:
+        case $BW_RSHIFT:
             return ">>";
-        case OP_BW_AND:
+        case $BW_AND:
             return "&";
-        case OP_BW_OR:
+        case $BW_OR:
             return "|";
-        case OP_BW_XOR:
+        case $BW_XOR:
             return "^";
-        case OP_MOD:
+        case $MOD:
             return "%";
-        case OP_POW:
+        case $POW:
             return "**";
-        case OP_GREATER:
+        case $GREATER:
             return ">";
-        case OP_LESS:
+        case $LESS:
             return "<";
-        case OP_GREATER_OR_EQUAL:
+        case $GREATER_OR_EQUAL:
             return ">=";
-        case OP_LESS_OR_EQUAL:
+        case $LESS_OR_EQUAL:
             return "<=";
         default:
             unreachable("VM::opcodeStr()");
@@ -666,7 +666,7 @@ VM.prototype.add = function () {
         this.pushStack(
             new Value(
                 this.computeNumType(leftVal.type, rightVal.type),
-                this[OP_ADD](leftVal, rightVal)
+                this[$ADD](leftVal, rightVal)
             )
         );
     } else if (leftVal.isString() && rightVal.isString()) {
@@ -685,7 +685,7 @@ VM.prototype.add = function () {
         );
     } else {
         // todo: hook other types here. for starters, instance type
-        this.runtimeError(this.binaryErrorMsg(leftVal, rightVal, OP_ADD));
+        this.runtimeError(this.binaryErrorMsg(leftVal, rightVal, $ADD));
     }
 };
 
@@ -1076,7 +1076,7 @@ VM.prototype.invokeValue = function (prop, arity) {
         const inst = val.asInstance();
         if ((propVal = inst.getProperty(prop))) {
             /*
-             * simulate `OP_GET_PROPERTY index` by placing the property
+             * simulate `$GET_PROPERTY index` by placing the property
              * on the stack at the instance's position, and allowing
              * callValue() handle the call
              */
@@ -1109,7 +1109,7 @@ VM.prototype.invokeValue = function (prop, arity) {
         const propVal = val.asModule().getItem(prop);
         if (propVal) {
             /*
-             * simulate `OP_GET_PROPERTY index` by placing the property
+             * simulate `$GET_PROPERTY index` by placing the property
              * on the stack at the module's position, and allowing
              * callValue() handle the call
              */
@@ -1267,72 +1267,72 @@ VM.prototype.run = function (externCaller) {
         }
         const bytecode = this.readByte();
         switch (bytecode) {
-            case OP_LOAD_NULL: {
+            case $LOAD_NULL: {
                 this.pushStack(new Value(VAL_NULL));
                 break;
             }
-            case OP_LOAD_TRUE: {
+            case $LOAD_TRUE: {
                 this.pushStack(new Value(VAL_BOOLEAN, 1));
                 break;
             }
-            case OP_LOAD_FALSE: {
+            case $LOAD_FALSE: {
                 this.pushStack(new Value(VAL_BOOLEAN, 0));
                 break;
             }
-            case OP_LOAD_CONST: {
+            case $LOAD_CONST: {
                 this.pushStack(this.readConst());
                 break;
             }
-            case OP_POSITIVE:
+            case $POSITIVE:
                 break;
-            case OP_NEGATE: {
+            case $NEGATE: {
                 this.fastNegate();
                 if (this.atError) return this.iERR();
                 break;
             }
-            case OP_NOT: {
+            case $NOT: {
                 const valObj = this.popStack();
                 let newValObj = new Value(VAL_BOOLEAN, this.isFalsy(valObj));
                 this.pushStack(newValObj);
                 break;
             }
-            case OP_BW_INVERT: {
+            case $BW_INVERT: {
                 this.fastInvert();
                 if (this.atError) return this.iERR();
                 break;
             }
-            case OP_ADD: {
+            case $ADD: {
                 this.add();
                 if (this.atError) return this.iERR();
                 break;
             }
-            case OP_BW_LSHIFT:
-            case OP_BW_RSHIFT:
-            case OP_BW_AND:
-            case OP_BW_OR:
-            case OP_BW_XOR: {
+            case $BW_LSHIFT:
+            case $BW_RSHIFT:
+            case $BW_AND:
+            case $BW_OR:
+            case $BW_XOR: {
                 this.bwBinaryOp(bytecode);
                 if (this.atError) return this.iERR();
                 break;
             }
-            case OP_MOD:
-            case OP_DIVIDE:
-            case OP_POW:
-            case OP_GREATER:
-            case OP_LESS:
-            case OP_GREATER_OR_EQUAL:
-            case OP_LESS_OR_EQUAL:
-            case OP_SUBTRACT:
-            case OP_MULTIPLY: {
+            case $MOD:
+            case $DIVIDE:
+            case $POW:
+            case $GREATER:
+            case $LESS:
+            case $GREATER_OR_EQUAL:
+            case $LESS_OR_EQUAL:
+            case $SUBTRACT:
+            case $MULTIPLY: {
                 this.binaryOp(bytecode);
                 if (this.atError) return this.iERR();
                 break;
             }
-            case OP_INSTOF: {
+            case $INSTOF: {
                 this.instanceOf();
                 break;
             }
-            case OP_EQUAL: {
+            case $EQUAL: {
                 const rightValObj = this.popStack();
                 const leftValObj = this.popStack();
                 this.pushStack(
@@ -1340,7 +1340,7 @@ VM.prototype.run = function (externCaller) {
                 );
                 break;
             }
-            case OP_NOT_EQUAL: {
+            case $NOT_EQUAL: {
                 const rightValObj = this.popStack();
                 const leftValObj = this.popStack();
                 this.pushStack(
@@ -1348,7 +1348,7 @@ VM.prototype.run = function (externCaller) {
                 );
                 break;
             }
-            case OP_SHOW: {
+            case $SHOW: {
                 const argCount = this.readByte();
                 let str;
                 for (let i = argCount - 1; i >= 0; i--) {
@@ -1364,12 +1364,12 @@ VM.prototype.run = function (externCaller) {
                 this.popStackN(argCount);
                 break;
             }
-            case OP_IMPORT_MODULE: {
+            case $IMPORT_MODULE: {
                 if (!this.importModule(this.readConst(), this.readByte()))
                     return this.iERR();
                 break;
             }
-            case OP_BUILD_LIST: {
+            case $BUILD_LIST: {
                 const size = this.readShort();
                 const arr = [];
                 for (let i = 0; i < size; ++i) {
@@ -1379,7 +1379,7 @@ VM.prototype.run = function (externCaller) {
                 this.pushStack(createListVal(arr, this));
                 break;
             }
-            case OP_BUILD_LIST_UNPACK: {
+            case $BUILD_LIST_UNPACK: {
                 // all potential elements of the list are themselves lists
                 const size = this.readShort();
                 let arr = this.peekStack(size - 1).asList().elements;
@@ -1390,7 +1390,7 @@ VM.prototype.run = function (externCaller) {
                 this.pushStack(createListVal(arr, this));
                 break;
             }
-            case OP_BUILD_RANGE: {
+            case $BUILD_RANGE: {
                 const step = this.popStack();
                 const end = this.popStack();
                 const start = this.popStack();
@@ -1412,7 +1412,7 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
-            case OP_BUILD_DICT: {
+            case $BUILD_DICT: {
                 const length = this.readShort();
                 const map = new Map();
                 let key, value;
@@ -1425,31 +1425,31 @@ VM.prototype.run = function (externCaller) {
                 this.pushStack(createDictVal(map, this));
                 break;
             }
-            case OP_SUBSCRIPT: {
+            case $SUBSCRIPT: {
                 const subscript = this.popStack();
                 const object = this.popStack();
                 this.performSubscript(object, subscript);
                 if (this.atError) return this.iERR();
                 break;
             }
-            case OP_SET_SUBSCRIPT: {
+            case $SET_SUBSCRIPT: {
                 const subscript = this.popStack();
                 const object = this.popStack();
                 this.setSubscript(object, subscript);
                 if (this.atError) return this.iERR();
                 break;
             }
-            case OP_POP: {
+            case $POP: {
                 this.popCallback(this.popStack()); // todo
                 break;
             }
-            case OP_DEFINE_GLOBAL: {
+            case $DEFINE_GLOBAL: {
                 const val = this.popStack();
                 const name = this.readString();
                 this.currentModule.globals.set(name, val);
                 break;
             }
-            case OP_GET_GLOBAL: {
+            case $GET_GLOBAL: {
                 const name = this.readString();
                 const val = this.currentModule.globals.get(name);
                 if (val === undefined) {
@@ -1459,7 +1459,7 @@ VM.prototype.run = function (externCaller) {
                 this.pushStack(val);
                 break;
             }
-            case OP_SET_GLOBAL: {
+            case $SET_GLOBAL: {
                 const name = this.readString();
                 if (!this.currentModule.globals.has(name)) {
                     this.runtimeError(
@@ -1471,33 +1471,33 @@ VM.prototype.run = function (externCaller) {
                 this.currentModule.globals.set(name, this.peekStack());
                 break;
             }
-            case OP_INC: {
+            case $INC: {
                 const v = this.popStack();
                 this.pushStack(new Value(v.type, v.value + 1));
                 break;
             }
-            case OP_DEC: {
+            case $DEC: {
                 const v = this.popStack();
                 this.pushStack(new Value(v.type, v.value - 1));
                 break;
             }
-            case OP_DEFINE_LOCAL: {
+            case $DEFINE_LOCAL: {
                 // NOP
                 this.readConst();
                 break;
             }
-            case OP_SET_LOCAL: {
+            case $SET_LOCAL: {
                 const index = this.readShort();
                 // stackStart is the frame's stack starting point
                 this.stack[this.fp.stackStart + index] = this.peekStack();
                 break;
             }
-            case OP_GET_LOCAL: {
+            case $GET_LOCAL: {
                 const index = this.readShort();
                 this.pushStack(this.stack[this.fp.stackStart + index]);
                 break;
             }
-            case OP_FORMAT: {
+            case $FORMAT: {
                 const size = this.readShort();
                 let string = "";
                 for (let i = size - 1; i >= 0; i--) {
@@ -1508,19 +1508,19 @@ VM.prototype.run = function (externCaller) {
                 this.pushStack(createVMStringVal(string, this));
                 break;
             }
-            case OP_JUMP: {
+            case $JUMP: {
                 const offset = this.readShort();
                 this.fp.ip += offset;
                 break;
             }
-            case OP_JUMP_IF_FALSE: {
+            case $JUMP_IF_FALSE: {
                 const offset = this.readShort();
                 if (this.isFalsy(this.peekStack())) {
                     this.fp.ip += offset;
                 }
                 break;
             }
-            case OP_JUMP_IF_FALSE_OR_POP: {
+            case $JUMP_IF_FALSE_OR_POP: {
                 const offset = this.readShort();
                 if (this.isFalsy(this.peekStack())) {
                     this.fp.ip += offset;
@@ -1529,22 +1529,22 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
-            case OP_LOOP: {
+            case $LOOP: {
                 const offset = this.readShort();
                 this.fp.ip -= offset;
                 break;
             }
-            case OP_POP_N: {
+            case $POP_N: {
                 this.popStackN(this.readShort());
                 break;
             }
-            case OP_CALL: {
+            case $CALL: {
                 if (!this.callValue(this.readByte())) {
                     return this.iERR();
                 }
                 break;
             }
-            case OP_CALL_UNPACK: {
+            case $CALL_UNPACK: {
                 let arity = this.readByte();
                 if ((arity = this.unpackArgs(arity)) === null) {
                     return this.iERR();
@@ -1554,7 +1554,7 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
-            case OP_CLOSURE: {
+            case $CLOSURE: {
                 const val = this.readConst();
                 const fnObj = val.asFunction();
                 // store defaults if available
@@ -1576,29 +1576,29 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
-            case OP_GET_UPVALUE: {
+            case $GET_UPVALUE: {
                 const idx = this.readByte();
                 this.pushStack(this.fp.func.upvalues[idx]);
                 break;
             }
-            case OP_SET_UPVALUE: {
+            case $SET_UPVALUE: {
                 const idx = this.readByte();
                 this.fp.func.upvalues[idx] = this.peekStack();
                 break;
             }
-            case OP_DEF: {
+            case $DEF: {
                 const defVal = createDefVal(this.readString());
                 this.pushStack(defVal);
                 break;
             }
-            case OP_METHOD: {
+            case $METHOD: {
                 const method = this.popStack();
                 this.peekStack()
                     .asDef()
                     .setMethod(method.asFunction().fname, method);
                 break;
             }
-            case OP_GET_PROPERTY: {
+            case $GET_PROPERTY: {
                 // [ ref ] or [ Def ] or [ obj ]
                 const prop = this.readString();
                 const val = this.peekStack();
@@ -1607,7 +1607,7 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
-            case OP_SET_PROPERTY: {
+            case $SET_PROPERTY: {
                 const prop = this.readString();
                 const val = this.popStack();
                 if (!val.isInstance()) {
@@ -1618,7 +1618,7 @@ VM.prototype.run = function (externCaller) {
                 inst.setProperty(prop, this.peekStack());
                 break;
             }
-            case OP_GET_DEREF_PROPERTY: {
+            case $GET_DEREF_PROPERTY: {
                 // [ ref ][ Def ]
                 const prop = this.readString();
                 if (!this.bindMethod(this.popStack().asDef(), prop)) {
@@ -1626,7 +1626,7 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
-            case OP_INVOKE: {
+            case $INVOKE: {
                 // [ ref ][ arg1 ][ arg2 ] or
                 // [ Def ][ arg1 ][ arg2 ]
                 const prop = this.readString();
@@ -1636,7 +1636,7 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
-            case OP_INVOKE_DEREF: {
+            case $INVOKE_DEREF: {
                 /*
                  * the stack would be like so:
                  * [ ref ][ arg1 ][ arg2 ]...[ argn ][ Def ]
@@ -1649,7 +1649,7 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
-            case OP_INVOKE_DEREF_UNPACK: {
+            case $INVOKE_DEREF_UNPACK: {
                 /*
                  * the stack would be like so:
                  * [ ref ][ arg1 ][ arg2 ]...[ argn ][ Def ]
@@ -1665,7 +1665,7 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
-            case OP_DERIVE: {
+            case $DERIVE: {
                 // [ base Def ][ child Def ]
                 const child = this.popStack().asDef();
                 const baseVal = this.peekStack();
@@ -1691,19 +1691,19 @@ VM.prototype.run = function (externCaller) {
                 }
                 break;
             }
-            case OP_SETUP_EXCEPT: {
+            case $SETUP_EXCEPT: {
                 this.fp.pushHandler(this.readShort(), this.sp);
                 break;
             }
-            case OP_POP_EXCEPT: {
+            case $POP_EXCEPT: {
                 this.fp.popHandler();
                 break;
             }
-            case OP_PANIC: {
+            case $PANIC: {
                 this.runtimeError(null, this.popStack());
                 return this.iERR();
             }
-            case OP_RETURN: {
+            case $RETURN: {
                 const frame = this.popFrame();
                 const val = this.popStack();
                 if (!this.fp) {
