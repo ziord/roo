@@ -190,6 +190,13 @@ function list__index(rvm, arity) {
     return mod.createIntVal(-1);
 }
 
+function list__clear(rvm, arity) {
+    // list.clear()
+    const listObj = rvm.peekStack(arity).asList();
+    listObj.elements = [];
+    return mod.createNullVal();
+}
+
 function list__all(rvm, arity) {
     // list.all(callback)
     const callback = rvm.peekStack();
@@ -429,6 +436,11 @@ exports.init = function (rvm) {
             methodName: "index",
             methodExec: list__index,
             methodArity: 1,
+        },
+        {
+            methodName: "clear",
+            methodExec: list__clear,
+            methodArity: 0,
         },
         {
             methodName: "__iter__",

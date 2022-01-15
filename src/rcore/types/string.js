@@ -166,6 +166,9 @@ function str__isAlNum(rvm, arity) {
 function str__isDigit(rvm, arity) {
     // takes 0 argument
     const str = rvm.peekStack().asString().raw;
+    if (!str.length) {
+        return mod.createFalseVal();
+    }
     let code;
     for (let i = 0; i < str.length; ++i) {
         code = str.charCodeAt(i);
