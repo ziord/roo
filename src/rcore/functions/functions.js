@@ -96,6 +96,17 @@ function roo__typeOf(rvm, arity) {
     return mod.createVMStringVal(obj.typeToString(), rvm);
 }
 
+function roo__assert(rvm, arity) {
+    // takes 2 args
+    const msgVal = rvm.peekStack();
+    const testVal = rvm.peekStack(1);
+    if (rvm.isFalsy(testVal)) {
+        rvm.runtimeError(null, msgVal);
+        return rvm.dummyVal();
+    }
+    return mod.createNullVal();
+}
+
 function roo__exit(rvm, arity) {
     // takes 1 arg
     const obj = rvm.peekStack();
@@ -182,5 +193,6 @@ exports.init = function (rvm) {
     register.registerBuiltinFunc(rvm, "typeOf", roo__typeOf, 1);
     register.registerBuiltinFunc(rvm, "isInstance", roo__isInstance, 2);
     register.registerBuiltinFunc(rvm, "exit", roo__exit, 1);
+    register.registerBuiltinFunc(rvm, "assert", roo__assert, 2);
     // register.registerBuiltinFunc(rvm, "dir", roo__dir, 1); todo
 };

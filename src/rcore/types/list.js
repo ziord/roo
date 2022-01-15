@@ -197,6 +197,13 @@ function list__clear(rvm, arity) {
     return mod.createNullVal();
 }
 
+function list__reverse(rvm, arity) {
+    // list.reverse()
+    const listVal = rvm.peekStack(arity);
+    listVal.asList().elements.reverse();
+    return listVal;
+}
+
 function list__all(rvm, arity) {
     // list.all(callback)
     const callback = rvm.peekStack();
@@ -258,6 +265,24 @@ function list__pop(rvm, arity) {
         return rvm.dummyVal();
     }
     return listObj.elements.pop();
+}
+
+function list__first(rvm, arity) {
+    // list.first()
+    const listObj = rvm.peekStack(arity).asList();
+    if (!listObj.elements.length) {
+        return mod.createNullVal();
+    }
+    return listObj.elements[0];
+}
+
+function list__last(rvm, arity) {
+    // list.last()
+    const listObj = rvm.peekStack(arity).asList();
+    if (!listObj.elements.length) {
+        return mod.createNullVal();
+    }
+    return listObj.elements[listObj.elements.length - 1];
 }
 
 function list__insert(rvm, arity) {
@@ -440,6 +465,21 @@ exports.init = function (rvm) {
         {
             methodName: "clear",
             methodExec: list__clear,
+            methodArity: 0,
+        },
+        {
+            methodName: "reverse",
+            methodExec: list__reverse,
+            methodArity: 0,
+        },
+        {
+            methodName: "first",
+            methodExec: list__first,
+            methodArity: 0,
+        },
+        {
+            methodName: "last",
+            methodExec: list__last,
             methodArity: 0,
         },
         {
