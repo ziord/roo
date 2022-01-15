@@ -660,12 +660,33 @@ function dictLiteral() {
     this.advance();
     this.consume(tokens.TOKEN_LEFT_CURLY);
     if (!this.match(tokens.TOKEN_RIGHT_CURLY)) {
+        let key, value;
         do {
             this.expression();
-            const key = this.pop();
+            key = this.pop();
+            // transform identifier/variable keys to string types
+            if (key.type === ast.ASTType.AST_NODE_VAR) {
+                const tmp = new ast.StringNode(
+                    key.name,
+                    key.name.length,
+                    key.line
+                );
+                // !{a, b} -> !{'a': a, 'b': b} | !{a} -> !{'a': a}
+                if (
+                    this.check(tokens.TOKEN_COMMA) ||
+                    this.check(tokens.TOKEN_RIGHT_CURLY)
+                ) {
+                    value = key;
+                    node.entries.push([tmp, value]);
+                    if (this.check(tokens.TOKEN_RIGHT_CURLY)) break;
+                    continue;
+                } else {
+                    key = tmp;
+                }
+            }
             this.consume(tokens.TOKEN_COLON);
             this.expression();
-            const value = this.pop();
+            value = this.pop();
             node.entries.push([key, value]);
         } while (this.match(tokens.TOKEN_COMMA));
         this.consume(tokens.TOKEN_RIGHT_CURLY);

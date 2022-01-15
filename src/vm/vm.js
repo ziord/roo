@@ -485,6 +485,8 @@ VM.prototype.propertyAccessError = function (val, prop, defName) {
         error = `'${val.asDef().dname.raw}' has no property '${prop.raw}'`;
     } else if (val.isModuleObject()) {
         error = `module '${val.asModule().name.raw}' has no property '${prop.raw}'`;
+    } else if (val.isDict()) {
+        error =`dict has no key '${prop.raw}'`;
     } else {
         error = `'${val.typeToString()}' has no property '${prop.raw}'`;
     }
@@ -853,41 +855,57 @@ VM.prototype.setSubscript = function (object, subscript) {
     }
 };
 
-VM.prototype.getValueProperty = function (prop, val) {
-    let propVal;
-    if (val.isInstance()) {
-        const inst = val.asInstance();
+/**
+ * Get the Value property of a Value object
+ * @param {StringObject} prop: the property
+ * @param {Value} objVal: the object from which the property is to be obtained
+ * @param {Value} propVal: the property as a Value object
+ * @returns {boolean}
+ */
+VM.prototype.getValueProperty = function (prop, objVal, propVal) {
+    let found;
+    if (objVal.isInstance()) {
+        const inst = objVal.asInstance();
         // try to obtain the property from the instance's `props`
-        if ((propVal = inst.getProperty(prop))) {
+        if ((found = inst.getProperty(prop))) {
             this.popStack();
-            this.pushStack(propVal);
+            this.pushStack(found);
         } else {
             // if not in there, check the instances' `def`'s 'dmethods'
             this.bindMethod(inst.def, prop);
         }
-    } else if (val.isDef()) {
-        const def = val.asDef();
+    } else if (objVal.isDict()) {
+        const dict = objVal.asDict();
+        if ((found = dict.getVal(propVal))) {
+            this.popStack();
+            this.pushStack(found);
+        } else {
+            // delegate to the dict's def if propVal isn't found
+            this.bindMethod(dict.def, prop);
+        }
+    } else if (objVal.isDef()) {
+        const def = objVal.asDef();
         if (
-            (propVal = def.getMethod(prop)) &&
-            propVal.asFunction().isStaticMethod
+            (found = def.getMethod(prop)) &&
+            found.asFunction().isStaticMethod
         ) {
             this.popStack();
-            this.pushStack(propVal);
+            this.pushStack(found);
         } else {
-            this.propertyAccessError(val, prop);
+            this.propertyAccessError(objVal, prop);
         }
-    } else if (val.isBuiltinObject()) {
-        this.bindMethod(val.getBuiltinDef(), prop);
-    } else if (val.isModuleObject()) {
-        const propVal = val.asModule().getItem(prop);
-        if (propVal) {
+    } else if (objVal.isBuiltinObject()) {
+        this.bindMethod(objVal.getBuiltinDef(), prop);
+    } else if (objVal.isModuleObject()) {
+        const foundVal = objVal.asModule().getItem(prop);
+        if (foundVal) {
             this.popStack();
-            this.pushStack(propVal);
+            this.pushStack(foundVal);
         } else {
-            this.propertyAccessError(val, prop);
+            this.propertyAccessError(objVal, prop);
         }
     } else {
-        this.propertyAccessError(val, prop);
+        this.propertyAccessError(objVal, prop);
     }
     return !this.atError;
 };
@@ -1068,38 +1086,59 @@ VM.prototype.invokeFromDef = function (defObj, prop, arity) {
     return !this.atError;
 };
 
-VM.prototype.invokeValue = function (prop, arity) {
+/**
+ * Invoke a Value object
+ * @param {StringObject} prop: the property to be invoked on the object
+ * @param {number} arity: the number of arguments passed
+ * @param {Value} propVal: the property as a Value object
+ * @returns {boolean}
+ */
+VM.prototype.invokeValue = function (prop, arity, propVal) {
     const val = this.peekStack(arity);
     // todo: improve this
-    let propVal;
+    let found;
     if (val.isInstance()) {
         const inst = val.asInstance();
-        if ((propVal = inst.getProperty(prop))) {
+        if ((found = inst.getProperty(prop))) {
             /*
              * simulate `$GET_PROPERTY index` by placing the property
              * on the stack at the instance's position, and allowing
              * callValue() handle the call
              */
-            this.stack[this.sp - 1 - arity] = propVal;
+            this.stack[this.sp - 1 - arity] = found;
             this.callValue(arity);
         } else {
             // try to obtain the property/attribute from the def
             this.invokeFromDef(inst.def, prop, arity);
         }
+    } else if (val.isDict()) {
+        const dict = val.asDict();
+        if ((found = dict.getVal(propVal))) {
+            /*
+             * simulate `$GET_PROPERTY index` by placing the property
+             * on the stack at the dict's position, and allowing
+             * callValue() handle the call
+             */
+            this.stack[this.sp - 1 - arity] = found;
+            this.callValue(arity);
+        } else {
+            // try to obtain the property/attribute from the def
+            this.invokeFromDef(dict.def, prop, arity);
+        }
     } else if (val.isDef()) {
         const def = val.asDef();
         if (
-            (propVal = def.getMethod(prop)) &&
-            propVal.asFunction().isStaticMethod
+            (found = def.getMethod(prop)) &&
+            found.asFunction().isStaticMethod
         ) {
-            this.stack[this.sp - 1 - arity] = propVal;
+            this.stack[this.sp - 1 - arity] = found;
             /*
              * we're certain that this is a Value(FunctionObject),
              * since a def's `dmethods` can contain only Value(FunctionObject)
              * values. So we call the function directly, instead of going
              * through callValue().
              */
-            this.callFn(propVal, arity);
+            this.callFn(found, arity);
         } else {
             this.propertyAccessError(val, prop);
         }
@@ -1600,22 +1639,27 @@ VM.prototype.run = function (externCaller) {
             }
             case $GET_PROPERTY: {
                 // [ ref ] or [ Def ] or [ obj ]
-                const prop = this.readString();
+                const prop = this.readConst();
                 const val = this.peekStack();
-                if (!this.getValueProperty(prop, val)) {
+                if (!this.getValueProperty(prop.asString(), val, prop)) {
                     return this.iERR();
                 }
                 break;
             }
             case $SET_PROPERTY: {
-                const prop = this.readString();
                 const val = this.popStack();
-                if (!val.isInstance()) {
-                    this.propertyAssignError(val, prop);
+                if (val.isInstance()) {
+                    const inst = val.asInstance();
+                    const prop = this.readString();
+                    inst.setProperty(prop, this.peekStack());
+                } else if (val.isDict()) {
+                    const dict = val.asDict();
+                    const prop = this.readConst();
+                    dict.setVal(prop, this.peekStack());
+                } else {
+                    this.propertyAssignError(val, this.readString());
                     return this.iERR();
                 }
-                const inst = val.asInstance();
-                inst.setProperty(prop, this.peekStack());
                 break;
             }
             case $GET_DEREF_PROPERTY: {
@@ -1629,9 +1673,9 @@ VM.prototype.run = function (externCaller) {
             case $INVOKE: {
                 // [ ref ][ arg1 ][ arg2 ] or
                 // [ Def ][ arg1 ][ arg2 ]
-                const prop = this.readString();
+                const prop = this.readConst();
                 const arity = this.readByte();
-                if (!this.invokeValue(prop, arity)) {
+                if (!this.invokeValue(prop.asString(), arity, prop)) {
                     return this.iERR();
                 }
                 break;
