@@ -1351,7 +1351,7 @@ Parser.prototype.delStatement = function () {
         ast.ASTType.AST_NODE_INDEX_EXPR,
         ast.ASTType.AST_NODE_DOT_EXPR,
     ];
-    if (!expected.some((type) => type === expr.type)) {
+    if (!expected.includes(expr.type)) {
         this.pError(errors.EP0049);
     }
     const isSubscript = expr.type === ast.ASTType.AST_NODE_INDEX_EXPR;
