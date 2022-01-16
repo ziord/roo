@@ -134,6 +134,7 @@ BPTable[tokens.TOKEN_PANIC] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_IMPORT] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_FROM] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_AS] = bp(POWER_NONE, null, null);
+BPTable[tokens.TOKEN_DEL] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_INSTANCEOF] = bp(POWER_COMPARISON, null, binary);
 BPTable[tokens.TOKEN_ERROR] = bp(POWER_NONE, null, null);
 BPTable[tokens.TOKEN_EOF] = bp(POWER_NONE, null, null);
@@ -1341,6 +1342,22 @@ Parser.prototype.showStatement = function () {
     this.push(node);
 };
 
+Parser.prototype.delStatement = function () {
+    const line = this.currentToken.line;
+    this.advance();
+    this.expression();
+    const expr = this.pop();
+    const expected = [
+        ast.ASTType.AST_NODE_INDEX_EXPR,
+        ast.ASTType.AST_NODE_DOT_EXPR,
+    ];
+    if (!expected.some((type) => type === expr.type)) {
+        this.pError(errors.EP0049);
+    }
+    const isSubscript = expr.type === ast.ASTType.AST_NODE_INDEX_EXPR;
+    this.push(new ast.DelNode(expr, isSubscript, line));
+};
+
 Parser.prototype.tryStatement = function () {
     const line = this.currentToken.line;
     this.advance();
@@ -1626,6 +1643,10 @@ Parser.prototype.statement = function () {
     switch (this.currentToken.type) {
         case tokens.TOKEN_SHOW:
             this.showStatement();
+            consumeSemicolon = true;
+            break;
+        case tokens.TOKEN_DEL:
+            this.delStatement();
             consumeSemicolon = true;
             break;
         case tokens.TOKEN_TRY:

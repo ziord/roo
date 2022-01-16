@@ -338,6 +338,12 @@ RError[EP0048] = createError(EP0048,
     "items for a single import statement."
 );
 
+RError[EP0049] = createError(EP0049,
+    "Invalid delete target.",
+    `An invalid target was provided to del.${SEP}` +
+    `Examples of valid targets include:${SEP}` +
+    `del x.prop;${SEP}del x[sub];${SEP}del x().prop;`
+);
 
 
 module.exports = {

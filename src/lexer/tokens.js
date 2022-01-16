@@ -105,6 +105,7 @@ module.exports = {
     TOKEN_IMPORT: 'TOKEN_IMPORT',           // import
     TOKEN_FROM: 'TOKEN_FROM',               // from
     TOKEN_AS: 'TOKEN_AS',                   // as
+    TOKEN_DEL: 'TOKEN_DEL',                   // del
     TOKEN_INSTANCEOF: 'TOKEN_INSTANCEOF',  // instanceof
 
     // others

@@ -95,6 +95,8 @@ const {
     $CALL_UNPACK,
     $INVOKE_DEREF_UNPACK,
     $IMPORT_MODULE,
+    $DELETE_SUBSCRIPT,
+    $DELETE_PROPERTY,
 } = require("../code/opcode");
 const rcore = require("../rcore/core");
 const exceptMod = require("../rcore/defs/except");
@@ -837,20 +839,61 @@ VM.prototype.performSubscript = function (object, subscript) {
 VM.prototype.setSubscript = function (object, subscript) {
     // todo: string and user defined types
     if (object.isList()) {
+        const list = object.asList().elements;
         const index = this.validateIndexExpr(
-            object,
+            list.length,
             subscript,
             object.typeToString()
         );
         if (index === undefined) {
             return;
         }
-        object.asList().elements[index] = this.peekStack();
+        list[index] = this.peekStack();
     } else if (object.isDict()) {
         object.asDict().setVal(subscript, this.peekStack());
     } else {
         this.runtimeError(
             `'${object.typeToString()}' type does not support index assignment`
+        );
+    }
+};
+
+VM.prototype.deleteSubscript = function (object, subscript) {
+    if (object.isList()) {
+        const list = object.asList().elements;
+        const index = this.validateIndexExpr(
+            list.length,
+            subscript,
+            object.typeToString()
+        );
+        if (index === undefined) {
+            return;
+        }
+        list.splice(index, 1);
+    } else if (object.isDict()) {
+        if (!object.asDict().delVal(subscript)) {
+            this.runtimeError(`dict has no key ${subscript.stringify(true)}`);
+        }
+    } else {
+        this.subscriptError(object);
+    }
+};
+
+VM.prototype.deleteProperty = function (object, propVal) {
+    const prop = propVal.asString();
+    if (object.isInstance()) {
+        const inst = object.asInstance();
+        if (!inst.delProperty(prop)) {
+            this.propertyAccessError(null, prop, inst.def.dname);
+        }
+    } else if (object.isDict()) {
+        const dict = object.asDict();
+        if (!dict.delVal(propVal)) {
+            this.runtimeError(`dict has no key '${prop.raw}'`);
+        }
+    } else {
+        this.runtimeError(
+            `Cannot delete property '${prop.raw}' of ${object.typeToString()}`
         );
     }
 };
@@ -1478,6 +1521,13 @@ VM.prototype.run = function (externCaller) {
                 if (this.atError) return this.iERR();
                 break;
             }
+            case $DELETE_SUBSCRIPT: {
+                const subscript = this.popStack();
+                const object = this.popStack();
+                this.deleteSubscript(object, subscript);
+                if (this.atError) return this.iERR();
+                break;
+            }
             case $POP: {
                 this.popCallback(this.popStack()); // todo
                 break;
@@ -1668,6 +1718,14 @@ VM.prototype.run = function (externCaller) {
                 if (!this.bindMethod(this.popStack().asDef(), prop)) {
                     return this.iERR();
                 }
+                break;
+            }
+            case $DELETE_PROPERTY: {
+                // [ ref ] or [ Def ] or [ obj ]
+                const prop = this.readConst();
+                const val = this.peekStack();
+                this.deleteProperty(val, prop);
+                if (this.atError) return this.iERR();
                 break;
             }
             case $INVOKE: {

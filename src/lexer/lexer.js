@@ -118,6 +118,7 @@ Token.typeToString = function(tokenType) {
         case tokens.TOKEN_IMPORT:               return "import";
         case tokens.TOKEN_FROM:                 return "from";
         case tokens.TOKEN_AS:                   return "as";
+        case tokens.TOKEN_DEL:                  return "del";
         case tokens.TOKEN_INSTANCEOF:           return "instanceof";
         case tokens.TOKEN_ERROR:                return "ERROR";
         case tokens.TOKEN_EOF:                  return "EOF";
@@ -197,6 +198,7 @@ Lexer.keywords = function() {
         ["import", tokens.TOKEN_IMPORT],
         ["from", tokens.TOKEN_FROM],
         ["as", tokens.TOKEN_AS],
+        ["del", tokens.TOKEN_DEL],
         ["instanceof", tokens.TOKEN_INSTANCEOF],
     ];
 };

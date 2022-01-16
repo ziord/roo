@@ -70,4 +70,6 @@ module.exports = {
     $INVOKE_DEREF_UNPACK: 64,
     $IMPORT_MODULE: 65,
     $INSTOF: 66,
+    $DELETE_SUBSCRIPT: 67,
+    $DELETE_PROPERTY: 68,
 };

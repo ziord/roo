@@ -1448,6 +1448,27 @@ class Compiler extends ast.NodeVisitor {
         gen.emitByte(this.fn.code, opcode.$PANIC, node.line);
     }
 
+    visitDelNode(node) {
+        this.visit(node.expr);
+        if (node.isSubscript) {
+            // rewrite the subscript instruction to a delete instruction
+            this.fn.code.bytes[this.fn.code.length - 1] =
+                opcode.$DELETE_SUBSCRIPT;
+        } else {
+            // rewrite the get_property instruction to a delete instruction
+            const bytecode = this.fn.code.bytes[this.fn.code.length - 3];
+            // ensure delete isn't for a deref property
+            if (bytecode === opcode.$GET_DEREF_PROPERTY) {
+                return this.compilationError(
+                    "Cannot delete deref property",
+                    node
+                );
+            }
+            this.fn.code.bytes[this.fn.code.length - 3] =
+                opcode.$DELETE_PROPERTY;
+        }
+    }
+
     visitProgramNode(node) {
         node.decls.forEach((decl) => this.visit(decl));
     }
@@ -1466,7 +1487,14 @@ class Compiler extends ast.NodeVisitor {
         if (this.hasError || this.fn.code.hasError()) {
             this.fn = null;
             // use an empty function object if an error occurred
-            this.fn = vmod.createFunctionObj("", 0, new Code(), false);
+            this.fn = vmod.createFunctionObj(
+                "",
+                0,
+                new Code(),
+                false,
+                null,
+                this.module
+            );
         }
         gen.emitByte(this.fn.code, opcode.$RETURN);
         return this.fn;

@@ -50,6 +50,7 @@ const ASTType = {
     AST_NODE_PANIC:             'AST_NODE_PANIC',
     AST_NODE_SPREAD:            'AST_NODE_SPREAD',
     AST_NODE_IMPORT:            'AST_NODE_IMPORT',
+    AST_NODE_DELETE:            'AST_NODE_DELETE',
 };
 
 const OpType = {
@@ -578,6 +579,16 @@ class TryNode extends AST {
     }
 }
 
+class DelNode extends AST {
+    constructor(expr, isSubscript, line) {
+        super();
+        this.type = ASTType.AST_NODE_DELETE;
+        this.expr = expr;
+        this.isSubscript = isSubscript;
+        this.line = line;
+    }
+}
+
 class PanicNode extends AST {
     constructor(msgNode, line) {
         super();
@@ -664,6 +675,7 @@ module.exports = {
     PanicNode,
     SpreadNode,
     ImportNode,
+    DelNode,
     OpType,
     getOperator,
     NodeVisitor,

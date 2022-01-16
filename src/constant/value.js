@@ -195,6 +195,24 @@ DictObject.prototype.setVal = function (keyVal, value) {
 };
 
 /**
+ * Delete a value given its key
+ * @param {Value} keyVal: the key
+ * @returns {Map<Value, Value>}
+ */
+DictObject.prototype.delVal = function (keyVal) {
+    if (this.htable.delete(keyVal)) {
+        return true;
+    }
+    for (let [k] of this.htable) {
+        if (keyVal.equals(k)) {
+            this.htable.delete(k);
+            return true;
+        }
+    }
+    return false;
+};
+
+/**
  * @param {StringObject} methodName
  * @returns {Value} FunctionObject value
  */
@@ -231,6 +249,14 @@ InstanceObject.prototype.setProperty = function (
     propVal /*Value()*/
 ) {
     this.props.set(propName, propVal);
+};
+
+/**
+ * Delete a property given its name
+ * @param {StringObject} propName: property name
+ */
+InstanceObject.prototype.delProperty = function (propName) {
+    return this.props.delete(propName);
 };
 
 /**

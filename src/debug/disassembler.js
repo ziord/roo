@@ -210,6 +210,8 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
             return this.plainInstruction("$SUBSCRIPT", index);
         case opcode.$SET_SUBSCRIPT:
             return this.plainInstruction("$SET_SUBSCRIPT", index);
+        case opcode.$DELETE_SUBSCRIPT:
+            return this.plainInstruction("$DELETE_SUBSCRIPT", index);
         case opcode.$POP:
             return this.plainInstruction("$POP", index);
         case opcode.$BUILD_RANGE:
@@ -248,24 +250,26 @@ Disassembler.prototype.disassembleInstruction = function (index, code) {
             return this.shortInstruction("$GET_LOCAL", index);
         case opcode.$SET_LOCAL:
             return this.shortInstruction("$SET_LOCAL", index);
-        case opcode.$SET_PROPERTY:
-            return this.shortInstruction("$SET_PROPERTY", index);
-        case opcode.$GET_PROPERTY:
-            return this.shortInstruction("$GET_PROPERTY", index);
-        case opcode.$GET_DEREF_PROPERTY:
-            return this.shortInstruction("$GET_DEREF_PROPERTY", index);
         case opcode.$DEFINE_LOCAL:
             return this.shortInstruction("$DEFINE_LOCAL", index);
         case opcode.$FORMAT:
             return this.shortInstruction("$FORMAT", index);
-        case opcode.$SET_GLOBAL:
-            return this.shortInstruction("$SET_GLOBAL", index);
         case opcode.$POP_N:
             return this.shortInstruction("$POP_N", index);
         case opcode.$DEF:
             return this.shortInstruction("$DEF", index);
         case opcode.$SETUP_EXCEPT:
             return this.shortInstruction("$SETUP_EXCEPT", index);
+        case opcode.$SET_GLOBAL:
+            return this.constantInstruction("$SET_GLOBAL", index);
+        case opcode.$SET_PROPERTY:
+            return this.constantInstruction("$SET_PROPERTY", index);
+        case opcode.$GET_PROPERTY:
+            return this.constantInstruction("$GET_PROPERTY", index);
+        case opcode.$GET_DEREF_PROPERTY:
+            return this.constantInstruction("$GET_DEREF_PROPERTY", index);
+        case opcode.$DELETE_PROPERTY:
+            return this.constantInstruction("$DELETE_PROPERTY", index);
         case opcode.$LOAD_CONST:
             return this.constantInstruction("$LOAD_CONST", index);
         case opcode.$DEFINE_GLOBAL:
@@ -325,6 +329,7 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.$BW_XOR:
         case opcode.$BUILD_RANGE:
         case opcode.$SUBSCRIPT:
+        case opcode.$DELETE_SUBSCRIPT:
         case opcode.$SET_SUBSCRIPT:
         case opcode.$POP:
         case opcode.$DEC:
@@ -361,6 +366,7 @@ Disassembler.prototype.getInstructionOffset = function (index) {
         case opcode.$GET_PROPERTY:
         case opcode.$SET_PROPERTY:
         case opcode.$GET_DEREF_PROPERTY:
+        case opcode.$DELETE_PROPERTY:
         case opcode.$SETUP_EXCEPT:
             return index + 3;
         case opcode.$CLOSURE:
