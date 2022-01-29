@@ -143,8 +143,6 @@ function Parser(src, fpath) {
     this.filepath = fpath;
     // has the parser encountered an error?
     this.hadError = false;
-    // sho n para lowo?
-    this.panicking = false;
     this.lexer = new Lexer(src);
     this.currentToken = null;
     this.previousToken = null;
@@ -247,12 +245,8 @@ Parser.prototype.pError = function (errorCode, args) {
          | Consider changing the operator to '='
      */
 
-    // return if an error was previously reported, helpful when the parser is
-    // panicking - to prevent too many error reports/cascading error messages.
-    if (this.panicking) return;
     let isWarning = args && args.warn;
     this.hadError = Boolean(!isWarning);
-    this.panicking = this.hadError;
     let error = errors.RError[errorCode];
     let warningMsg = isWarning ? "[Warning] " : " ";
     let token = args ? (args["token"] || this.currentToken) : this.currentToken;
@@ -281,6 +275,8 @@ Parser.prototype.pError = function (errorCode, args) {
         }
     }
     console.error(srcFile + lineNum + errMsg + errSrc + helpInfo);
+    // unwind the stack, so as to halt the parsing process.
+    throw new Error("Parse error. Oops.");
 };
 
 Parser.prototype.consume = function (tokenType, errorCode) {
@@ -1134,37 +1130,6 @@ Parser.prototype.purgeReturn = function (blockNode, token) {
     decls.push(new ast.ReturnNode(new ast.VarNode("ref", line), line));
 };
 
-Parser.prototype.synchronize = function () {
-    // reset the panic flag;
-    this.panicking = false;
-    // skip tokens until we hit a new statement boundary.
-    while (this.currentToken.type !== tokens.TOKEN_EOF) {
-        switch (this.currentToken.type) {
-            case tokens.TOKEN_FOR:
-            case tokens.TOKEN_SHOW:
-            case tokens.TOKEN_IF:
-            case tokens.TOKEN_WHILE:
-            case tokens.TOKEN_DO:
-            case tokens.TOKEN_LOOP:
-            case tokens.TOKEN_CASE:
-            case tokens.TOKEN_BREAK:
-            case tokens.TOKEN_CONTINUE:
-            case tokens.TOKEN_RETURN:
-            case tokens.TOKEN_LET:
-            case tokens.TOKEN_FN:
-            case tokens.TOKEN_STATIC:
-            case tokens.TOKEN_DEFINE:
-            case tokens.TOKEN_AT:
-            case tokens.TOKEN_DERIVE:
-            case tokens.TOKEN_PANIC:
-            case tokens.TOKEN_IMPORT:
-                return;
-            default: // pass
-        }
-        this.advance();
-    }
-};
-
 Parser.prototype.exprStatement = function () {
     const line = this.currentToken.line;
     this.expression();
@@ -1572,7 +1537,7 @@ Parser.prototype.defDecl = function (consumeArrow) {
             this.pError(errors.EP0042, { token: this.previousToken });
         }
         // set a flag indicating that a derivation is currently occurring
-        this.enterDerivation(node.derivingNode.name);
+        this.enterDerivation(node.derivingNode);
     }
     this.consume(tokens.TOKEN_LEFT_CURLY);
     // methods
@@ -1723,7 +1688,6 @@ Parser.prototype.declaration = function declaration() {
         default:
             this.statement();
     }
-    if (this.panicking) this.synchronize();
 };
 
 Parser.prototype.block = function () {
@@ -1743,15 +1707,19 @@ Parser.prototype.block = function () {
 Parser.prototype.program = function program() {
     let node = new ast.ProgramNode();
     while (this.isNotMatching(tokens.TOKEN_EOF)) {
-        this.declaration();
-        node.decls.push(this.pop());
+        try {
+            this.declaration();
+            node.decls.push(this.pop());
+        } catch (e) {
+            break;
+        }
     }
-    this.consume(tokens.TOKEN_EOF);
+    !this.hadError ? this.consume(tokens.TOKEN_EOF) : void 0;
     this.push(node);
 };
 
 Parser.prototype.getFilePath = function () {
-    return this.filepath;
+    return this.filepath || "";
 };
 
 Parser.prototype.parsingFailed = function () {
