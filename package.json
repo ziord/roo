@@ -1,5 +1,5 @@
 {
-  "name": "roo",
+  "name": "roo-lang",
   "version": "0.1.0",
   "description": "The Roo Programming Language",
   "main": "src/bin/cli.js",
