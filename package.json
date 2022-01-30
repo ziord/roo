@@ -1,6 +1,6 @@
 {
   "name": "roo-lang",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "The Roo Programming Language",
   "main": "src/bin/cli.js",
   "directories": {
