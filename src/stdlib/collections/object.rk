@@ -1,0 +1,33 @@
+/*
+* Turns a dict into a definition
+*/
+
+define Object {
+    fn __init__(dict) {
+        if not (dict instanceof Dict) {
+            panic Exception($"Expected dict type, got '{typeOf(dict)}'");
+        }
+        ref.dict = "$__dict";
+        setProperty(ref, ref.dict, dict.copy());
+        for entry in dict.entries() {
+            setProperty(ref, entry[0], entry[1]);
+        }
+    }
+
+    fn __str__() {
+        let rep = "{";
+        let const dict = getProperty(ref, ref.dict);
+        for k in dict {
+            rep += $"{k}: {dict[k]}, ";
+        }
+        rep.trim() + "}";
+    }
+
+    static fn From(dict) {
+        Object(dict);
+    }
+}
+
+fn objectify(dict) {
+    Object(dict);
+}

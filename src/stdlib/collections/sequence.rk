@@ -1,0 +1,78 @@
+define Sequence {
+    fn any(callback) {
+        for val in ref {
+            if callback(val) {
+                return true;
+            }
+        }
+        false;
+    }
+
+    fn all(callback) {
+        for val in ref {
+            if not callback(val) {
+                return false;
+            }
+        }
+        true;
+    }
+
+    fn map(callback) {
+        for val in ref {
+            callback(val);
+        }
+    }
+
+    fn iter() {
+        ref.__iter__;
+    }
+
+    fn reduce(callback, start=null) {
+        let itr = ref.__iter__(), value = start, tmp;
+        if value == null {
+            let const item = itr.__next__();
+            if item['done'] return start;
+            value = item["value"];
+        }
+        while (tmp = itr.__next__()) and not tmp['done'] {
+            value = callback(value, tmp['value']);
+        }
+        value;
+    }
+
+    fn filter(callback) {
+        let res = [];
+        for val in ref {
+            if callback(val) {
+                res.append(val);
+            }
+        }
+        res;
+    }
+
+    fn each (callback) {
+        for item in ref {
+            callback(item);
+        }
+    }
+
+    fn join(value) {
+        // todo
+    }
+
+    fn sum () {
+        // todo
+    }
+
+    fn max() {
+        // todo
+    }
+
+    fn min() {
+        // todo
+    }
+
+    fn length() {
+        // todo
+    }
+}
