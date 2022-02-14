@@ -69,11 +69,15 @@ function inspectLine(line, mlStrStart, inMLString, inMLComment, depth) {
             i += 1;
         }
     }
-    return [inMLString, inMLComment, mlStrStart, (depth < 0 ? 0 : depth)];
+    return [inMLString, inMLComment, mlStrStart, depth < 0 ? 0 : depth];
 }
 
-function execute(src, interned, module, vm) {
-    const [fnObj, compiler] = vmApi.compileSourceCodeFromRepl(src, interned, module);
+function execute(src, interned, rmodule, vm) {
+    const [fnObj, compiler] = vmApi.compileSourceCodeFromRepl(
+        src,
+        interned,
+        rmodule
+    );
     interned = compiler.strings;
     if (vm) {
         vm.initFrom(fnObj);
@@ -99,7 +103,7 @@ function repl(roo_version) {
         inMLString = false,
         mlStrStart = null,
         interned = null,
-        module = null,
+        rmodule = null,
         vm = null;
 
     showWelcome(roo_version);
@@ -133,9 +137,9 @@ function repl(roo_version) {
             return;
         }
         if (!isReplCommand(src)) {
-            // we make sure to reuse `interned` and `module` objects so that they
+            // we make sure to reuse `interned` and `rmodule` objects so that they
             // won't be created again and again for every `src` execution.
-            [vm, interned, module] = execute(src, interned, module, vm);
+            [vm, interned, rmodule] = execute(src, interned, rmodule, vm);
         }
         showPrompt(cons, depth);
         src = "";

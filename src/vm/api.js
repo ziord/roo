@@ -5,9 +5,9 @@ const { Disassembler } = require("../debug/disassembler");
 const { parseSourceInternal } = require("../parser/parser");
 const { Compiler } = require("../compiler/compiler");
 
-exports.compileSourceCodeFromRepl = function(src, interned, module) {
+exports.compileSourceCodeFromRepl = function(src, interned, rmodule) {
     const [root, parser] = parseSourceInternal(src, "repl");
-    const compiler = new Compiler(parser, module);
+    const compiler = new Compiler(parser, rmodule);
     return [compiler.compile(root, interned), compiler];
 };
 

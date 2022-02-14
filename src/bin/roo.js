@@ -4,7 +4,7 @@ const fs = require("fs");
 const vmApi  = require("../vm/api");
 const { repl } = require("./repl");
 
-const ROO_VERSION = "0.1.0";
+const ROO_VERSION = "0.1.3";
 
 function printHelp() {
     // todo: improve

@@ -1110,6 +1110,11 @@ class Compiler extends ast.NodeVisitor {
         let bytecode;
         // handle property access for `deref` and other variables/nodes
         if (node.isDerefExpr) {
+            // ensure deref isn't used in a static method
+            if (this.fnType !== ast.FnTypes.TYPE_METHOD) {
+                this.compilationError("Can't use deref in a static method", node);
+                return;
+            }
             bytecode = opcode.$GET_DEREF_PROPERTY;
             /* place `ref` on stack for binding to base def's method
              * this is because a method requires the `ref` arg to be
