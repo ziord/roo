@@ -7,7 +7,9 @@
     "test": "src/tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format": "prettier --write src",
+    "check:format": "prettier --check src"
   },
   "bin": {
     "roo": "src/bin/cli.js"
@@ -21,5 +23,7 @@
   ],
   "author": "ziord",
   "license": "MIT",
-  "dependencies": {}
+  "devDependencies": {
+    "prettier": "^2.7.1"
+  }
 }
