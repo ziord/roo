@@ -14,31 +14,31 @@ const out = process.stdout.write.bind(process.stdout);
 const print = console.log;
 
 function assert(test, msg) {
-    if (!test) throw new Error(`FailedAssert: ${msg}`);
+  if (!test) throw new Error(`FailedAssert: ${msg}`);
 }
 
-function unreachable (msg){
-    throw new Error(`Reached unreachable at: ${msg}`);
+function unreachable(msg) {
+  throw new Error(`Reached unreachable at: ${msg}`);
 }
 
-function error(msg){
-   console.error(msg);
+function error(msg) {
+  console.error(msg);
 }
 
 function exit(code) {
-    process.exit(code !== undefined ? code : -1);
+  process.exit(code !== undefined ? code : -1);
 }
 
 module.exports = {
-    UINT16_MAX,
-    UINT16_COUNT,
-    MAX_FUNCTION_PARAMS,
-    MAX_UPVALUE_COUNT,
-    MAX_IMPORTABLE_NAMES,
-    assert,
-    out,
-    print,
-    unreachable,
-    error,
-    exit,
+  UINT16_MAX,
+  UINT16_COUNT,
+  MAX_FUNCTION_PARAMS,
+  MAX_UPVALUE_COUNT,
+  MAX_IMPORTABLE_NAMES,
+  assert,
+  out,
+  print,
+  unreachable,
+  error,
+  exit,
 };
