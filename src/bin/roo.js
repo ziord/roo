@@ -7,7 +7,6 @@ const { repl } = require("./repl");
 const ROO_VERSION = "0.1.3";
 
 function printHelp() {
-  // todo: improve
   const help = `
 usage: roo [FN] [-h] [-d] [-rs] [-ds]
 
@@ -21,9 +20,9 @@ usage: roo [FN] [-h] [-d] [-rs] [-ds]
     *> To launch the REPL interpreter:
         roo
     *> To interpret a file:
-        roo filename.roo 
+        roo filename.rk 
     *> To disassemble a file:
-        roo -d filename.roo
+        roo -d filename.rk
     *> To interpret a source string:
         roo -rs 'source string'
     *> To disassemble a source string:
@@ -63,7 +62,7 @@ function tryDisFile(arg) {
 
 function tryRunSrc(cliArgs) {
   /*
-   * roo -d fileName.roo  [dis file]
+   * roo -d fileName.rk  [dis file]
    * roo -rs src          [run from string]
    * roo -ds src          [dis from string]
    */
