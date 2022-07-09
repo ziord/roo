@@ -5,7 +5,6 @@ src/tests
 tmp
 examples
 node_modules
-package-lock.json
 t1.rk
 t2.rk
 t3.rk
