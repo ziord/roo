@@ -151,18 +151,36 @@ function roo__dir(rvm, arity) {
   const props = [];
   switch (val.type) {
     case mod.VAL_BOOLEAN:
+      def = rvm.builtins
+        .get(mod.getStringObj("Bool", rvm.internedStrings))
+        .asDef();
+      break;
     case mod.VAL_INT:
+      def = rvm.builtins
+        .get(mod.getStringObj("Int", rvm.internedStrings))
+        .asDef();
+      break;
     case mod.VAL_FLOAT:
-    case mod.VAL_NULL:
-    case mod.VAL_BFUNCTION: // todo
-    case mod.VAL_DEFINITION: // todo
-      return mod.createListVal();
+      def = rvm.builtins
+        .get(mod.getStringObj("Float", rvm.internedStrings))
+        .asDef();
+      break;
     case mod.VAL_STRING:
     case mod.VAL_LIST:
     case mod.VAL_DICT:
-    case mod.VAL_FUNCTION: // todo
       def = val.as().def;
       break;
+    case mod.VAL_MODULE:
+      for (let k of val.asModule().globals.keys()) {
+        props.push(new mod.Value(mod.VAL_STRING, k));
+      }
+      break;
+    case mod.VAL_NULL:
+    case mod.VAL_BOUND_METHOD: // todo
+    case mod.VAL_FUNCTION: // todo
+    case mod.VAL_BFUNCTION: // todo
+    case mod.VAL_DEFINITION: // todo
+      return mod.createListVal([], rvm);
     case mod.VAL_INSTANCE: {
       const m = val.asInstance().props;
       for (let k of m.keys()) {
@@ -171,15 +189,19 @@ function roo__dir(rvm, arity) {
       def = val.as().def;
       break;
     }
-    case mod.VAL_BOUND_METHOD:
-      def = val.asBoundMethod().method.asFunction().def;
-      break;
     default:
       utils.unreachable("rcore::roo__dir()");
   }
-  for (let k of def.dmethods.keys()) {
-    props.push(new mod.Value(mod.VAL_STRING, k));
+  if (def) {
+    for (let k of def.dmethods.keys()) {
+      props.push(new mod.Value(mod.VAL_STRING, k));
+    }
   }
+  props.sort((a, b) => {
+    if (a.asString().raw < b.asString().raw) return -1;
+    else if (a.asString().raw > b.asString().raw) return 1;
+    else return 0;
+  });
   return mod.createListVal(props, rvm);
 }
 
@@ -194,5 +216,5 @@ exports.init = function (rvm) {
   register.registerBuiltinFunc(rvm, "isInstance", roo__isInstance, 2);
   register.registerBuiltinFunc(rvm, "exit", roo__exit, 1);
   register.registerBuiltinFunc(rvm, "assert", roo__assert, 2);
-  // register.registerBuiltinFunc(rvm, "dir", roo__dir, 1); todo
+  register.registerBuiltinFunc(rvm, "dir", roo__dir, 1); // todo
 };

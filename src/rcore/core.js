@@ -14,6 +14,7 @@ const dictType = require("./types/dict");
 const listType = require("./types/list");
 const stringType = require("./types/string");
 const numType = require("./types/num");
+const boolType = require("./types/bool");
 
 // builtin defs  | <builtins module> *global
 const resultDef = require("./defs/result");
@@ -48,6 +49,7 @@ exports.initAll = function (rvm) {
   // initialize all objects
   functions.init(rvm);
   numType.init(rvm);
+  boolType.init(rvm);
   stringType.init(rvm); // string def is created here
   listType.init(rvm);
   dictType.init(rvm);
