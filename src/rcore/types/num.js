@@ -85,16 +85,6 @@ function float__init(rvm, arity) {
 }
 
 exports.init = function (rvm) {
-  // Bool
-  register.registerBuiltinDef(rvm, "Bool", [
-    {
-      methodName: "__init__",
-      methodExec: bool__init,
-      methodArity: 1,
-      defaultParamsCount: 1,
-      defaults: [{ pos: 1, val: mod.createFalseVal() }],
-    },
-  ]);
 
   // Int
   register.registerBuiltinDef(rvm, "Int", [
