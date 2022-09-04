@@ -2,7 +2,9 @@
 
 roo is a (work in progress) simplistic programming language for fun and reminiscence.
 
-![](https://github.com/ziord/roo/blob/master/examples/roo-test.mov)
+https://user-images.githubusercontent.com/36954191/188338536-11b66aef-55b6-49f7-92a4-c6e3446c0135.mov
+
+
 
 ### Example
 ```rust
