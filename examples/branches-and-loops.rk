@@ -1,0 +1,63 @@
+/*
+* Module demonstrating some branching and looping in roo
+*/
+
+// # Branching #
+
+let tmp = "ball";
+if tmp.length() > 5 {
+    show 'wow!';
+} else if tmp.length() % 2 != 1 {
+    show 'hmm';
+} else {
+    show 'duh';
+}
+
+// single statements
+if 0 show 'bad';
+else show 'good';
+
+// conditional expressions
+let p = tmp[-1] == 'k' ? 12 : 'base' + tmp;
+show p;
+
+
+// # Loops #
+
+// for-loops
+
+// iterator-for (for-in)
+for letter in tmp {
+    show letter;
+}
+
+// regular-for
+let list = [];
+for (let x = 1; x < 5; x++) {
+    list.append(x);
+}
+show list;
+
+// while loop
+while list.length() > 0 {
+    show list.pop();
+}
+show list;
+
+// do-while loop
+do {
+    list += ['foo'];
+    if list.length() >= 5 or list.length() % 2 == 0 {
+        break;
+    }
+} while true;
+show list;
+
+// unbounded loop
+list.clear();
+let i = 0;
+loop {
+    list.append(i++);
+    if list.length() > 10 break;
+}
+show list;

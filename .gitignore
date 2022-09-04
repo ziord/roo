@@ -3,7 +3,6 @@
 grammars
 src/tests
 tmp
-examples
 node_modules
 t1.rk
 t2.rk
@@ -13,5 +12,5 @@ tt.rk
 tx.rk
 crash.rk
 *.roo
-*.txt
+dump.txt
 test.js

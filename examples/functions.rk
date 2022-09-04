@@ -1,0 +1,81 @@
+/*
+* Module demonstrating functions in roo
+*/
+
+//# regular functions
+
+fn print3(a, b, c) {
+    show a, b, c;
+}
+
+print3('abc', 'xyz', 2**7);
+
+
+//# functions can have default parameters
+
+fn print3(a=1, b=2, c=3) {
+    show a, b, c;
+}
+print3();
+
+
+//# functions can be variadic
+
+fn printFake(a, b, c=2, ...args) {
+    show a, b, c, args;
+}
+
+printFake('x', 'y');
+printFake('x', 'y', 'z', 1, 2, 3, 4, 5);
+
+fn print(...args) {
+    import * as io from io;
+    io.print(...args); // can't use spread operator with show, hence io.print
+}
+
+print('this is a sentence', 'this is a string', 1, 2, "\n");
+
+
+//# anonymous/lambda functions
+
+let square = (t) => t ** 2;
+show square(25);
+
+let square2 = (t) => {
+    t ** 2;     // last expression is returned implicitly
+};
+
+show square2(12);
+
+
+//# functions are first class objects!
+
+fn apply(func, ...args) {
+    func(...args);
+}
+
+fn myFn (num) {
+    show square2(num);
+}
+
+apply(myFn, 4);
+
+
+//# functions can be decorated
+
+fn loud(func) {
+    // this lambda is returned implicitly
+    (...args) =>  {
+        show $"Calling... {func}";
+        let const result = func(...args);
+        show $"Done calling... {func}";
+        show $"Result is: {result}";
+    };
+}
+
+@loud
+fn someHeavyComputation(n) {
+    n ** n;
+}
+
+someHeavyComputation(10);

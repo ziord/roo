@@ -1,0 +1,44 @@
+/*
+* Module demonstrating error handling in roo
+*/
+
+// panicking
+fn fun(num) {
+    let const type = typeOf(num);
+    if type != "int" {
+        panic Exception($"Expected int type, got '{type}'");
+    }
+    return num * num;
+}
+
+// result model
+fn nice(str) {
+    let const type = typeOf(str);
+    if type != "string" {
+        return Err($"Expected string type, got '{type}'");
+    }
+    Ok(num * num);
+}
+
+// using fun()
+try {
+    show fun(5);
+} except (e) {
+    show e;
+} else {
+    show 'Pheew!';
+}
+
+// using nice
+let res = nice(5);
+show res, res.isOk() ? res.unwrap() : res.unwrapError();
+
+// roo does not enforce the Result model,
+// if you unwrap() an Err it would cause a RuntimeError, same goes for Ok
+// that is, the ffl would trigger a runtime error
+// show Ok(5).unwrapError();
+// show Err('foo').unwrap();
+
+// ensure to check the result type before using unwrap*
+show Ok(5).isOk();
+show Err('29').isErr();

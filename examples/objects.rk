@@ -1,0 +1,37 @@
+/*
+* Module demonstrating objects in roo
+*/
+
+// definition
+define Animal {
+    fn __init__(name) {
+        ref.name = name;
+    }
+
+    fn __str__() {
+        $"{name}";
+    }
+
+    static fn describe() {
+        "Just your regular animal";
+    }
+}
+
+// derivation
+derive Dog -> Animal {
+    fn bark () {
+        show $"{ref.name} is barking... whoof! whoof!";
+    }
+
+    fn describe() {
+        show "Animal stuff: " + deref->describe();
+    }
+}
+
+// instance
+let fin = Dog("Fin");
+
+// method calls
+fin.bark();
+show Animal.describe();
+fin.describe();

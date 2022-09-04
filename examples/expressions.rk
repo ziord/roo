@@ -1,0 +1,55 @@
+/*
+* Module demonstrating expressions in roo
+*/
+
+// numeric expressions
+show 5 > 6 * 3 - 3;
+show 10 >> 2 & 1 | 5 + ~2;
+
+//# assignment expressions
+let x = 5, y;
+y = (x += 5);
+show "y is:", y, "x is:", x;
+
+//# interpolated string expressions
+show $"x * y is {x * y}, x ** y is {x ** y}, {$'Nested x ** y: {x ** y }!'}";
+
+//# postfix, prefix expressions
+show ++x, x--, ++y;
+
+//# index expressions
+let list = 1..10;
+show list[-1], list[0];
+
+list[0] = 11..20..2;
+show list[0][-1];
+
+let dict = !{'a': 1, 'b': 2};
+show dict['a'];
+
+dict['c'] = !{'list': list, 'y': 20};
+show dict['c'], dict;
+show [...dict, ...list];
+
+//# conditional expressions
+show "testing".split('').length() > 5 ? "alright" : "bad";
+
+// iife -> immediately invoked function expressions
+show ((t) => t ** 3)(10);
+
+// method access expressions
+list.each(element => {
+    show "Item:", element;
+});
+
+list = 1..10;
+show list.filter(el => el % 2 != 0);
+
+// or | and expressions
+let ok = list or dict;
+show ok;
+ok = list and dict;
+show ok, true and false, true or false;
+
+// pipe expressions
+show "123.56" |> Float + 20;

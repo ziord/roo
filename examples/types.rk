@@ -1,0 +1,50 @@
+/*
+* Module demonstrating some core data types in roo
+*/
+
+// variable declarations
+let item;
+let item1, item2, item3;
+let const foo;
+// foo = 5;  // errs, const
+let a = 1.5;
+let const b = 1, c = 3;
+
+
+// int, float
+let int = 5;
+let float = 10.6;
+show int, float;
+int = Int('1212');
+float = Float('212.1212');
+show int, float;
+
+// string
+let string = "types";
+show string == String('types');
+show string.length();
+show string.split("");
+// interpolated strings
+string = $"This is a simple string and a list {string.split('')}"; // $"{expr}"
+show string;
+
+// lists
+let list = [1, 2, 3, 4, 5];
+let list2 = 1..5;
+let list3 = List(1, 2, 3, 4, 5);
+show list, list2, list3;
+show list == list2 == list3;
+
+// dicts
+let dict = !{'a': 1, 'b': 2, 'c': 3};
+show dict, dict.length();
+show dict.keys(), dict.values(), dict.entries();
+show Dict();
+
+// boolean
+let a = true, d = false;
+show a, d, typeOf(a);
+
+// null
+let myNull = null;
+show myNull, typeOf(myNull);
