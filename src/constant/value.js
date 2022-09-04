@@ -23,7 +23,14 @@ const VAL_INT = 0,
   VAL_BFUNCTION = 12,
   VAL_MODULE = 13;
 
-const builtin_obj_types = [VAL_STRING, VAL_LIST, VAL_DICT];
+const builtin_obj_types = [
+  VAL_BOOLEAN,
+  VAL_INT,
+  VAL_FLOAT,
+  VAL_STRING,
+  VAL_LIST,
+  VAL_DICT,
+];
 
 /*
  * primitive types occupy this.value directly,
@@ -710,10 +717,6 @@ function createFunctionVal(func) {
   return new Value(VAL_FUNCTION, func);
 }
 
-function createDefVal(name) {
-  return new Value(VAL_DEFINITION, new DefObject(name));
-}
-
 function createInstanceVal(defObj) {
   return new Value(VAL_INSTANCE, new InstanceObject(defObj));
 }
@@ -757,7 +760,6 @@ module.exports = {
   createFunctionObj,
   createFunctionVal,
   createListVal,
-  createDefVal,
   createInstanceVal,
   createBoundMethodVal,
   createBFunctionVal,

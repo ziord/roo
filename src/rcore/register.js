@@ -1,6 +1,7 @@
 "use strict";
 
 const mod = require("../constant/value");
+const { appendDefData } = require("./types/def");
 
 /*
  ***************
@@ -27,6 +28,7 @@ exports.registerBuiltinDef = function (
   dname = mod.getStringObj(dname, rvm.internedStrings);
   // create def object
   const def = new mod.DefObject(dname, baseDef);
+  appendDefData(methodData);
   methodData.forEach((data) => {
     // obtain an interned StringObject for the string methodName
     data.methodName = mod.getStringObj(data.methodName, rvm.internedStrings);
@@ -108,6 +110,7 @@ exports.registerCustomDef = function (rvm, dname, methodData, baseDef, module) {
   dname = mod.getVMStringObj(dname, rvm);
   // create def object
   const def = new mod.DefObject(dname, baseDef);
+  appendDefData(methodData);
   methodData.forEach((data) => {
     // obtain an interned StringObject for the string methodName
     data.methodName = mod.getStringObj(data.methodName, rvm.internedStrings);

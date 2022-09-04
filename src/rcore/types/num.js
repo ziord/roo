@@ -85,7 +85,6 @@ function float__init(rvm, arity) {
 }
 
 exports.init = function (rvm) {
-
   // Int
   register.registerBuiltinDef(rvm, "Int", [
     {

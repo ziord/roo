@@ -13,7 +13,6 @@ const {
   createFalseVal,
   createListVal,
   createDictVal,
-  createDefVal,
   createInstanceVal,
   createBoundMethodVal,
   createFunctionVal,
@@ -24,6 +23,7 @@ const {
   VAL_BOOLEAN,
   VAL_NULL,
 } = require("../constant/value");
+const { createDefVal } = require("../rcore/types/def");
 const {
   $ADD,
   $SUBTRACT,
@@ -1659,7 +1659,7 @@ VM.prototype.run = function (externCaller) {
         break;
       }
       case $DEF: {
-        const defVal = createDefVal(this.readString());
+        const defVal = createDefVal(this.readString(), this);
         this.pushStack(defVal);
         break;
       }

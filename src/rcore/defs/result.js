@@ -119,7 +119,7 @@ function result__matchResult(rvm, arity) {
   const resultStr = mod.getVMStringObj("Result", rvm);
   const statusStr = mod.getVMStringObj("$__status", rvm);
   const valStr = mod.getVMStringObj("$__value", rvm);
-  // call Result() directly, instead of invoking it's init:
+  // call Result() directly, instead of invoking its init:
   // create a new Result instance and wrap around the function call
   // return value
   const newInstance = mod.createInstanceVal(
