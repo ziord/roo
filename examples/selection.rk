@@ -1,0 +1,30 @@
+/*
+* Module demonstrating selection in Roo
+*/
+
+fn select(value) {
+    case value {
+        of 1, 2, 4, 5 -> show 5;
+        of !{'a': 5} -> show 'found';
+        of  * -> show 'Default reached';
+    }
+}
+
+
+
+select('test');
+select(1);
+select(2);
+select(!{a: 5});
+
+fn checkEvenOrOdd(value) {
+    case {
+        of value % 2 == 0 -> show "Even";
+        of value % 2 == 1 -> show "Odd";
+        of * -> show "Unreachable";
+    }
+}
+
+checkEvenOrOdd(2);
+checkEvenOrOdd(3);
+checkEvenOrOdd(13);

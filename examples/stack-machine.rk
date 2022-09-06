@@ -1,0 +1,246 @@
+/*
+Stack machine using on the Shunting-yard algorithm 
+https://en.wikipedia.org/wiki/Shunting-yard_algorithm
+*/
+
+define Token {
+    fn __init__(value, type) {
+        ref.value = value;
+        ref.type = type;
+    }
+    
+    fn __str__() {
+        $"Token(val='{ref.value}', type={ref.type})";
+    }
+}
+
+let const TokenType =  !{
+        "PLUS": "PLUS", "MINUS": "MINUS", 
+        "DIV": "DIV", "MULT": "MULT", 
+        "NUM": "NUM", "LPAREN": "LPAREN",
+        "RPAREN": "RPAREN", "EOF": "EOF"
+    };
+
+
+define Lexer {
+    fn __init__(expr) {
+        assert(expr, "Expected expression");
+        ref.src = expr;
+        ref.startIndex = ref.currentIndex = 0;
+        ref.current = ref.src[ref.currentIndex];
+    }
+    
+    fn __iter__() {
+        ref;
+    }
+    
+    fn __next__() {
+        let token = ref.getToken();
+        let res = !{
+            value: token, 
+            done: token.type == TokenType.EOF
+        };
+        res;
+    }
+    
+    fn createToken(type, value=null) {
+        let const v = value == null 
+            ? ref.src.slice(ref.startIndex, ref.currentIndex)
+            : value;
+        Token(v, type);
+    }
+    
+    fn move() {
+        if ref.currentIndex >= ref.src.length() {
+            return "";
+        } else {
+            ref.current = ref.src[ref.currentIndex++];
+        }
+    }
+    
+    fn peek(n = 0) {
+        try {
+            return ref.src[ref.currentIndex + n];
+        } except (e) {
+            return "";
+        }
+    }
+    
+    fn atEnd() {
+        return ref.currentIndex >= ref.src.length(); 
+    }
+    
+    fn lexNumber(start){
+        let hasDot = 0;
+        if start == "." {
+            hasDot++;
+        }
+        while ref.peek().isDigit() or ref.peek() == "."  {
+            if ref.peek() == "." {
+                hasDot++;
+            }
+            ref.move();
+        }
+        if hasDot and hasDot > 1 {
+            panic "Invalid number found";
+        }
+        return ref.createToken(TokenType.NUM);
+    }
+    
+    fn skipWhitespace() {
+        loop {
+            case ref.peek() {
+                of ' ', '\t', '\n', '\r' -> ref.move();
+                of * -> break;
+            }
+        }
+    }
+    
+    fn getToken() {
+        ref.skipWhitespace();
+        ref.startIndex = ref.currentIndex;
+        let const ch = ref.peek();
+        ref.move();
+        if ch == "" {
+            return ref.createToken(TokenType.EOF);
+        }
+        if ch.isDigit() or (ch == "." and ref.peek().isDigit()) {
+            return ref.lexNumber(ch);
+        }
+        case ch {
+            of '+' -> return ref.createToken(TokenType.PLUS, ch);
+            of '-' -> return ref.createToken(TokenType.MINUS, ch);
+            of '/' -> return ref.createToken(TokenType.DIV, ch);
+            of '*' -> return ref.createToken(TokenType.MULT, ch);
+            of '(' -> return ref.createToken(TokenType.LPAREN, ch);
+            of ')' -> return ref.createToken(TokenType.RPAREN, ch);
+            of * -> panic Exception($"Unknown token: '{ch}'");
+        }
+    }
+}
+
+define StackMachine {
+    fn __init__(expr, debug=false) {
+        ref.lexer = Lexer(expr);
+        ref.outStack = [];
+        ref.opStack = [];
+        ref.valStack = [];
+        ref.debug = debug;
+    }
+    
+    fn getPrec(op) {
+        case op.type {
+            of TokenType.PLUS -> return 1;
+            of TokenType.MINUS -> return 1;
+            of TokenType.DIV -> return 2;
+            of TokenType.MULT -> return 2;
+            of TokenType.LPAREN -> return 0;
+            of * -> panic $"Unknown operator type: {op}";
+        }
+    }
+    
+    fn next()  {
+        ref.lexer.getToken();
+    }
+    
+    fn pushVal(val) {
+        ref.outStack.append(val);
+    }
+    
+    fn popVal() {
+        ref.outStack.pop();
+    }
+    
+    fn popOp() {
+        ref.opStack.pop();
+    }
+    
+    fn pushOp(op) {
+        // handle '('
+        if op.type == TokenType.LPAREN {
+            ref.opStack.append(op);
+            return;
+        }
+        let recent = ref.opStack.last();
+        // handle ')'
+        if op.type == TokenType.RPAREN {
+            while recent and recent.type != TokenType.LPAREN {
+                ref.pushVal(ref.popOp());
+                assert(
+                    ref.opStack, 
+                    "Parenthesis mismatch (missing left parenthesis)"
+                );
+                recent = ref.opStack.last();
+            }
+            if recent and recent.type == TokenType.LPAREN {
+                ref.popOp();
+                return;
+            } else {
+                panic "Parenthesis mismatch (missing left parenthesis)";
+            }
+        }
+        let const prec = ref.getPrec(op);
+        while recent and ref.getPrec(recent) >= prec {
+            ref.popOp(); // pop recent
+            ref.pushVal(recent);
+            recent = ref.opStack.last();
+        }
+        ref.opStack.append(op);
+    }
+    
+    fn transform() {
+        loop {
+            let tok = ref.next();
+            case tok.type {
+                of TokenType.EOF -> break;
+                of TokenType.NUM -> ref.pushVal(tok);
+                of * -> ref.pushOp(tok);
+            }
+        }
+        if ref.opStack {
+            assert(
+                ref.opStack.last().type != TokenType.LPAREN, 
+                "Unclosed parenthesis"
+            );
+            ref.opStack.reverse().each(tok => ref.pushVal(tok));
+        }
+    }
+    
+    fn execute() {
+        ref.transform();
+        if ref.debug ref.outStack.each(tok => {show tok;});
+        let i = 0;
+        for (; i < ref.outStack.length(); ++i) {
+            let const tok = ref.outStack[i];
+            case tok.type {
+                of TokenType.NUM -> ref.valStack.append(tok);
+                of * -> {
+                    assert(
+                        ref.valStack.length() >= 2, 
+                        $"Cannot apply operator {tok.type} to available operands"
+                    );
+                    let b = ref.valStack.pop();
+                    let a = ref.valStack.pop();
+                    let const first = Float(a instanceof Token ? a.value : a);
+                    let const second = Float(b instanceof Token ? b.value : b);
+                    case tok.type {
+                        of TokenType.PLUS -> 
+                            ref.valStack.append(first + second);
+                        of TokenType.MINUS -> 
+                            ref.valStack.append(first - second);
+                        of TokenType.DIV -> 
+                            ref.valStack.append(first / second);
+                        of TokenType.MULT -> 
+                            ref.valStack.append(first * second);
+                        of * -> 
+                            panic $"Unknown operator type: {tok.type}";
+                    }
+                }
+            }
+        }
+        show ref.valStack.pop();
+    }
+}
+ 
+let const sm = StackMachine("8 * ((26.9 - 5) / 10) / 10", false);
+sm.execute();

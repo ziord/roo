@@ -1,0 +1,13 @@
+/*
+* Fizzbuzz implementation in Roo
+*/
+
+
+for i in 1..100 {
+    case {
+        of i % 3 == 0 and i % 5 == 0 -> show "FizzBuzz";
+        of i % 3 == 0 -> show "Fizz";
+        of i % 5 == 0 -> show "Buzz";
+        of * -> show i;
+    }
+}
